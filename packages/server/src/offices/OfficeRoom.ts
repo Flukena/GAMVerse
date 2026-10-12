@@ -156,6 +156,11 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       if (payload !== "" && !KENNEY_PET_IDS.includes(payload as (typeof KENNEY_PET_IDS)[number])) return;
       player.petId = payload;
     });
+    this.onMessage("dance", (client: Client, payload: unknown) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || typeof payload !== "object" || payload === null || !("toggle" in payload) || payload.toggle !== true) return;
+      player.dancing = !player.dancing && !player.vehicleId && !player.sittingPropId;
+    });
     this.onMessage("weapon-equip", (client: Client, payload: unknown) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || (payload !== "" && (typeof payload !== "string" || !KENNEY_BLASTER_IDS.includes(payload as KenneyBlasterId)))) return;
@@ -285,6 +290,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       // footprint and gets rejected until the player reverses out of it.
       this.refreshVehicleCollisionWorlds();
       player.sittingPropId = "";
+      player.dancing = false;
       this.pendingSitsBySessionId.delete(client.sessionId);
       player.rotation = player.vehiclePropRotation;
       // Manual driving remains mounted while idle. The player exits explicitly
@@ -302,6 +308,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       if (Math.abs(x) > this.world.width / 2 || Math.abs(z) > this.world.depth / 2) return;
       this.stopFollowing(client.sessionId, "stopped", false);
       player.sittingPropId = "";
+      player.dancing = false;
       this.pendingSitsBySessionId.delete(client.sessionId);
       const previousVehicle = player.vehicleId;
       const previousVehicleMode = player.vehicleMode;
@@ -462,7 +469,10 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       this.movementInputs.set(client.sessionId, { x: payload.x, z: payload.z, sprint: payload.sprint === true, receivedAt: now });
       if (payload.x !== 0 || payload.z !== 0) {
         const player = this.state.players.get(client.sessionId);
-        if (player) player.sittingPropId = "";
+        if (player) {
+          player.sittingPropId = "";
+          player.dancing = false;
+        }
         this.stopFollowing(client.sessionId, "stopped");
         if (this.autoRoutes.delete(client.sessionId)) {
           client.send("auto-move-status", { status: "cancelled" });
@@ -550,6 +560,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     player.vehiclePropZ = spawn.z;
     player.vehiclePropRotation = 0;
     player.sittingPropId = "";
+    player.dancing = false;
     player.weaponId = "";
     player.status = "available";
     player.presence = "online";

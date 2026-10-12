@@ -310,6 +310,7 @@ export const PlayerState = schema(
     vehiclePropZ: t.float32(),
     vehiclePropRotation: t.float32(),
     sittingPropId: t.string(),
+    dancing: t.boolean(),
     weaponId: t.string(),
     status: t.string(),
     presence: t.string(),

@@ -11,7 +11,7 @@ import { createOfficePropGeometry } from "./officePropGeometry";
 
 type CharacterModelId = KenneyCharacterId | `custom-${string}`;
 type PlayerStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
-type PlayerSnapshot = { x: number; z: number; rotation: number; displayName: string; characterId: CharacterModelId; petId?: string; weaponId?: KenneyBlasterId | ""; vehicleId?: string; vehicleMode?: "" | "manual" | "auto"; vehiclePropId?: string; vehiclePropX?: number; vehiclePropZ?: number; vehiclePropRotation?: number; sittingPropId?: string; status?: PlayerStatus };
+type PlayerSnapshot = { x: number; z: number; rotation: number; displayName: string; characterId: CharacterModelId; petId?: string; weaponId?: KenneyBlasterId | ""; vehicleId?: string; vehicleMode?: "" | "manual" | "auto"; vehiclePropId?: string; vehiclePropX?: number; vehiclePropZ?: number; vehiclePropRotation?: number; sittingPropId?: string; dancing?: boolean; status?: PlayerStatus };
 type RoomPortalVisual = { roomKey: string; name: string; x: number; z: number; isLocked: boolean };
 type BlasterVector = { x: number; y: number; z: number };
 type BlasterShotEvent = { shooterSessionId: string; start: BlasterVector; end: BlasterVector };
@@ -287,7 +287,11 @@ interface AvatarAnimationState {
   walkAction?: THREE.AnimationAction;
   runAction?: THREE.AnimationAction;
   sitAction?: THREE.AnimationAction;
+  danceAction?: THREE.AnimationAction;
   currentAction?: THREE.AnimationAction;
+  danceBasePosition?: THREE.Vector3;
+  danceBaseRotation?: THREE.Euler;
+  proceduralDanceActive?: boolean;
 }
 
 function disposeAvatar(avatar: THREE.Group) {
@@ -2606,6 +2610,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             const walkAction = walkClip ? mixer.clipAction(walkClip) : undefined;
             const runAction = runClip ? mixer.clipAction(runClip) : undefined;
             const sitAction = chairSitClip ? mixer.clipAction(chairSitClip) : undefined;
+            const danceClip = gltf.animations.find((clip) => /dance/i.test(clip.name));
+            const danceAction = danceClip ? mixer.clipAction(danceClip) : undefined;
             const currentAction = idleAction ?? walkAction;
             currentAction?.play();
             avatarAnimations.set(id, {
@@ -2618,7 +2624,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               walkAction,
               runAction,
               sitAction,
+              danceAction,
               currentAction,
+              danceBasePosition: model.position.clone(),
+              danceBaseRotation: model.rotation.clone(),
             });
             fallbackParts.delete(id);
           }).catch((error: unknown) => {
@@ -2685,7 +2694,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         const animation = avatarAnimations.get(id);
         if (animation?.mixer) {
           const idleEnabled = idleAnimationsEnabledRef.current;
-          const targetAction = sittingProp
+          const dancing = Boolean(player.dancing) && !moving && !sittingProp && !vehicleId;
+          const targetAction = dancing && animation.danceAction
+            ? animation.danceAction
+            : sittingProp
             ? animation.sitAction ?? (idleEnabled ? animation.idleAction : undefined)
             : moving ? (sprinting ? animation.runAction ?? animation.walkAction : animation.walkAction) : idleEnabled ? animation.idleAction : undefined;
           if (targetAction !== animation.currentAction) {
@@ -2694,22 +2706,35 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             animation.currentAction = targetAction;
           }
           animation.mixer.update(delta * motionScale);
+          if (dancing && !animation.danceAction) {
+            const phase = performance.now() / 1000;
+            animation.model.position.y = (animation.danceBasePosition?.y ?? 0) + Math.abs(Math.sin(phase * 7)) * 0.09;
+            animation.model.rotation.y = (animation.danceBaseRotation?.y ?? 0) + Math.sin(phase * 3.5) * 0.22;
+            animation.model.rotation.z = (animation.danceBaseRotation?.z ?? 0) + Math.sin(phase * 7) * 0.07;
+            animation.proceduralDanceActive = true;
+          } else if (animation.proceduralDanceActive && animation.danceBasePosition && animation.danceBaseRotation) {
+            animation.model.position.copy(animation.danceBasePosition);
+            animation.model.rotation.copy(animation.danceBaseRotation);
+            animation.proceduralDanceActive = false;
+          }
         } else if (animation?.proceduralMotion) {
+          const dancing = Boolean(player.dancing) && !moving && !sittingProp && !vehicleId;
           const animateIdle = idleAnimationsEnabledRef.current;
-          animation.phase += delta * (moving ? (sprinting ? 12 : 8) : animateIdle ? 2.4 : 0) * motionScale;
-          animation.model.position.y = moving || animateIdle ? Math.sin(animation.phase) * (moving ? 0.018 : 0.018) : 0;
-          animation.model.rotation.z = moving ? Math.sin(animation.phase * 0.5) * 0.06 : animateIdle ? Math.sin(animation.phase) * 0.012 : 0;
+          animation.phase += delta * (dancing ? 7 : moving ? (sprinting ? 12 : 8) : animateIdle ? 2.4 : 0) * motionScale;
+          animation.model.position.y = dancing ? Math.abs(Math.sin(animation.phase)) * 0.09 : moving || animateIdle ? Math.sin(animation.phase) * 0.018 : 0;
+          animation.model.rotation.z = dancing ? Math.sin(animation.phase * 0.5) * 0.12 : moving ? Math.sin(animation.phase * 0.5) * 0.06 : animateIdle ? Math.sin(animation.phase) * 0.012 : 0;
+          animation.model.rotation.y = dancing ? Math.sin(animation.phase * 0.5) * 0.22 : 0;
           const fallback = fallbackParts.get(id);
           if (fallback) {
             const stride = moving ? Math.sin(animation.phase) : 0;
             fallback.body.position.y = 0.07 + (moving ? Math.max(0, Math.sin(animation.phase)) * 0.045 : animateIdle ? Math.max(0, Math.sin(animation.phase)) * 0.012 : 0);
-            fallback.body.rotation.z = stride * 0.035;
-            fallback.head.rotation.z = moving ? -stride * 0.035 : animateIdle ? Math.sin(animation.phase) * 0.012 : 0;
+            fallback.body.rotation.z = dancing ? Math.sin(animation.phase) * 0.14 : stride * 0.035;
+            fallback.head.rotation.z = dancing ? -Math.sin(animation.phase) * 0.12 : moving ? -stride * 0.035 : animateIdle ? Math.sin(animation.phase) * 0.012 : 0;
             const strideAmount = sprinting ? 0.42 : 0.24;
-            fallback.leftArm.rotation.x = moving ? stride * strideAmount : 0;
-            fallback.rightArm.rotation.x = moving ? -stride * strideAmount : 0;
-            fallback.leftLeg.rotation.x = moving ? -stride * strideAmount * 1.15 : 0;
-            fallback.rightLeg.rotation.x = moving ? stride * strideAmount * 1.15 : 0;
+            fallback.leftArm.rotation.x = dancing ? Math.sin(animation.phase) * 0.75 : moving ? stride * strideAmount : 0;
+            fallback.rightArm.rotation.x = dancing ? -Math.sin(animation.phase) * 0.75 : moving ? -stride * strideAmount : 0;
+            fallback.leftLeg.rotation.x = dancing ? Math.sin(animation.phase * 0.5) * 0.35 : moving ? -stride * strideAmount * 1.15 : 0;
+            fallback.rightLeg.rotation.x = dancing ? -Math.sin(animation.phase * 0.5) * 0.35 : moving ? stride * strideAmount * 1.15 : 0;
           }
         }
         const responsiveness = id === localId ? 0.38 : 0.16;
