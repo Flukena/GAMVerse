@@ -5,7 +5,7 @@ import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { loadCharacterAsset, type LoadedCharacterAsset } from "../assets/characterAssets";
-import { loadGltfAsset, loadObjAsset } from "../assets/loaders";
+import { loadGltfAsset, loadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
 import { createOfficePropGeometry } from "./officePropGeometry";
 
@@ -21,6 +21,7 @@ interface Props {
   cameraRoomKey?: string;
   playersRef: MutableRefObject<Map<string, PlayerSnapshot>>;
   localSessionIdRef: MutableRefObject<string | null>;
+  speakingUsernamesRef?: MutableRefObject<Set<string>>;
   heldKeysRef?: MutableRefObject<Set<string>>;
   cameraYawRef: MutableRefObject<number>;
   roomPortals?: RoomPortalVisual[];
@@ -309,9 +310,9 @@ function disposeAvatar(avatar: THREE.Group) {
 function disposeObjectResources(root: THREE.Object3D) {
   root.traverse((object) => {
     if (object instanceof THREE.Mesh) {
-      object.geometry.dispose();
+      if (!object.userData.sharedRoomPropGeometry) object.geometry.dispose();
       const materials = Array.isArray(object.material) ? object.material : [object.material];
-      materials.forEach((material) => {
+      if (!object.userData.sharedRoomPropMaterials) materials.forEach((material) => {
         if ("map" in material && material.map instanceof THREE.Texture) material.map.dispose();
         material.dispose();
       });
@@ -337,6 +338,41 @@ function makeNameTag(name: string) {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
   sprite.scale.set(1.8, 0.45, 1);
   sprite.position.y = 1.85;
+  return sprite;
+}
+
+function makeSpeakingBubble() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 144;
+  canvas.height = 104;
+  const context = canvas.getContext("2d")!;
+  context.fillStyle = "rgba(8, 48, 67, 0.16)";
+  context.beginPath();
+  context.roundRect(13, 8, 118, 68, 28);
+  context.fill();
+  context.fillStyle = "#ffffff";
+  context.strokeStyle = "#d9f3f6";
+  context.lineWidth = 4;
+  context.beginPath();
+  context.roundRect(8, 3, 118, 68, 28);
+  context.fill();
+  context.stroke();
+  context.beginPath();
+  context.moveTo(81, 67);
+  context.lineTo(95, 67);
+  context.lineTo(84, 83);
+  context.closePath();
+  context.fill();
+  context.fillStyle = "#12839a";
+  context.font = "800 38px Arial, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("···", 67, 37);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false }));
+  sprite.scale.set(0.64, 0.46, 1);
+  sprite.position.set(0, 2.8, 0);
+  sprite.renderOrder = 12;
+  sprite.visible = false;
   return sprite;
 }
 
@@ -401,7 +437,7 @@ function makeUserStatusBadge(status: PlayerStatus) {
   context.fillText(symbols[status], 48, 50);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false }));
   sprite.scale.set(0.43, 0.43, 1);
-  sprite.position.set(0.72, 2.18, 0);
+  sprite.position.set(0, 2.35, 0);
   sprite.renderOrder = 11;
   sprite.userData.playerStatus = status;
   return sprite;
@@ -480,10 +516,7 @@ function loadObjModel(name: string, onLoad: (object: THREE.Group) => void, onErr
     if (model) { onLoad(model); return; }
   }
   const paths = roomPropAssetPaths(catalog ?? { asset: name });
-  const loaded = paths.format === "gltf"
-    ? loadGltfAsset(paths.modelUrl).then((gltf) => gltf.scene as THREE.Group)
-    : loadObjAsset(paths.materialUrl, paths.modelUrl);
-  void loaded.then(onLoad, onError);
+  void loadRoomPropAsset(paths).then(onLoad, onError);
 }
 
 function normalizeProp(object: THREE.Object3D, height: number) {
@@ -599,7 +632,7 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
-export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, heldKeysRef, cameraYawRef, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onBlasterShot, onWeaponEquip, blasterEventsRef, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
+export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onBlasterShot, onWeaponEquip, blasterEventsRef, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compassRoseRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -711,7 +744,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     host.appendChild(map2dCanvas);
     map2dCanvasRef.current = map2dCanvas;
     const map2dCameraState = new Float64Array(32);
-    const map2dPlayerState = new Map<string, { x: number; z: number; displayName: string; local: boolean }>();
+    const map2dPlayerState = new Map<string, { x: number; z: number; displayName: string; local: boolean; speaking: boolean }>();
     let map2dWasVisible = false;
     // Compact shooter-style first-person viewmodel. The arms are simple
     // stylized shapes; the blaster itself is Kenney's CC0 model.
@@ -1626,6 +1659,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const roomPortalMeshes = new Map<string, { root: THREE.Group; signature: string }>();
     const avatars = new Map<string, THREE.Group>();
     const avatarStatusBadges = new Map<string, THREE.Sprite>();
+    const avatarSpeakingBubbles = new Map<string, THREE.Sprite>();
     const localFireRaycaster = new THREE.Raycaster();
     fireFirstPerson = () => {
       if (!firstPersonViewRef.current || !campusOverviewRef.current || mapEditModeRef.current || buildModeRef.current) return;
@@ -1776,7 +1810,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         "car-sedan": "/assets/kenney/car-kit/Models/GLB format/sedan.glb",
         "car-hatchback-sports": "/assets/kenney/car-kit/Models/GLB format/hatchback-sports.glb",
         "car-taxi": "/assets/kenney/car-kit/Models/GLB format/taxi.glb",
-        "car-kart-oopi": "/assets/kenney/car-kit/Models/GLB format/kart-oopi.glb",
+        "car-kart-oopi": "/assets/kenney/toy-car-kit/Models/GLB format/vehicle-racer-low.glb",
       };
       return loadKenneyModel(vehicleModels, vehicleId, models[vehicleId] ?? models["car-sedan"]!);
     };
@@ -2492,6 +2526,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           avatars.delete(id);
           heldWeaponBySessionId.delete(id);
           avatarCharacterIds.delete(id);
+          avatarStatusBadges.delete(id);
+          avatarSpeakingBubbles.delete(id);
           fallbackParts.delete(id);
           avatar = undefined;
         }
@@ -2516,6 +2552,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           const statusBadge = makeUserStatusBadge(userStatus);
           avatar.add(statusBadge);
           avatarStatusBadges.set(id, statusBadge);
+          const speakingBubble = makeSpeakingBubble();
+          avatar.add(speakingBubble);
+          avatarSpeakingBubbles.set(id, speakingBubble);
           scene.add(avatar);
           avatars.set(id, avatar);
           avatarCharacterIds.set(id, characterId);
@@ -2596,6 +2635,13 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           avatar.add(statusBadge);
           avatarStatusBadges.set(id, statusBadge);
         }
+        let speakingBubble = avatarSpeakingBubbles.get(id);
+        if (!speakingBubble) {
+          speakingBubble = makeSpeakingBubble();
+          avatar.add(speakingBubble);
+          avatarSpeakingBubbles.set(id, speakingBubble);
+        }
+        speakingBubble.visible = Boolean(speakingUsernamesRef?.current.has(player.displayName.trim().toLocaleLowerCase()));
 
         const requestedWeapon = player.weaponId && KENNEY_BLASTER_IDS.includes(player.weaponId) ? player.weaponId : "";
         let heldWeapon = heldWeaponBySessionId.get(id);
@@ -2787,6 +2833,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           heldWeaponBySessionId.delete(id);
           avatarCharacterIds.delete(id);
           avatarStatusBadges.delete(id);
+          avatarSpeakingBubbles.delete(id);
           positions.delete(id);
         }
       }
@@ -2841,6 +2888,19 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         campusZoomRef.current = CAMPUS_MIN_ZOOM_IN;
         campusCharacterFocusedRef.current = true;
         focusCharacterRequestRef.current = false;
+      }
+      // Manual camera pan/orbit detaches the view from the local character.
+      // In third-person character mode, walking should resume following the
+      // avatar so the player never keeps moving off-screen. Keep the 2D map,
+      // first-person view, and editing modes under their existing controls.
+      const heldKeys = heldKeysRef?.current;
+      const walkingInput = Boolean(heldKeys && [
+        "KeyW", "KeyA", "KeyS", "KeyD",
+        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+      ].some((key) => heldKeys.has(key)));
+      const mapIsIn2dMode = campusOverviewRef.current && campusZoomRef.current >= CAMPUS_2D_ZOOM_THRESHOLD;
+      if (walkingInput && !firstPersonViewRef.current && !mapIsIn2dMode && !mapEditModeRef.current && !buildModeRef.current) {
+        campusCharacterFocusedRef.current = true;
       }
       const characterTarget = !campusOverviewRef.current && local
         ? local.position.clone().add(new THREE.Vector3(0, 0.95, 0))
@@ -3053,6 +3113,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
                   ghostMaterial.depthWrite = false;
                   return ghostMaterial;
                 });
+                object.userData.sharedRoomPropMaterials = false;
               });
               placementGhostModel.add(model);
             };
@@ -3093,10 +3154,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         if (overviewPlayers.size !== map2dPlayerState.size) map2dDirty = true;
         for (const [id, player] of overviewPlayers) {
           const local = id === localId;
+          const speaking = Boolean(speakingUsernamesRef?.current.has(player.displayName.trim().toLocaleLowerCase()));
           const cached = map2dPlayerState.get(id);
-          if (!cached || cached.x !== player.x || cached.z !== player.z || cached.displayName !== player.displayName || cached.local !== local) map2dDirty = true;
-          if (cached) { cached.x = player.x; cached.z = player.z; cached.displayName = player.displayName; cached.local = local; }
-          else map2dPlayerState.set(id, { x: player.x, z: player.z, displayName: player.displayName, local });
+          if (!cached || cached.x !== player.x || cached.z !== player.z || cached.displayName !== player.displayName || cached.local !== local || cached.speaking !== speaking) map2dDirty = true;
+          if (cached) { cached.x = player.x; cached.z = player.z; cached.displayName = player.displayName; cached.local = local; cached.speaking = speaking; }
+          else map2dPlayerState.set(id, { x: player.x, z: player.z, displayName: player.displayName, local, speaking });
         }
         for (const id of map2dPlayerState.keys()) if (!overviewPlayers.has(id)) map2dPlayerState.delete(id);
         const ctx = map2dCanvas.getContext("2d");
@@ -3133,6 +3195,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             const initials = words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0]?.slice(0, 2) ?? "?");
             ctx.beginPath(); ctx.arc(x, z, radius, 0, Math.PI * 2); ctx.fillStyle = id === localId ? "#159bb4" : "#51647c"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
             ctx.fillStyle = "#fff"; ctx.font = "700 9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(initials.toUpperCase(), x, z);
+            if (speakingUsernamesRef?.current.has(player.displayName.trim().toLocaleLowerCase())) {
+              const bubbleX = x + 12; const bubbleY = z - 16;
+              ctx.beginPath(); ctx.roundRect(bubbleX - 14, bubbleY - 9, 30, 17, 8); ctx.fillStyle = "#fff"; ctx.fill(); ctx.strokeStyle = "#c5e9ef"; ctx.lineWidth = 1; ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(bubbleX - 2, bubbleY + 7); ctx.lineTo(bubbleX + 4, bubbleY + 7); ctx.lineTo(bubbleX, bubbleY + 12); ctx.closePath(); ctx.fillStyle = "#fff"; ctx.fill();
+              ctx.fillStyle = "#12839a"; ctx.font = "800 12px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("···", bubbleX + 1, bubbleY - 1);
+            }
           }
         }
         map2dWasVisible = true;
@@ -3192,9 +3260,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       furniture.clear();
       campusRoot.traverse((object) => {
         if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
+          if (!object.userData.sharedRoomPropGeometry) object.geometry.dispose();
           const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material) => material.dispose());
+          if (!object.userData.sharedRoomPropMaterials) materials.forEach((material) => material.dispose());
         } else if (object instanceof THREE.Sprite) {
           object.material.map?.dispose();
           object.material.dispose();

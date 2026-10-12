@@ -57,6 +57,10 @@ const userStatusOptions: Array<{ value: UserStatus; label: string; icon: string;
   { value: "coffee-break", label: "Coffee break", icon: "☕", color: "#8a5a35" },
 ];
 type PlayerSnapshot = { x: number; z: number; rotation: number; displayName: string; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean };
+
+function voiceParticipantUsername(participant: { name?: string; identity: string }) {
+  return (participant.name?.trim() || participant.identity.replace(/-[a-f0-9]{16}$/i, "")).toLocaleLowerCase();
+}
 type FollowAlert = { followerSessionId: string; followerName: string };
 type WaveAlert = { senderSessionId: string; senderName: string };
 type BlasterVector = { x: number; y: number; z: number };
@@ -255,6 +259,8 @@ export function OfficeApp() {
   const proximityLiveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
   const proximityRoomGroupRef = useRef<string | null>(null);
   const proximityAudioTracksRef = useRef(new Map<string, ProximityAudioTrack>());
+  const speakingUsernamesRef = useRef(new Set<string>());
+  const speakingByVoiceRoomRef = useRef(new Map<LiveKitRoomInstance, Set<string>>());
   const proximityJoiningGroupRef = useRef<string | null>(null);
   const audioOutputRef = useRef<HTMLDivElement>(null);
   const inboundAudioMutedRef = useRef(false);
@@ -342,7 +348,8 @@ export function OfficeApp() {
   const [managedOfficeName, setManagedOfficeName] = useState("");
   const [officeMembers, setOfficeMembers] = useState<OfficeMember[]>([]);
   const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
-  const [copiedMeetingOfficeId, setCopiedMeetingOfficeId] = useState<string | null>(null);
+  const [inviteLinkBusyOfficeId, setInviteLinkBusyOfficeId] = useState<string | null>(null);
+  const [inviteLinkFeedback, setInviteLinkFeedback] = useState<{ officeId: string; message: string } | null>(null);
   const [meetingZoneActive, setMeetingZoneActive] = useState(false);
   const [meetingZoneId, setMeetingZoneId] = useState<string | null>(null);
   const [activeCameraRoomKey, setActiveCameraRoomKey] = useState("lobby");
@@ -417,7 +424,7 @@ export function OfficeApp() {
   const [inviteUsername, setInviteUsername] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "user">("user");
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authMode, setAuthMode] = useState<"login" | "register">(() => getInviteRouteToken(window.location.pathname) ? "register" : "login");
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authPasswordVisible, setAuthPasswordVisible] = useState(false);
@@ -738,6 +745,7 @@ export function OfficeApp() {
   const leaveMeetingVoice = () => {
     const room = liveKitRoomRef.current;
     liveKitRoomRef.current = null;
+    if (room) clearVoiceRoomSpeakers(room);
     setVoiceConnected(false); setVoiceMuted(false);
     setCameraEnabled(false); setScreenShareEnabled(false);
     setVideoTiles((tiles) => tiles.filter((tile) => !tile.local));
@@ -747,6 +755,7 @@ export function OfficeApp() {
   const leaveProximityVoice = () => {
     const room = proximityLiveKitRoomRef.current;
     proximityLiveKitRoomRef.current = null;
+    if (room) clearVoiceRoomSpeakers(room);
     proximityRoomGroupRef.current = null;
     proximityJoiningGroupRef.current = null;
     proximityAudioTracksRef.current.clear();
@@ -759,11 +768,33 @@ export function OfficeApp() {
   const leavePrivateVoice = () => {
     const room = privateLiveKitRoomRef.current;
     privateLiveKitRoomRef.current = null;
+    if (room) clearVoiceRoomSpeakers(room);
     privateRoomZoneIdRef.current = null;
     setPrivateVoiceConnected(false); setPrivateVoiceMuted(false);
     setCameraEnabled(false); setScreenShareEnabled(false);
     setVideoTiles((tiles) => tiles.filter((tile) => !tile.local));
     if (room) void room.disconnect();
+  };
+
+  const rebuildSpeakingUsernames = () => {
+    const next = new Set<string>();
+    for (const usernames of speakingByVoiceRoomRef.current.values()) {
+      for (const username of usernames) next.add(username);
+    }
+    speakingUsernamesRef.current.clear();
+    for (const username of next) speakingUsernamesRef.current.add(username);
+  };
+
+  const updateVoiceRoomSpeakers = (room: LiveKitRoomInstance) => {
+    const usernames = new Set(room.activeSpeakers.map(voiceParticipantUsername).filter(Boolean));
+    if (usernames.size) speakingByVoiceRoomRef.current.set(room, usernames);
+    else speakingByVoiceRoomRef.current.delete(room);
+    rebuildSpeakingUsernames();
+  };
+
+  const clearVoiceRoomSpeakers = (room: LiveKitRoomInstance) => {
+    speakingByVoiceRoomRef.current.delete(room);
+    rebuildSpeakingUsernames();
   };
 
   const syncLocalVideoTiles = (room: LiveKitRoomInstance) => {
@@ -825,6 +856,7 @@ export function OfficeApp() {
       room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
       proximityLiveKitRoomRef.current = room;
       proximityRoomGroupRef.current = groupId;
+      room.on(RoomEvent.ActiveSpeakersChanged, () => updateVoiceRoomSpeakers(room!));
       room.on(RoomEvent.LocalTrackPublished, () => syncLocalVideoTiles(room!));
       room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideoTiles(room!));
       room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
@@ -849,10 +881,12 @@ export function OfficeApp() {
           proximityLiveKitRoomRef.current = null;
           proximityRoomGroupRef.current = null;
           proximityAudioTracksRef.current.clear();
+          clearVoiceRoomSpeakers(room!);
           setProximityVoiceConnected(false); setProximityVoiceMuted(false);
         }
       });
       await room.connect(result.url, result.token);
+      updateVoiceRoomSpeakers(room);
       if (appPausedRef.current || meetingZoneActiveRef.current || proximityGroupIdRef.current !== groupId) { await room.disconnect(); return; }
       await room.localParticipant.setMicrophoneEnabled(true);
       if (appPausedRef.current) { await room.localParticipant.setMicrophoneEnabled(false); await room.disconnect(); return; }
@@ -889,6 +923,7 @@ export function OfficeApp() {
       room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
       privateLiveKitRoomRef.current = room;
       privateRoomZoneIdRef.current = zoneId;
+      room.on(RoomEvent.ActiveSpeakersChanged, () => updateVoiceRoomSpeakers(room!));
       room.on(RoomEvent.LocalTrackPublished, () => syncLocalVideoTiles(room!));
       room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideoTiles(room!));
       room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
@@ -902,10 +937,12 @@ export function OfficeApp() {
       });
       room.on(RoomEvent.TrackUnsubscribed, (track) => { track.detach().forEach((element) => element.remove()); setVideoTiles((tiles) => tiles.filter((tile) => tile.track !== track)); });
       room.on(RoomEvent.Disconnected, () => {
+        clearVoiceRoomSpeakers(room!);
         if (privateLiveKitRoomRef.current === room) privateLiveKitRoomRef.current = null;
         setPrivateVoiceConnected(false); setPrivateVoiceMuted(false);
       });
       await room.connect(result.url, result.token);
+      updateVoiceRoomSpeakers(room);
       if (appPausedRef.current || meetingZoneActiveRef.current || privateZoneIdRef.current !== zoneId) { await room.disconnect(); return; }
       await room.localParticipant.setMicrophoneEnabled(true);
       if (appPausedRef.current) { await room.localParticipant.setMicrophoneEnabled(false); await room.disconnect(); return; }
@@ -938,6 +975,7 @@ export function OfficeApp() {
       const { Room: LiveKitRoom, RoomEvent, Track } = await import("livekit-client");
       room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
       liveKitRoomRef.current = room;
+      room.on(RoomEvent.ActiveSpeakersChanged, () => updateVoiceRoomSpeakers(room!));
       room.on(RoomEvent.LocalTrackPublished, () => syncLocalVideoTiles(room!));
       room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideoTiles(room!));
       room.on(RoomEvent.TrackSubscribed, (track) => {
@@ -953,10 +991,12 @@ export function OfficeApp() {
       });
       room.on(RoomEvent.TrackUnsubscribed, (track) => { track.detach().forEach((element) => element.remove()); setVideoTiles((tiles) => tiles.filter((tile) => tile.track !== track)); });
       room.on(RoomEvent.Disconnected, () => {
+        clearVoiceRoomSpeakers(room!);
         if (liveKitRoomRef.current === room) liveKitRoomRef.current = null;
         setVoiceConnected(false); setVoiceMuted(false);
       });
       await room.connect(result.url, result.token);
+      updateVoiceRoomSpeakers(room);
       if (appPausedRef.current) { await room.disconnect(); return; }
       await room.localParticipant.setMicrophoneEnabled(true);
       if (appPausedRef.current) { await room.localParticipant.setMicrophoneEnabled(false); await room.disconnect(); return; }
@@ -1836,6 +1876,25 @@ const toggleMeetingMute = async () => {
     finally { setLobbyBusy(false); }
   };
 
+  const createAndCopyOfficeInviteLink = async (officeId: string) => {
+    setInviteLinkBusyOfficeId(officeId);
+    setInviteLinkFeedback(null);
+    try {
+      const response = await fetch(`${endpoint}/offices/${officeId}/invites`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "user" }),
+      });
+      const result = await response.json() as { invite?: { token?: string }; error?: string };
+      if (!response.ok || !result.invite?.token) throw new Error(result.error ?? "Could not create an invite link.");
+      await navigator.clipboard.writeText(`${window.location.origin}/join/${result.invite.token}`);
+      setInviteLinkFeedback({ officeId, message: "Invite link copied · one use · expires in 7 days" });
+    } catch (cause) {
+      setInviteLinkFeedback({ officeId, message: cause instanceof Error ? cause.message : "Could not copy the invite link." });
+    } finally {
+      setInviteLinkBusyOfficeId(null);
+    }
+  };
+
   const saveOfficeName = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!managingOffice) return;
@@ -2274,7 +2333,7 @@ const toggleMeetingMute = async () => {
           <span className="brand-mark">G</span>
           <span className="eyebrow">{maintainerPortal ? "PLATFORM OPERATIONS" : "YOUR WORKSPACE"}</span>
           <h1>{maintainerPortal ? "Maintainer sign in" : authMode === "login" ? "Welcome back" : "Create your account"}</h1>
-          <p>{maintainerPortal ? "Sign in to manage GAMVerse and its offices." : "Sign in with your office username and password."}</p>
+          <p>{inviteLinkToken ? "You’ve been invited to an office. Create an account or sign in to join." : maintainerPortal ? "Sign in to manage GAMVerse and its offices." : "Sign in with your office username and password."}</p>
           <label>Username<input data-tutorial-target="auth-username" autoComplete="username" required minLength={3} maxLength={24} value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} /></label>
           {authMode === "register" && <label>Email (optional)<input type="email" autoComplete="email" maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>}
           <label>Password<div className="auth-password-field"><input data-tutorial-target="auth-password" type={authPasswordVisible ? "text" : "password"} autoComplete={authMode === "login" ? "current-password" : "new-password"} required minLength={8} maxLength={128} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /><button className="password-visibility-toggle" type="button" aria-label={authPasswordVisible ? "Hide password" : "Show password"} aria-pressed={authPasswordVisible} onClick={() => setAuthPasswordVisible((visible) => !visible)}>{authPasswordVisible ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 5.2A10.8 10.8 0 0112 5c5 0 8.8 4.4 10 7-.4.9-1.2 2-2.3 3M6.2 6.3C3.9 7.7 2.5 10 2 12c1.2 0 2-.2 2.9-.5" /></svg>}</button></div></label>
@@ -2350,8 +2409,8 @@ const toggleMeetingMute = async () => {
               {offices.length === 0 ? <p className="empty-people">No offices yet. Create one or accept an invite.</p> : <div className="office-grid">{offices.map((office) => <article className="office-tile" key={office.id}>
                 <div><span className="live-indicator" /><span className="office-role">{office.role}</span></div><h3>{office.name}</h3><p>Owner: {office.ownerUsername}</p>
                 <button className="lobby-button primary" disabled={lobbyBusy} onClick={() => selectOffice(office)}>Enter office</button>
-                <button className="lobby-button" disabled={lobbyBusy} onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/meeting/${office.id}`).then(() => setCopiedMeetingOfficeId(office.id)); }}>Copy meeting link</button>
-                {copiedMeetingOfficeId === office.id && <p className="invite-notice">Link copied · office members only</p>}
+                {(["owner", "admin", "maintainer"] as string[]).includes(office.role) ? <button className="lobby-button" disabled={lobbyBusy || inviteLinkBusyOfficeId !== null} onClick={() => void createAndCopyOfficeInviteLink(office.id)}>{inviteLinkBusyOfficeId === office.id ? "Creating invite…" : "Copy invite link"}</button> : <p className="invite-notice">Ask an office admin to invite someone.</p>}
+                {inviteLinkFeedback?.officeId === office.id && <p className="invite-notice" role="status">{inviteLinkFeedback.message}</p>}
                 {["owner", "admin", "maintainer"].includes(office.role) && <button className="lobby-button office-manage-button" disabled={lobbyBusy} onClick={() => void openOfficeManager(office)}>Manage office</button>}
               </article>)}</div>}
             </section>}
@@ -2452,7 +2511,7 @@ const toggleMeetingMute = async () => {
   return (
     <main className={`app-shell${characterPanelOpen ? " character-panel-open" : ""}`}>
       <PageTutorial page={meetingEntry ? "meeting" : "office"} username={authUser.username} />
-      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused} idleAnimationsEnabled={idleAnimationsEnabled} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} />
+      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused} idleAnimationsEnabled={idleAnimationsEnabled} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} />
       {blasterHitNotice !== null && <div className="blaster-hit-feedback" key={blasterHitNotice} aria-hidden="true" />}
       <header className="topbar">
         <div className="topbar-side topbar-side-left">
@@ -2478,6 +2537,11 @@ const toggleMeetingMute = async () => {
           <h1>{activeOffice.name}</h1>
           <div className="room-meta"><span className="live-indicator" /> {activeOffice.role} <span className="meta-divider">·</span> Owner: {activeOffice.ownerUsername}</div>
           <div className="office-space-card" aria-label="Office space"><span>200 × 250 m</span><span>One shared space</span></div>
+          {(["owner", "admin", "maintainer"] as string[]).includes(activeOffice.role) ? <button type="button" className="workspace-share-button" aria-label="Create and copy office invite link" title="Create and copy invite link" disabled={inviteLinkBusyOfficeId !== null} onClick={() => void createAndCopyOfficeInviteLink(activeOffice.id)}>
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10.5 10.5 7a3 3 0 0 1 4.2 4.2l-2 2"/><path d="m13 9.5-3.5 3.5a3 3 0 0 1-4.2-4.2l2-2"/></svg>
+            <span>{inviteLinkBusyOfficeId === activeOffice.id ? "Creating…" : "Copy invite link"}</span>
+          </button> : <p className="workspace-share-notice">Ask an office admin to invite someone.</p>}
+          {inviteLinkFeedback?.officeId === activeOffice.id && <p className="workspace-share-notice" role="status">{inviteLinkFeedback.message}</p>}
         </section>}
         {activeLeftTab === "people" && <section id="people-panel" className="sidebar-people" aria-label="People in the office">
         <div className="card-heading"><div><span className="eyebrow">IN THE SPACE</span><h2>People <span>{playerCount}</span></h2></div></div>
@@ -2745,4 +2809,5 @@ const toggleMeetingMute = async () => {
     </main>
   );
 }
+
 

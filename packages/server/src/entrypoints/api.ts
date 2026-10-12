@@ -15,6 +15,31 @@ const app: any = express();
 const server = createServer(app);
 configureApi();
 
+function summarizeOfficeProps(value: unknown) {
+  const props = typeof value === "object" && value !== null && "props" in value && Array.isArray((value as { props?: unknown }).props)
+    ? (value as { props: unknown[] }).props
+    : [];
+  const assetCounts: Record<string, number> = {};
+  let malformedAssetCount = 0;
+  let omittedAssetKinds = 0;
+  for (const prop of props) {
+    if (typeof prop !== "object" || prop === null || !("asset" in prop) || typeof prop.asset !== "string" || prop.asset.length === 0) {
+      malformedAssetCount += 1;
+      continue;
+    }
+    const asset = prop.asset.slice(0, 128);
+    if (asset in assetCounts) assetCounts[asset] += 1;
+    else if (Object.keys(assetCounts).length < 40) assetCounts[asset] = 1;
+    else omittedAssetKinds += 1;
+  }
+  return {
+    propCount: props.length,
+    malformedAssetCount,
+    omittedAssetKinds,
+    assetCounts: JSON.stringify(assetCounts),
+  };
+}
+
 function configureApi() {
       app.use(originGuard(clientOrigins, ["/auth", "/offices", "/office-invites", "/maintainer", "/media"], ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]));
       app.use((request: AuthRequest, response: AuthResponse, next: Next) => {
@@ -196,9 +221,17 @@ function configureApi() {
         if (!session) { response.status(401).json({ error: "Authentication required." }); return; }
         try {
           response.setHeader("Cache-Control", "no-store");
-          response.json(await getOfficeProps(session.username, request.params.officeId, session.role === "maintainer"));
+          const snapshot = await getOfficeProps(session.username, request.params.officeId, session.role === "maintainer");
+          logServerEvent("api", "office.props.loaded", {
+            officeId: request.params.officeId,
+            username: session.username,
+            configVersion: snapshot.configVersion,
+            ...summarizeOfficeProps(snapshot),
+          });
+          response.json(snapshot);
         } catch (error) {
           const message = errorMessage(error);
+          logServerError("api", "office.props.load.failed", error, { officeId: request.params.officeId, username: session.username });
           response.status(message.includes("access denied") ? 403 : 503).json({ error: message });
         }
       });
@@ -207,16 +240,34 @@ function configureApi() {
         if (!session) { response.status(401).json({ error: "Authentication required." }); return; }
         try {
           const result = await saveOfficeProps(session.username, request.params.officeId, request.body, session.role === "maintainer");
+          logServerEvent("api", "office.props.saved", {
+            officeId: request.params.officeId,
+            username: session.username,
+            configVersion: result.configVersion,
+            ...summarizeOfficeProps(result),
+          });
           await notifyRealtime("offices/map", { officeId: request.params.officeId });
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
         } catch (error) {
           if (error instanceof OfficePropsVersionConflict) {
+            logServerEvent("api", "office.props.save.conflict", {
+              officeId: request.params.officeId,
+              username: session.username,
+              requestedConfigVersion: typeof request.body?.configVersion === "number" ? request.body.configVersion : null,
+              currentConfigVersion: error.latest.configVersion,
+              ...summarizeOfficeProps(request.body),
+            });
             response.setHeader("Cache-Control", "no-store");
             response.status(409).json({ error: error.message, ...error.latest });
             return;
           }
           const message = errorMessage(error);
+          logServerError("api", "office.props.save.failed", error, {
+            officeId: request.params.officeId,
+            username: session.username,
+            ...summarizeOfficeProps(request.body),
+          });
           response.status(message.includes("access denied") ? 403 : message.includes("PostgreSQL") ? 503 : 400).json({ error: message });
         }
       });
