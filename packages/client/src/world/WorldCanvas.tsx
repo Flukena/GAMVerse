@@ -713,7 +713,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     campusCharacterFocusedRef.current = true;
     focusCharacterRequestRef.current = true;
     thirdPersonCloseRequestRef.current = true;
-    alignThirdPersonBehindRef.current = true;
+    const walkingKeys = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+    const isWalking = Boolean(heldKeysRef?.current && walkingKeys.some((key) => heldKeysRef.current.has(key)));
+    // Room-entry alignment changes camera-relative movement directions. Keep
+    // the current yaw while a key is held so walking backward across a zone
+    // boundary cannot reverse the input basis and bounce between its edges.
+    alignThirdPersonBehindRef.current = !isWalking;
     cameraElevationRef.current = activeRoomKey === "lobby" ? DEFAULT_CAMPUS_CAMERA_ELEVATION : DEFAULT_TPP_CAMERA_ELEVATION;
     cameraPositionRef.current = null;
   }, [activeRoomKey, cameraRoomKey]);
