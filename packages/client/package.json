@@ -9,6 +9,7 @@
   "dependencies": {
     "@colyseus/sdk": "^0.18.1",
     "@gammyverse/shared": "workspace:*",
+    "@sapphi-red/web-noise-suppressor": "^0.4.1",
     "livekit-client": "2.22.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

@@ -293,9 +293,12 @@ button:focus-visible { outline: 3px solid #287a59; outline-offset: 3px; }
 .settings-section-content h3 { margin: 6px 0; color: #34463b; font: 700 17px "Manrope", sans-serif; }
 .settings-intro { margin: 0 0 15px; color: #819087; font-size: 11px; line-height: 1.5; }
 .permission-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid #e8eee9; }
-.permission-row > div { display: grid; gap: 4px; }
+.permission-row > div { display: grid; min-width: 0; gap: 4px; }
 .permission-row strong { color: #44564b; font-size: 11px; }
 .permission-row small { color: #89968e; font-size: 9px; text-transform: capitalize; }
+.permission-row .noise-reduction-status { text-transform: none; }
+.permission-row .noise-reduction-status.enabled { color: #3b8a60; }
+.permission-row .noise-reduction-status.fallback { color: #9a6b25; text-transform: none; overflow-wrap: anywhere; }
 .permission-row .permission-state.granted { color: #3b8a60; }
 .permission-row .permission-state.denied { color: #ad584c; }
 .permission-row .lobby-button { min-height: 32px; padding: 0 10px; font-size: 10px; }
