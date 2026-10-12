@@ -3,6 +3,7 @@ import { defineServer } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { getSession } from "../auth/service.js";
 import { databaseIsReady, initializeDatabase } from "../infra/db.js";
+import { logServerError, logServerEvent } from "../infra/logger.js";
 import { OfficeRoom, closeOfficeRooms, kickOfficeMember, officeRoomDefinition } from "../offices/OfficeRoom.js";
 import { getOfficeRole } from "../offices/repository.js";
 import { createMeetingAudioToken, createPrivateVoiceToken, createProximityAudioToken, liveKitIdentity } from "../media/service.js";
@@ -26,6 +27,7 @@ const server = defineServer({
       if (!authorizedServiceCall(request)) { response.sendStatus(401); return; }
       const officeId = request.body?.officeId;
       if (typeof officeId !== "string") { response.status(400).json({ error: "Office id is required." }); return; }
+      logServerEvent("realtime", "office.close.requested", { officeId });
       closeOfficeRooms(officeId); response.sendStatus(204);
     });
     app.post("/internal/offices/map", async (request: AuthRequest, response: AuthResponse) => {
@@ -33,12 +35,16 @@ const server = defineServer({
       const officeId = request.body?.officeId;
       if (typeof officeId !== "string") { response.status(400).json({ error: "Office id is required." }); return; }
       try { await OfficeRoom.updateMap(officeId); response.sendStatus(204); }
-      catch { response.status(503).json({ error: "Could not refresh office map." }); }
+      catch (error) {
+        logServerError("realtime", "office.map.refresh.failed", error, { officeId });
+        response.status(503).json({ error: "Could not refresh office map." });
+      }
     });
     app.post("/internal/members/kick", (request: AuthRequest, response: AuthResponse) => {
       if (!authorizedServiceCall(request)) { response.sendStatus(401); return; }
       const officeId = request.body?.officeId; const username = request.body?.username;
       if (typeof officeId !== "string" || typeof username !== "string") { response.status(400).json({ error: "Office id and username are required." }); return; }
+      logServerEvent("realtime", "office.member.kick.requested", { officeId, username });
       kickOfficeMember(officeId, username); response.sendStatus(204);
     });
       app.post("/media/meeting-token", async (request: AuthRequest, response: AuthResponse) => {
@@ -92,7 +98,7 @@ const server = defineServer({
 });
 
 server.listen(port);
-console.info("Office realtime service listening on " + port);
+logServerEvent("realtime", "service.listening", { port, nodeEnv: process.env.NODE_ENV ?? "development" });
 
 function authorizedServiceCall(request: AuthRequest) {
   const supplied = Buffer.from(request.header("x-internal-service-token") ?? "");

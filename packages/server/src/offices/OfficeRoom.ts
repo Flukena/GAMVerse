@@ -7,6 +7,7 @@ import { getOfficeRole, markOfficeActive } from "./repository.js";
 import { liveKitIdentity, revokeMeetingParticipant, revokePrivateVoiceParticipant, revokeProximityParticipants } from "../media/service.js";
 import { recordOfficeActivity } from "./activity.js";
 import { database } from "../infra/db.js";
+import { logServerError, logServerEvent } from "../infra/logger.js";
 
 type InputState = { x: number; z: number; sprint: boolean; receivedAt: number };
 type Position = { x: number; z: number };
@@ -23,6 +24,19 @@ type PendingSit = { propId: string; startedAt: number; x: number; z: number };
 const activityRefreshIntervalMs = 60_000;
 const autoSitDelayMs = 3_000;
 const autoSitSeatRadius = 3;
+
+function worldGeometrySignature(layout: RoomLayout) {
+  const byId = <T extends { id: string }>(items: T[]) => [...items].sort((first, second) => first.id.localeCompare(second.id));
+  return JSON.stringify({
+    dimensions: layout.dimensions ?? null,
+    props: byId(layout.props).map(({ id, asset, x, z, rotation, width, depth, collision, elevation }) => [id, asset, x, z, rotation, width, depth, collision, elevation ?? null]),
+    zones: byId(layout.zones).map(({ id, kind, x, z, width, depth }) => [id, kind, x, z, width, depth]),
+    walls: byId(layout.walls).map(({ id, axis, x, z, length, thickness, height, color, asset }) => [id, axis, x, z, length, thickness, height, color ?? null, asset ?? null]),
+    doors: byId(layout.doors).map(({ id, wallId, offset, width, kind, leaves, asset }) => [id, wallId, offset, width, kind ?? null, leaves ?? null, asset ?? null]),
+    roadways: byId(layout.roadways ?? []).map(({ id, x, z, width, depth, kind }) => [id, x, z, width, depth, kind]),
+    spawnPoint: layout.spawnPoint ?? null,
+  });
+}
 
 export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }> {
   private static roomsByOffice = new Map<string, Set<OfficeRoom>>();
@@ -88,6 +102,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.maxClients = maxClients;
     this.patchRate = 50;
     this.maxMessagesPerSecond = 40;
+    logServerEvent("realtime", "office.room.created", { roomId: this.roomId, officeId: this.officeId, maxClients });
 
     this.onMessage("request-spatial-state", (client: Client) => {
       client.send("proximity", { sessionIds: [...(this.proximityBySessionId.get(client.sessionId) ?? [])] });
@@ -149,7 +164,9 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.onMessage("user-status", (client: Client, payload: unknown) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || typeof payload !== "object" || payload === null || !("status" in payload) || typeof payload.status !== "string" || !USER_STATUSES.includes(payload.status as UserStatus)) return;
+      const previousStatus = player.status;
       player.status = payload.status;
+      if (previousStatus !== player.status) logServerEvent("realtime", "office.status.changed", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: this.usernamesBySessionId.get(client.sessionId), previousStatus, status: player.status });
       if (player.status === "do-not-disturb" || player.status === "in-meeting") {
         this.stopFollowing(client.sessionId, "stopped");
         this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
@@ -491,6 +508,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     ]);
     for (const existingSessionId of existingSessionIds) {
       if (existingSessionId === client.sessionId) continue;
+      logServerEvent("realtime", "office.session.replaced", { roomId: this.roomId, officeId: options.officeId, username: session.username, replacedSessionId: existingSessionId, replacementSessionId: client.sessionId });
       this.clients.find((existing) => existing.sessionId === existingSessionId)?.leave(4001, "This account connected from another session.");
       this.state.players.delete(existingSessionId);
       this.vehicleWorldsBySessionId.delete(existingSessionId);
@@ -548,10 +566,12 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.updateMeetingMembership();
     this.updatePrivateMembership();
     this.updateProximity();
+    logServerEvent("realtime", "office.client.joined", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: auth.username, clientCount: this.clients.length });
   }
 
-  onDrop(client: Client) {
+  onDrop(client: Client, code?: number) {
     const player = this.state.players.get(client.sessionId);
+    logServerEvent("realtime", "office.client.dropped", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: this.usernamesBySessionId.get(client.sessionId), code, clientCount: this.clients.length });
     if (player) player.presence = "away";
     this.stopFollowing(client.sessionId, "stopped");
     for (const [followerSessionId, follow] of this.activeFollowsBySessionId) {
@@ -566,7 +586,13 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.updateMeetingMembership();
     this.updatePrivateMembership();
     this.updateProximity();
-    this.allowReconnection(client, 20);
+    try {
+      void this.allowReconnection(client, 20).catch((error) => logServerError("realtime", "office.client.reconnect.failed", error, { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId }));
+    } catch (error) {
+      // A room that is already shutting down cannot accept a reconnect. Record
+      // the shutdown edge instead of letting an expected disposal throw obscure it.
+      logServerEvent("realtime", "office.client.reconnect.unavailable", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, reason: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   onReconnect(client: Client) {
@@ -594,10 +620,12 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.updateMeetingMembership();
     this.updatePrivateMembership();
     this.updateProximity();
+    logServerEvent("realtime", "office.client.reconnected", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: this.usernamesBySessionId.get(client.sessionId), clientCount: this.clients.length });
   }
 
-  onLeave(client: Client) {
+  onLeave(client: Client, code?: number) {
     const username = this.usernamesBySessionId.get(client.sessionId);
+    logServerEvent("realtime", "office.client.left", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username, code, clientCount: this.clients.length });
     this.releaseMapEditLock(client.sessionId);
     const player = this.state.players.get(client.sessionId);
     if (player) player.presence = "away";
@@ -637,6 +665,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   onDispose() {
+    logServerEvent("realtime", "office.room.disposed", { roomId: this.roomId, officeId: this.officeId, remainingClients: this.clients.length });
     const rooms = OfficeRoom.roomsByOffice.get(this.officeId);
     rooms?.delete(this);
     if (rooms?.size === 0) OfficeRoom.roomsByOffice.delete(this.officeId);
@@ -667,6 +696,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   static async updateMap(officeId: string) {
+    const rooms = OfficeRoom.roomsByOffice.get(officeId) ?? new Set<OfficeRoom>();
+    logServerEvent("realtime", "office.map.refresh.started", { officeId, roomCount: rooms.size });
     const result = await database?.query<{ config: unknown; office_props: unknown | null }>(
       `SELECT maps.config, office_props.props AS office_props
        FROM app_offices offices
@@ -676,7 +707,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     );
     const rawConfig = result?.rows[0]?.config ?? { version: 1, layout: { version: 1, props: [], zones: [], walls: [], doors: [] } };
     const config = OfficeRoom.mergeSavedProps(rawConfig, result?.rows[0]?.office_props ?? null);
-    for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) room.applyMapConfig(config);
+    for (const room of rooms) room.applyMapConfig(config);
+    logServerEvent("realtime", "office.map.refresh.completed", { officeId, roomCount: rooms.size });
   }
 
   private static mergeSavedProps(config: unknown, rawProps: unknown | null) {
@@ -687,16 +719,19 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private applyMapConfig(config: unknown) {
+    const nextLayout = readRoomLayout(config);
+    const worldGeometryChanged = worldGeometrySignature(this.mapLayout) !== worldGeometrySignature(nextLayout);
     this.mapConfig = config;
-    this.mapLayout = readRoomLayout(config);
+    this.mapLayout = nextLayout;
     this.world = campusWorldFromConfig(config);
-    this.worldVersion += 1;
+    if (worldGeometryChanged) this.worldVersion += 1;
     this.lockedZoneIds = new Set([...this.lockedZoneIds].filter((id) => this.mapLayout.zones.some((zone) => zone.id === id)));
+    let relocatedPlayers = 0;
     for (const [sessionId, player] of this.state.players) {
       if (player.vehicleId && player.vehiclePropId) {
         this.vehicleWorldsBySessionId.set(sessionId, campusWorldFromConfig(config, new Set([player.vehiclePropId])));
       }
-      player.worldVersion = this.worldVersion;
+      if (worldGeometryChanged) player.worldVersion = this.worldVersion;
       if (player.sittingPropId && !this.mapLayout.props.some((prop) => {
         const seat = parseRoomPropSeatReference(player.sittingPropId);
         return prop.id === seat.propId && roomPropSeatAnchors(prop).some((anchor) => anchor.index === seat.seatIndex);
@@ -706,15 +741,17 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         const seat = parseRoomPropSeatReference(pendingSit.propId);
         return prop.id === seat.propId && roomPropSeatAnchors(prop).some((anchor) => anchor.index === seat.seatIndex);
       })) this.pendingSitsBySessionId.delete(sessionId);
-      if (!isPositionWalkable({ x: player.x, z: player.z }, this.world)) {
+      if (worldGeometryChanged && !isPositionWalkable({ x: player.x, z: player.z }, this.world)) {
         const spawn = findSafeSpawn(
           [...this.state.players.entries()].filter(([otherId]) => otherId !== sessionId).map(([, other]) => ({ x: other.x, z: other.z })),
           this.world,
         );
         player.x = spawn.x;
         player.z = spawn.z;
+        relocatedPlayers += 1;
       }
     }
+    logServerEvent("realtime", "office.map.applied", { roomId: this.roomId, officeId: this.officeId, worldGeometryChanged, worldVersion: this.worldVersion, playerCount: this.state.players.size, relocatedPlayers });
     this.broadcast("office-map", { config });
     this.updatePrivateMembership();
     this.updateProximity();

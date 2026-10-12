@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { changeAccountPassword, completePasswordReset, createPasswordResetLink, getSession, listAccountsForMaintainer, loginAccount, pruneInactiveAccounts, registerAccount, revokeSession, updateAccountCharacter } from "../auth/service.js";
 import { deleteUserCharacterModel, getCharacterModel, listUserCharacterModels, uploadUserCharacterModel } from "../auth/characterModels.js";
 import { databaseIsReady, initializeDatabase } from "../infra/db.js";
+import { logServerError, logServerEvent } from "../infra/logger.js";
 import { listOfficeActivity, startOfficeActivityCleanup } from "../offices/activity.js";
 import { acceptOfficeInvite, claimOfficeDeskZone, createOffice, createOfficeInvite, deleteOffice, getOfficeMapLayout, getOfficeMembers, getOfficeProps, getOfficeRole, listInvites, listOffices, OfficeMapVersionConflict, OfficePropsVersionConflict, pruneInactiveOffices, removeOfficeMember, saveOfficeMapLayout, saveOfficeProps, setOfficeMemberRole, unclaimOfficeDeskZone, updateOfficeName } from "../offices/repository.js";
 import { errorMessage, jsonBodyParser, originGuard, requestSession, sessionFromCookie, type HttpRequest as AuthRequest, type HttpResponse as AuthResponse, type Next } from "../http/middleware.js";
@@ -225,10 +226,12 @@ function configureApi() {
         try {
           const result = await claimOfficeDeskZone(session.username, request.params.officeId, request.params.zoneId);
           await notifyRealtime("offices/map", { officeId: request.params.officeId });
+          logServerEvent("api", "desk.claimed", { officeId: request.params.officeId, zoneId: request.params.zoneId, username: session.username });
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
         } catch (error) {
           const message = errorMessage(error);
+          logServerError("api", "desk.claim.failed", error, { officeId: request.params.officeId, zoneId: request.params.zoneId, username: session.username });
           const status = message.includes("access denied") ? 403 : message.includes("PostgreSQL") ? 503 : message.includes("already") ? 409 : 400;
           response.status(status).json({ error: message });
         }
@@ -239,10 +242,12 @@ function configureApi() {
         try {
           const result = await unclaimOfficeDeskZone(session.username, request.params.officeId, request.params.zoneId);
           await notifyRealtime("offices/map", { officeId: request.params.officeId });
+          logServerEvent("api", "desk.unclaimed", { officeId: request.params.officeId, zoneId: request.params.zoneId, username: session.username });
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
         } catch (error) {
           const message = errorMessage(error);
+          logServerError("api", "desk.unclaim.failed", error, { officeId: request.params.officeId, zoneId: request.params.zoneId, username: session.username });
           const status = message.includes("access denied") || message.includes("Only the desk owner") ? 403 : message.includes("PostgreSQL") ? 503 : 400;
           response.status(status).json({ error: message });
         }
@@ -323,18 +328,25 @@ async function startApi() {
     void pruneInactiveOffices().then((removed) => { if (removed.length > 0) console.info("Removed " + removed.length + " inactive office(s)."); }).catch(() => console.error("Inactive office cleanup failed."));
     void pruneInactiveAccounts().then((removed) => { if (removed.length > 0) console.info("Removed " + removed.length + " inactive account(s)."); }).catch(() => console.error("Inactive account cleanup failed."));
   }, 60 * 60 * 1000);
-  server.listen(port, "0.0.0.0", () => console.info("Office API listening on " + port));
+  server.listen(port, "0.0.0.0", () => logServerEvent("api", "service.listening", { port, nodeEnv: process.env.NODE_ENV ?? "development" }));
 }
 
 async function notifyRealtime(action: string, body: Record<string, string>) {
   const baseUrl = process.env.REALTIME_INTERNAL_URL;
   const serviceToken = process.env.INTERNAL_SERVICE_TOKEN;
   if (!baseUrl || !serviceToken) throw new Error("Realtime service control is not configured.");
-  const response = await fetch(baseUrl.replace(/\/$/, "") + "/internal/" + action, {
-    method: "POST", headers: { "Content-Type": "application/json", "X-Internal-Service-Token": serviceToken },
-    body: JSON.stringify(body), signal: AbortSignal.timeout(3_000),
-  });
-  if (!response.ok) throw new Error("Realtime service did not accept the office control request.");
+  const startedAt = performance.now();
+  try {
+    const response = await fetch(baseUrl.replace(/\/$/, "") + "/internal/" + action, {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Internal-Service-Token": serviceToken },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(3_000),
+    });
+    if (!response.ok) throw new Error(`Realtime control request failed with HTTP ${response.status}.`);
+    logServerEvent("api", "realtime.control.completed", { action, officeId: body.officeId, durationMs: Math.round(performance.now() - startedAt) });
+  } catch (error) {
+    logServerError("api", "realtime.control.failed", error, { action, officeId: body.officeId, durationMs: Math.round(performance.now() - startedAt) });
+    throw error;
+  }
 }
 
 function cookieOptions() {
@@ -403,4 +415,4 @@ function readLimitedBody(request: AuthRequest, maxBytes: number): Promise<Buffer
   });
 }
 
-void startApi().catch((error) => { console.error("Office API startup failed.", error); process.exitCode = 1; });
+void startApi().catch((error) => { logServerError("api", "startup.failed", error); process.exitCode = 1; });
