@@ -17,6 +17,7 @@ import { QUATERNIUS_CHARACTERS } from "../assets/characterAssets";
 import { WorldCanvas } from "../world/WorldCanvas";
 import { FullScreenLoading } from "./FullScreenLoading";
 import { ModifyPropsEditor } from "./ModifyPropsEditor";
+import { PageTutorial } from "./PageTutorial";
 import { playSocialNotificationSound, unlockSocialNotificationAudio } from "../audio/notificationSounds";
 
 type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
@@ -230,8 +231,8 @@ function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "
 }
 
 const endpoint = import.meta.env.VITE_REALTIME_URL ?? (import.meta.env.PROD ? window.location.origin : "http://localhost:2567");
-const VIDEO_CAPTURE_1080P60 = { resolution: { width: 1920, height: 1080, frameRate: 60 }, frameRate: { ideal: 60, max: 60 } };
-const SCREEN_CAPTURE_1080P60 = { resolution: { width: 1920, height: 1080, frameRate: 60 }, contentHint: "motion" as const };
+const CAMERA_CAPTURE_720P30 = { resolution: { width: 1280, height: 720, frameRate: 30 }, frameRate: { ideal: 30, max: 30 } };
+const SCREEN_CAPTURE_1080P30 = { resolution: { width: 1920, height: 1080, frameRate: 30 }, contentHint: "detail" as const };
 const getInviteRouteToken = (path: string) => path.match(/^\/join\/([A-Za-z0-9_-]{30,100})\/?$/)?.[1] ?? null;
 const getResetRouteToken = (path: string) => path.match(/^\/reset\/([A-Za-z0-9_-]{30,100})\/?$/)?.[1] ?? null;
 const getMeetingRouteOfficeId = (path: string) => path.match(/^\/meeting\/([0-9a-f-]{36})\/?$/i)?.[1] ?? null;
@@ -239,6 +240,7 @@ const getOfficeRouteId = (path = window.location.pathname) => path.match(/^\/off
 
 export function OfficeApp() {
   const [routePath, setRoutePath] = useState(() => window.location.pathname);
+  const [meetingEntry, setMeetingEntry] = useState(() => Boolean(getMeetingRouteOfficeId(window.location.pathname)));
   const routePathRef = useRef(routePath);
   routePathRef.current = routePath;
   const maintainerPortal = routePath === "/maintainer";
@@ -369,10 +371,8 @@ export function OfficeApp() {
   const [videoTiles, setVideoTiles] = useState<VideoTileItem[]>([]);
   const [focusedVideoKey, setFocusedVideoKey] = useState<string | null>(null);
   const [videoPopupOpen, setVideoPopupOpen] = useState(false);
-  const addVideoTile = (tile: VideoTileItem) => {
+  const addRemoteVideoTile = (tile: VideoTileItem) => {
     setVideoTiles((current) => [...current.filter((item) => item.key !== tile.key), tile]);
-    setFocusedVideoKey(tile.key);
-    setVideoPopupOpen(true);
   };
   const [resetUrls, setResetUrls] = useState<Record<string, string>>({});
   const [accountError, setAccountError] = useState<string | null>(null);
@@ -796,8 +796,14 @@ export function OfficeApp() {
 
   const updateProximityAudioVolumes = () => {
     const local = localSessionIdRef.current ? playersRef.current.get(localSessionIdRef.current) : undefined;
+    const onlinePlayers = [...playersRef.current.values()].filter((player) => player.presence === "online");
+    const onlinePlayersByDisplayName = new Map<string, (typeof onlinePlayers)[number]>();
+    for (const player of onlinePlayers) {
+      // Match the old Array.find behavior when display names are not unique.
+      if (!onlinePlayersByDisplayName.has(player.displayName)) onlinePlayersByDisplayName.set(player.displayName, player);
+    }
     for (const { track, username } of proximityAudioTracksRef.current.values()) {
-      const remote = [...playersRef.current.values()].find((player) => player.displayName === username && player.presence === "online");
+      const remote = onlinePlayersByDisplayName.get(username);
       if (!local || !remote) { track.setVolume(0); continue; }
       const distance = Math.hypot(local.x - remote.x, local.z - remote.z);
       const fade = Math.max(0, Math.min(1, (CAMPUS_WORLD.proximityRadius - distance) / (CAMPUS_WORLD.proximityRadius - CAMPUS_WORLD.voiceFullVolumeRadius)));
@@ -829,11 +835,12 @@ export function OfficeApp() {
           attachRemoteAudio(track as RemoteAudioTrack);
         } else if (track.kind === Track.Kind.Video) {
           const screen = String(track.source).toLowerCase().includes("screen");
-          addVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false });
+          addRemoteVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false });
         }
       });
       room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
-        proximityAudioTracksRef.current.delete(participant.identity);
+        const subscribedAudio = proximityAudioTracksRef.current.get(participant.identity);
+        if (subscribedAudio?.track === track) proximityAudioTracksRef.current.delete(participant.identity);
         track.detach().forEach((element) => element.remove());
         setVideoTiles((tiles) => tiles.filter((tile) => tile.track !== track));
       });
@@ -890,7 +897,7 @@ export function OfficeApp() {
           attachRemoteAudio(track as RemoteAudioTrack);
         } else if (track.kind === Track.Kind.Video) {
           const screen = String(track.source).toLowerCase().includes("screen");
-          addVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false });
+          addRemoteVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false });
         }
       });
       room.on(RoomEvent.TrackUnsubscribed, (track) => { track.detach().forEach((element) => element.remove()); setVideoTiles((tiles) => tiles.filter((tile) => tile.track !== track)); });
@@ -940,7 +947,7 @@ export function OfficeApp() {
           const participant = [...room!.remoteParticipants.values()].find((candidate) => [...candidate.trackPublications.values()].some((publication) => publication.track === track));
           if (participant) {
             const screen = String(track.source).toLowerCase().includes("screen");
-            addVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${participant.name || participant.identity} · Screen` : participant.name || participant.identity, local: false });
+            addRemoteVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${participant.name || participant.identity} · Screen` : participant.name || participant.identity, local: false });
           }
         }
       });
@@ -1004,6 +1011,7 @@ const toggleMeetingMute = async () => {
     if (syncUrl && (getOfficeRouteId() || getMeetingRouteOfficeId(window.location.pathname))) window.history.pushState({}, "", "/");
     if (syncUrl) setRoutePath(window.location.pathname);
     setActiveOffice(null);
+    setMeetingEntry(false);
   };
 
   useEffect(() => {
@@ -1019,6 +1027,7 @@ const toggleMeetingMute = async () => {
     const onPopState = () => {
       const path = window.location.pathname;
       setRoutePath(path);
+      setMeetingEntry(Boolean(getMeetingRouteOfficeId(path)));
       // Session and office membership are verified before restoring an office
       // from browser history. Never let a stale history entry revive a room.
       if (!authReady || !authUser) {
@@ -1083,9 +1092,9 @@ const toggleMeetingMute = async () => {
     const room = activeVoiceRoom();
     if (!room) return;
     try {
-      await room.localParticipant.setCameraEnabled(!cameraEnabled, VIDEO_CAPTURE_1080P60, {
-        videoEncoding: { maxBitrate: 4_500_000, maxFramerate: 60 },
-        degradationPreference: "maintain-framerate",
+      await room.localParticipant.setCameraEnabled(!cameraEnabled, CAMERA_CAPTURE_720P30, {
+        videoEncoding: { maxBitrate: 1_500_000, maxFramerate: 30 },
+        degradationPreference: "maintain-resolution",
       });
       setCameraEnabled(!cameraEnabled);
       syncLocalVideoTiles(room);
@@ -1096,8 +1105,8 @@ const toggleMeetingMute = async () => {
     const room = activeVoiceRoom();
     if (!room) return;
     try {
-      await room.localParticipant.setScreenShareEnabled(!screenShareEnabled, SCREEN_CAPTURE_1080P60, {
-        screenShareEncoding: { maxBitrate: 8_000_000, maxFramerate: 60 },
+      await room.localParticipant.setScreenShareEnabled(!screenShareEnabled, SCREEN_CAPTURE_1080P30, {
+        screenShareEncoding: { maxBitrate: 4_000_000, maxFramerate: 30 },
         degradationPreference: "maintain-resolution",
       });
       setScreenShareEnabled(!screenShareEnabled);
@@ -1224,12 +1233,14 @@ const toggleMeetingMute = async () => {
               localStorage.removeItem("gammyverse.activeOfficeId");
               window.history.replaceState(null, "", "/");
               setRoutePath("/");
+              setMeetingEntry(false);
             }
           } else if (currentPath.startsWith("/office/") || currentPath.startsWith("/meeting/")) {
             setLobbyError("That office link is invalid.");
             localStorage.removeItem("gammyverse.activeOfficeId");
             window.history.replaceState(null, "", "/");
             setRoutePath("/");
+            setMeetingEntry(false);
           } else {
             const savedOfficeId = localStorage.getItem("gammyverse.activeOfficeId");
             const destination = (result.offices ?? []).find((office) => office.id === savedOfficeId);
@@ -2252,7 +2263,7 @@ const toggleMeetingMute = async () => {
   }
 
   if (resetLinkToken) {
-    return <><main className="auth-shell"><form className="auth-card" onSubmit={(event) => void submitPasswordReset(event)}><span className="brand-mark">G</span><span className="eyebrow">ACCOUNT RECOVERY</span><h1>{resetDone ? "Password updated" : "Set a new password"}</h1><p>{resetDone ? "You can now sign in with your new password." : "This one-time reset link expires after 15 minutes."}</p>{!resetDone && <><label>New password<input type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} /></label>{resetError && <p className="auth-error" role="alert">{resetError}</p>}<button className="auth-submit" type="submit" disabled={resetBusy}>{resetBusy ? "Please wait…" : "Set password"}</button></>}<a className="auth-switch" href="/">Back to sign in</a></form></main>{resetBusy && <FullScreenLoading label="Updating your password…" />}</>;
+    return <><main className="auth-shell"><form className="auth-card" onSubmit={(event) => void submitPasswordReset(event)}><span className="brand-mark">G</span><span className="eyebrow">ACCOUNT RECOVERY</span><h1>{resetDone ? "Password updated" : "Set a new password"}</h1><p>{resetDone ? "You can now sign in with your new password." : "This one-time reset link expires after 15 minutes."}</p>{!resetDone && <><label>New password<input data-tutorial-target="reset-password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} /></label>{resetError && <p className="auth-error" role="alert">{resetError}</p>}<button data-tutorial-target="reset-submit" className="auth-submit" type="submit" disabled={resetBusy}>{resetBusy ? "Please wait…" : "Set password"}</button></>}<a className="auth-switch" href="/">Back to sign in</a></form></main><PageTutorial page="password-reset" />{resetBusy && <FullScreenLoading label="Updating your password…" />}</>;
   }
 
   if (!authUser) {
@@ -2264,17 +2275,18 @@ const toggleMeetingMute = async () => {
           <span className="eyebrow">{maintainerPortal ? "PLATFORM OPERATIONS" : "YOUR WORKSPACE"}</span>
           <h1>{maintainerPortal ? "Maintainer sign in" : authMode === "login" ? "Welcome back" : "Create your account"}</h1>
           <p>{maintainerPortal ? "Sign in to manage GAMVerse and its offices." : "Sign in with your office username and password."}</p>
-          <label>Username<input autoComplete="username" required minLength={3} maxLength={24} value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} /></label>
+          <label>Username<input data-tutorial-target="auth-username" autoComplete="username" required minLength={3} maxLength={24} value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} /></label>
           {authMode === "register" && <label>Email (optional)<input type="email" autoComplete="email" maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>}
-          <label>Password<div className="auth-password-field"><input type={authPasswordVisible ? "text" : "password"} autoComplete={authMode === "login" ? "current-password" : "new-password"} required minLength={8} maxLength={128} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /><button className="password-visibility-toggle" type="button" aria-label={authPasswordVisible ? "Hide password" : "Show password"} aria-pressed={authPasswordVisible} onClick={() => setAuthPasswordVisible((visible) => !visible)}>{authPasswordVisible ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 5.2A10.8 10.8 0 0112 5c5 0 8.8 4.4 10 7-.4.9-1.2 2-2.3 3M6.2 6.3C3.9 7.7 2.5 10 2 12c1.2 2.6 5 7 10 7 1 0 2-.2 2.9-.5" /></svg>}</button></div></label>
+          <label>Password<div className="auth-password-field"><input data-tutorial-target="auth-password" type={authPasswordVisible ? "text" : "password"} autoComplete={authMode === "login" ? "current-password" : "new-password"} required minLength={8} maxLength={128} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /><button className="password-visibility-toggle" type="button" aria-label={authPasswordVisible ? "Hide password" : "Show password"} aria-pressed={authPasswordVisible} onClick={() => setAuthPasswordVisible((visible) => !visible)}>{authPasswordVisible ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 5.2A10.8 10.8 0 0112 5c5 0 8.8 4.4 10 7-.4.9-1.2 2-2.3 3M6.2 6.3C3.9 7.7 2.5 10 2 12c1.2 0 2-.2 2.9-.5" /></svg>}</button></div></label>
           {authError && <p className="auth-error" role="alert">{authError}</p>}
-          <button className="auth-submit" type="submit" disabled={authBusy}>{authBusy ? "Please wait…" : maintainerPortal || authMode === "login" ? "Sign in" : "Create account"}</button>
+          <button data-tutorial-target="auth-submit" className="auth-submit" type="submit" disabled={authBusy}>{authBusy ? "Please wait…" : maintainerPortal || authMode === "login" ? "Sign in" : "Create account"}</button>
           {!maintainerPortal && <button className="auth-switch" type="button" onClick={() => { setAuthError(null); setAuthMode(authMode === "login" ? "register" : "login"); }}>
             {authMode === "login" ? "New here? Create an account" : "Already have an account? Sign in"}
           </button>}
           <a className="auth-switch" href={maintainerPortal ? "/" : "/maintainer"}>{maintainerPortal ? "Regular user sign in" : "Maintainer sign in"}</a>
         </form>
       </main>
+      <PageTutorial page={maintainerPortal ? "maintainer" : authMode === "register" ? "register" : "sign-in"} />
       {authBusy && <FullScreenLoading label={authMode === "register" ? "Creating your account…" : "Signing in…"} />}
       </>
     );
@@ -2286,11 +2298,11 @@ const toggleMeetingMute = async () => {
         <span className="eyebrow">FIRST TIME HERE</span>
         <h1>Choose your character</h1>
         <p>Pick how other people will see you in the shared office.</p>
-        <CharacterPicker value={characterDraft} onChange={setCharacterDraft} />
+        <div className="tutorial-character-picker" data-tutorial-target="character-picker"><CharacterPicker value={characterDraft} onChange={setCharacterDraft} /></div>
         {characterError && <p className="auth-error" role="alert">{characterError}</p>}
-        <button className="auth-submit" type="button" disabled={characterBusy || !characterDraft} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : "Continue"}</button>
+        <button data-tutorial-target="character-continue" className="auth-submit" type="button" disabled={characterBusy || !characterDraft} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : "Continue"}</button>
       </section>
-    </main>{characterBusy && <FullScreenLoading label="Saving your character…" />}</>;
+    </main><PageTutorial page="character-setup" username={authUser.username} />{characterBusy && <FullScreenLoading label="Saving your character…" />}</>;
   }
 
   if (!activeOffice) {
@@ -2313,7 +2325,7 @@ const toggleMeetingMute = async () => {
         </aside>}
         <section className="lobby-content">
           <div className="lobby-intro"><span className="eyebrow">YOUR WORKSPACE</span><h1>{authUser.role === "maintainer" ? "Manage offices" : "Choose an office"}</h1><p>Enter an office you belong to, accept an invitation, or start a new office.</p></div>
-          <div className="lobby-create-office-action"><button className="lobby-button primary" type="button" onClick={() => { setLobbyError(null); setCreateOfficeDialogOpen(true); }}>＋ Create office</button></div>
+          <div className="lobby-create-office-action"><button data-tutorial-target="lobby-create-office" className="lobby-button primary" type="button" onClick={() => { setLobbyError(null); setCreateOfficeDialogOpen(true); }}>＋ Create office</button></div>
           {lobbyError && <p className="auth-error" role="alert">{lobbyError}</p>}
           {accountError && <p className="auth-error" role="alert">{accountError}</p>}
           {createOfficeDialogOpen && <div className="manager-backdrop create-office-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !lobbyBusy) setCreateOfficeDialogOpen(false); }}><form className="manager-dialog create-office-dialog" role="dialog" aria-modal="true" aria-labelledby="create-office-title" onSubmit={(event) => void createOfficeAction(event)}>
@@ -2330,8 +2342,8 @@ const toggleMeetingMute = async () => {
           </form></div>}
           {authUser.role === "maintainer" && <section className="lobby-panel account-panel"><div className="card-heading"><div><span className="eyebrow">PLATFORM ACCOUNTS</span><h2>Accounts and recovery</h2></div><span className="count-chip">{accounts.length}</span></div><p className="empty-people">Create a fresh one-time reset link for a user and share it with them. No email is sent.</p><ul className="manager-member-list">{accounts.map((account) => <li key={account.username}><div><strong>{account.username}</strong><small>{account.email || "No email"} · Active {account.lastActiveAt ? new Date(account.lastActiveAt).toLocaleString() : "unknown"}</small></div><div className="member-actions"><button className="lobby-button" disabled={account.username === authUser.username} onClick={() => void issueResetLink(account.username)}>Generate reset link</button></div>{resetUrls[account.username] && <div className="invite-link-box account-reset-link"><code>{resetUrls[account.username]}</code><button className="lobby-button" onClick={() => void navigator.clipboard.writeText(resetUrls[account.username]!)}>Copy link</button><small>One use · expires in 15 minutes · generating another link invalidates this one</small></div>}</li>)}</ul></section>}
           <nav className="lobby-section-tabs" role="tablist" aria-label="Workspace sections">
-            <button type="button" role="tab" id="offices-tab" aria-selected={activeLobbyTab === "offices"} aria-controls="offices-panel" className={activeLobbyTab === "offices" ? "active" : ""} onClick={() => setActiveLobbyTab("offices")}>Offices <span>{offices.length}</span></button>
-            <button type="button" role="tab" id="invitations-tab" aria-selected={activeLobbyTab === "invitations"} aria-controls="invitations-panel" className={activeLobbyTab === "invitations" ? "active" : ""} onClick={() => setActiveLobbyTab("invitations")}>Invitations <span>{invites.length}</span></button>
+            <button data-tutorial-target="lobby-offices" type="button" role="tab" id="offices-tab" aria-selected={activeLobbyTab === "offices"} aria-controls="offices-panel" className={activeLobbyTab === "offices" ? "active" : ""} onClick={() => setActiveLobbyTab("offices")}>Offices <span>{offices.length}</span></button>
+            <button data-tutorial-target="lobby-invitations" type="button" role="tab" id="invitations-tab" aria-selected={activeLobbyTab === "invitations"} aria-controls="invitations-panel" className={activeLobbyTab === "invitations" ? "active" : ""} onClick={() => setActiveLobbyTab("invitations")}>Invitations <span>{invites.length}</span></button>
           </nav>
           <div className="lobby-tab-content">
             {activeLobbyTab === "offices" && <section id="offices-panel" role="tabpanel" aria-labelledby="offices-tab" className="lobby-panel"><div className="card-heading"><div><span className="eyebrow">OFFICES</span><h2>Your offices</h2></div><span className="count-chip">{offices.length}</span></div>
@@ -2388,6 +2400,7 @@ const toggleMeetingMute = async () => {
           </section>
         </div>}
       </main>
+      <PageTutorial page="lobby" username={authUser.username} />
       {initialLobbyLoading && <FullScreenLoading label="Loading your workspace…" />}
       </>
     );
@@ -2429,7 +2442,7 @@ const toggleMeetingMute = async () => {
     : meetingZoneId ? `You’re here · ${lockedZoneIds.includes(meetingZoneId) ? "Locked to current occupants" : "Open to everyone"}` : "Open to everyone";
   const userOwnsAnotherDesk = Boolean(activeDeskZone && authUser && officeMapLayout?.zones.some((zone) => zone.kind === "private" && zone.ownerUsername === authUser.username && zone.id !== activeDeskZone.id));
   const canClaimAnyDesk = !authUser || !officeMapLayout?.zones.some((zone) => zone.kind === "private" && zone.ownerUsername === authUser.username);
-  const focusedVideoTile = videoTiles.find((tile) => tile.key === focusedVideoKey) ?? videoTiles[videoTiles.length - 1] ?? null;
+  const focusedVideoTile = videoTiles.find((tile) => tile.key === focusedVideoKey) ?? videoTiles[0] ?? null;
   const secondaryVideoTiles = focusedVideoTile ? videoTiles.filter((tile) => tile.key !== focusedVideoTile.key) : [];
   const miniVideoTiles = secondaryVideoTiles.length > 0 ? secondaryVideoTiles : focusedVideoTile ? [focusedVideoTile] : [];
   const previewCharacterId = characterDraft ?? authUser.characterId ?? DEFAULT_CHARACTER_ID;
@@ -2438,6 +2451,7 @@ const toggleMeetingMute = async () => {
 
   return (
     <main className={`app-shell${characterPanelOpen ? " character-panel-open" : ""}`}>
+      <PageTutorial page={meetingEntry ? "meeting" : "office"} username={authUser.username} />
       <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused} idleAnimationsEnabled={idleAnimationsEnabled} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} />
       {blasterHitNotice !== null && <div className="blaster-hit-feedback" key={blasterHitNotice} aria-hidden="true" />}
       <header className="topbar">
@@ -2624,7 +2638,7 @@ const toggleMeetingMute = async () => {
 
       {focusedVideoTile && videoPopupOpen && createPortal(
         <section className="video-popup" role="dialog" aria-modal="true" aria-label="Full-screen camera and screen share">
-          <header className="video-popup-header"><div><span className="video-popup-live"><i /> LIVE MEDIA</span><strong>{focusedVideoTile.label}{focusedVideoTile.local ? " · You" : ""}</strong><small className="video-quality-target">Target 1080p · up to 60 FPS</small></div><button type="button" className="video-popup-close" aria-label="Close full-screen media" title="Close full-screen media" onClick={() => setVideoPopupOpen(false)}><FeatherIcon name="close" size={21} /></button></header>
+          <header className="video-popup-header"><div><span className="video-popup-live"><i /> LIVE MEDIA</span><strong>{focusedVideoTile.label}{focusedVideoTile.local ? " · You" : ""}</strong><small className="video-quality-target">{String(focusedVideoTile.track.source).toLowerCase().includes("screen") ? "Screen share: up to 1080p · 30 FPS" : "Camera: up to 720p · 30 FPS"} · depends on device and network</small></div><button type="button" className="video-popup-close" aria-label="Close full-screen media" title="Close full-screen media" onClick={() => setVideoPopupOpen(false)}><FeatherIcon name="close" size={21} /></button></header>
           <div className="video-popup-stage"><VideoTile key={focusedVideoTile.key} track={focusedVideoTile.track} label={focusedVideoTile.label} local={focusedVideoTile.local} focused onFocus={() => setFocusedVideoKey(focusedVideoTile.key)} /></div>
           {miniVideoTiles.length > 0 && <section className="video-mini-strip" aria-label="Camera and screen share previews"><div className="video-mini-strip-scroll">{miniVideoTiles.map((tile) => <VideoTile key={`mini:${tile.key}`} track={tile.track} label={tile.label} local={tile.local} focused={tile.key === focusedVideoTile.key} compact onFocus={() => setFocusedVideoKey(tile.key)} />)}</div></section>}
           <div className="video-popup-controls" aria-label="Media controls">
@@ -2637,8 +2651,8 @@ const toggleMeetingMute = async () => {
       )}
       {videoTiles.length > 0 && !videoPopupOpen && <button type="button" className="video-popup-reopen" onClick={() => setVideoPopupOpen(true)}><FeatherIcon name="maximize" size={16} /> Show camera / screen</button>}
 
-      <div className="bottom-dock" aria-label="Office controls">
-        <button type="button" className={`dock-button ${selectedVoiceConnected && !selectedMicMuted ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedVoiceConnected ? (selectedMicMuted ? "Turn microphone on" : "Turn microphone off") : "Voice connects automatically when you enter a voice zone"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void (meetingZoneActive ? toggleMeetingMute() : privateZoneId ? togglePrivateMute() : toggleProximityMute())}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /></button>
+      <div className="bottom-dock" data-tutorial-target="office-toolbar" aria-label="Office controls">
+        <button data-tutorial-target="office-microphone" type="button" className={`dock-button ${selectedVoiceConnected && !selectedMicMuted ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedVoiceConnected ? (selectedMicMuted ? "Turn microphone on" : "Turn microphone off") : "Voice connects automatically when you enter a voice zone"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void (meetingZoneActive ? toggleMeetingMute() : privateZoneId ? togglePrivateMute() : toggleProximityMute())}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /></button>
         <button type="button" className={`dock-button ${cameraEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "videoOff" : "video"} /></button>
         <button type="button" className={`dock-button ${screenShareEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name="screen" /></button>
         <button type="button" className={`dock-button ${userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "active" : ""}`} aria-pressed={userStatus === "do-not-disturb" || userStatus === "in-meeting"} title={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Headphones off · click to set Available" : "Headphones on · click to turn on Do not disturb"} aria-label={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Turn headphones on" : "Turn headphones off"} onClick={toggleHeadphones}><FeatherIcon name={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "headphonesOff" : "headphones"} /></button>

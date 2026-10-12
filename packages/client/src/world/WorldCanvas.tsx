@@ -79,6 +79,9 @@ const CAMPUS_FURNITURE_SCALE = 1;
 // Enter 2D while zoomed in; permit zooming out until the campus boundary
 // reaches the viewport edge (fit distance).
 const CAMPUS_2D_ZOOM_THRESHOLD = 0.3;
+// This is the closest permitted campus camera distance. Keep focus actions and
+// interactive zoom on the same bound so focusing never bypasses the zoom limit.
+const CAMPUS_MIN_ZOOM_IN = 0.025;
 const CAMPUS_MAX_ZOOM_OUT = 1;
 
 function makeCampusRoom(room: CampusRoom, floor: CampusFloorId) {
@@ -707,6 +710,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     Object.assign(map2dCanvas.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "none", display: "none" });
     host.appendChild(map2dCanvas);
     map2dCanvasRef.current = map2dCanvas;
+    const map2dCameraState = new Float64Array(32);
+    const map2dPlayerState = new Map<string, { x: number; z: number; displayName: string; local: boolean }>();
+    let map2dWasVisible = false;
     // Compact shooter-style first-person viewmodel. The arms are simple
     // stylized shapes; the blaster itself is Kenney's CC0 model.
     const firstPersonViewModel = new THREE.Group();
@@ -845,6 +851,14 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       hinges: Array<{ group: THREE.Group; openAngle: number }>;
       openUntil: number;
     }> = [];
+    // Prop definitions do not change during this canvas lifetime. Resolve the
+    // driveable catalog once instead of rebuilding this list every animation frame.
+    const driveableProps = (roomLayout?.props ?? []).flatMap((placed) => {
+      const definition = ROOM_PROP_CATALOG.find((item) => item.asset === placed.asset);
+      return definition?.vehicleId && KENNEY_VEHICLE_IDS.includes(definition.vehicleId as KenneyVehicleId)
+        ? [{ id: placed.id, vehicleId: definition.vehicleId as KenneyVehicleId, x: placed.x, z: placed.z, rotation: placed.rotation }]
+        : [];
+    });
     const mapRaycaster = new THREE.Raycaster();
     const mapPointerNdc = new THREE.Vector2();
     const mapGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -2137,7 +2151,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       event.preventDefault();
       if (campusOverviewRef.current) {
         const fitDistance = campusOverviewDistance(activeFloor.width, activeFloor.depth, camera.aspect, cameraYawRef.current, cameraElevation, camera.fov);
-        campusZoomRef.current = THREE.MathUtils.clamp(campusZoomRef.current * Math.exp(event.deltaY * 0.001), 0.025, CAMPUS_MAX_ZOOM_OUT);
+        campusZoomRef.current = THREE.MathUtils.clamp(campusZoomRef.current * Math.exp(event.deltaY * 0.001), CAMPUS_MIN_ZOOM_IN, CAMPUS_MAX_ZOOM_OUT);
       } else {
         zoomDistance = THREE.MathUtils.clamp(zoomDistance + Math.sign(event.deltaY) * CAMERA.zoomStep, LIVE_OFFICE_MIN_ZOOM, CAMERA.maxZoom);
       }
@@ -2376,9 +2390,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       // extra realtime messages. Keep them open while someone is in the doorway
       // and briefly after they pass through.
       for (const door of animatedDoors) {
-        const someoneNearby = [...players.values()].some((player) =>
-          Math.hypot(player.x - door.x, player.z - door.z) < 1.65,
-        );
+        let someoneNearby = false;
+        for (const player of players.values()) {
+          const dx = player.x - door.x;
+          const dz = player.z - door.z;
+          if (dx * dx + dz * dz < 1.65 * 1.65) { someoneNearby = true; break; }
+        }
         if (someoneNearby) door.openUntil = now + 700;
         const shouldOpen = someoneNearby || now < door.openUntil;
         const easing = 1 - Math.exp(-delta * (shouldOpen ? 8 : 5));
@@ -2394,16 +2411,19 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       }
       let nearestVehicle: { vehicleId: KenneyVehicleId; propId: string } | null = null;
       let nearestDistance = 3.2;
-      const occupiedVehicleIds = new Set([...players.values()].filter((player) => player.vehicleId).map((player) => player.vehicleId));
-      const driveableProps = (roomLayout?.props ?? []).flatMap((placed) => {
-        const definition = ROOM_PROP_CATALOG.find((item) => item.asset === placed.asset);
-        return definition?.vehicleId && KENNEY_VEHICLE_IDS.includes(definition.vehicleId as KenneyVehicleId)
-          ? [{ id: placed.id, vehicleId: definition.vehicleId as KenneyVehicleId, x: placed.x, z: placed.z, rotation: placed.rotation }]
-          : [];
-      });
+      const occupiedVehicleIds = new Set<string>();
+      const occupantsByProp = new Map<string, PlayerSnapshot>();
+      const parkedByProp = new Map<string, PlayerSnapshot>();
+      for (const player of players.values()) {
+        if (player.vehicleId) occupiedVehicleIds.add(player.vehicleId);
+        if (!player.vehiclePropId) continue;
+        if (player.vehicleId) {
+          if (!occupantsByProp.has(player.vehiclePropId)) occupantsByProp.set(player.vehiclePropId, player);
+        } else if (!parkedByProp.has(player.vehiclePropId)) parkedByProp.set(player.vehiclePropId, player);
+      }
       for (const prop of driveableProps) {
-        const occupant = [...players.values()].find((player) => player.vehiclePropId === prop.id && player.vehicleId);
-        const parkedAt = [...players.values()].find((player) => player.vehiclePropId === prop.id && !player.vehicleId);
+        const occupant = occupantsByProp.get(prop.id);
+        const parkedAt = parkedByProp.get(prop.id);
         let parked = parkedVehicleGroups.get(prop.id);
         if (occupant || (occupiedVehicleIds.has(prop.vehicleId) && !parkedAt)) {
           if (parked) scene.remove(parked);
@@ -2818,8 +2838,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         thirdPersonCloseRequestRef.current = false;
       }
       if (focusCharacterRequestRef.current && campusOverviewRef.current && local) {
-        const overviewDistance = campusOverviewDistance(activeFloor.width, activeFloor.depth, camera.aspect, cameraYawRef.current, cameraElevation, camera.fov);
-        campusZoomRef.current = LIVE_OFFICE_FOCUS_DISTANCE / overviewDistance;
+        campusZoomRef.current = CAMPUS_MIN_ZOOM_IN;
         campusCharacterFocusedRef.current = true;
         focusCharacterRequestRef.current = false;
       }
@@ -3057,9 +3076,31 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
         const width = Math.max(1, Math.round(host.clientWidth * pixelRatio));
         const height = Math.max(1, Math.round(host.clientHeight * pixelRatio));
-        if (map2dCanvas.width !== width || map2dCanvas.height !== height) { map2dCanvas.width = width; map2dCanvas.height = height; }
+        const resized = map2dCanvas.width !== width || map2dCanvas.height !== height;
+        if (resized) { map2dCanvas.width = width; map2dCanvas.height = height; }
+        camera.updateMatrixWorld(true);
+        let map2dDirty = !map2dWasVisible || resized;
+        let cameraMatrixIndex = 0;
+        for (const value of camera.matrixWorld.elements) {
+          if (map2dCameraState[cameraMatrixIndex] !== value) map2dDirty = true;
+          map2dCameraState[cameraMatrixIndex++] = value;
+        }
+        for (const value of camera.projectionMatrix.elements) {
+          if (map2dCameraState[cameraMatrixIndex] !== value) map2dDirty = true;
+          map2dCameraState[cameraMatrixIndex++] = value;
+        }
+        const overviewPlayers = playersRef.current;
+        if (overviewPlayers.size !== map2dPlayerState.size) map2dDirty = true;
+        for (const [id, player] of overviewPlayers) {
+          const local = id === localId;
+          const cached = map2dPlayerState.get(id);
+          if (!cached || cached.x !== player.x || cached.z !== player.z || cached.displayName !== player.displayName || cached.local !== local) map2dDirty = true;
+          if (cached) { cached.x = player.x; cached.z = player.z; cached.displayName = player.displayName; cached.local = local; }
+          else map2dPlayerState.set(id, { x: player.x, z: player.z, displayName: player.displayName, local });
+        }
+        for (const id of map2dPlayerState.keys()) if (!overviewPlayers.has(id)) map2dPlayerState.delete(id);
         const ctx = map2dCanvas.getContext("2d");
-        if (ctx) {
+        if (ctx && map2dDirty) {
           ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
           const w = host.clientWidth; const h = host.clientHeight;
           ctx.fillStyle = "#e9f0ed"; ctx.fillRect(0, 0, w, h);
@@ -3094,8 +3135,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             ctx.fillStyle = "#fff"; ctx.font = "700 9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(initials.toUpperCase(), x, z);
           }
         }
+        map2dWasVisible = true;
       } else {
         map2dCanvas.style.display = "none";
+        map2dWasVisible = false;
         renderer.render(scene, camera);
       }
       animationFrame = requestAnimationFrame(render);
@@ -3210,9 +3253,14 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         {isDriving ? "Exit vehicle" : "Drive vehicle"}
       </div>}
       {campusOverview && !mapEditMode && !buildMode && <div className="world-control-dock" aria-label="Map controls">
-        {personalDeskZone && currentPrivateZoneId !== personalDeskZone.id && <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={appPaused} onClick={() => { setActiveFloatingGroup(null); buildCallbacksRef.current.onAutoMove?.({ x: personalDeskZone.x, z: personalDeskZone.z }, false); }}>
-          <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 20 4l-7.5 17-2.2-7.3L3 11.5Z"/><path d="m10.3 13.7 4.6-4.6"/></svg>
-        </button>}
+        <div className="world-control-group" role="group" aria-label="Character actions">
+          <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" onClick={() => { setActiveFloatingGroup(null); campusCharacterFocusedRef.current = true; focusCharacterRequestRef.current = true; }}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.3"/></svg>
+          </button>
+          {personalDeskZone && currentPrivateZoneId !== personalDeskZone.id && <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={appPaused} onClick={() => { setActiveFloatingGroup(null); buildCallbacksRef.current.onAutoMove?.({ x: personalDeskZone.x, z: personalDeskZone.z }, false); }}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 20 4l-7.5 17-2.2-7.3L3 11.5Z"/><path d="m10.3 13.7 4.6-4.6"/></svg>
+          </button>}
+        </div>
         {(canEditMap && onEditMap || onModifyProps) && <div className={`world-control-group${activeFloatingGroup === "edit" ? " is-active" : ""}`}>
           {activeFloatingGroup === "edit" && <div className="world-control-actions" id="map-edit-actions" role="group" aria-label="Editing actions">
             {onModifyProps && <button type="button" className="modify-props-control" aria-label="Modify props" title="Modify props" onClick={() => { setActiveFloatingGroup(null); onModifyProps(); }}>
@@ -3228,9 +3276,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         </div>}
         <div className={`world-control-group${activeFloatingGroup === "view" ? " is-active" : ""}`}>
           {activeFloatingGroup === "view" && <div className="world-control-actions" id="map-view-actions" role="group" aria-label="Camera actions">
-            <button type="button" className="focus-character-control" aria-label="Focus Character" title="Focus Character" onClick={() => { setActiveFloatingGroup(null); campusCharacterFocusedRef.current = true; focusCharacterRequestRef.current = true; }}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.3"/></svg>
-            </button>
             <button type="button" className="camera-view-control" aria-label={firstPersonView ? "Switch to third-person view" : "Switch to first-person view"} title={firstPersonView ? "Third-person view" : "First-person view"} onClick={() => { const enteringFirstPerson = !firstPersonView; setActiveFloatingGroup(null); setFirstPersonView(enteringFirstPerson); if (!enteringFirstPerson) { firstPersonViewRef.current = false; campusCharacterFocusedRef.current = true; focusCharacterRequestRef.current = true; thirdPersonCloseRequestRef.current = true; alignThirdPersonBehindRef.current = true; cameraElevationRef.current = DEFAULT_TPP_CAMERA_ELEVATION; } buildCallbacksRef.current.onWeaponEquip?.(enteringFirstPerson ? selectedBlasterIdRef.current : ""); setWeaponInventoryOpen(false); if (document.pointerLockElement) document.exitPointerLock(); }}>
               {firstPersonView ? "3P" : "1P"}
             </button>
@@ -3244,7 +3289,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         </div>
         <div className={`world-control-group${activeFloatingGroup === "zoom" ? " is-active" : ""}`}>
           {activeFloatingGroup === "zoom" && <div className="world-control-actions" id="map-zoom-actions" role="group" aria-label="Zoom actions">
-            <div className="overview-zoom-controls"><button type="button" aria-label="Zoom in one level" title="Zoom in 1×" onClick={() => { campusZoomRef.current = THREE.MathUtils.clamp(campusZoomRef.current / 1.25, 0.025, CAMPUS_MAX_ZOOM_OUT); }}>+</button><button type="button" aria-label="Zoom out one level" title="Zoom out 1×" onClick={() => { campusZoomRef.current = THREE.MathUtils.clamp(campusZoomRef.current * 1.25, 0.025, CAMPUS_MAX_ZOOM_OUT); }}>−</button></div>
+            <div className="overview-zoom-controls"><button type="button" aria-label="Zoom in one level" title="Zoom in 1×" onClick={() => { campusZoomRef.current = THREE.MathUtils.clamp(campusZoomRef.current / 1.25, CAMPUS_MIN_ZOOM_IN, CAMPUS_MAX_ZOOM_OUT); }}>+</button><button type="button" aria-label="Zoom out one level" title="Zoom out 1×" onClick={() => { campusZoomRef.current = THREE.MathUtils.clamp(campusZoomRef.current * 1.25, CAMPUS_MIN_ZOOM_IN, CAMPUS_MAX_ZOOM_OUT); }}>−</button></div>
           </div>}
           <button type="button" className="world-control-trigger" aria-label="Zoom controls" title="Zoom controls" aria-expanded={activeFloatingGroup === "zoom"} aria-controls="map-zoom-actions" onClick={() => setActiveFloatingGroup((group) => group === "zoom" ? null : "zoom")}>
             <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.5 4.5M8 10.8h5.6M10.8 8v5.6"/></svg>

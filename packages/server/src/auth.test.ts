@@ -25,8 +25,8 @@ test("registration, password login, and logout use server-owned sessions", async
   const registration = await registerAccount(username, password, " QA.User@Example.COM ");
   assert.ok("sessionToken" in registration);
   if (!("sessionToken" in registration)) return;
-  assert.deepEqual(registration.user, { username, role: "user" });
-  assert.deepEqual(await getSession(registration.sessionToken), { username, role: "user" });
+  assert.deepEqual(registration.user, { username, role: "user", characterId: null });
+  assert.deepEqual(await getSession(registration.sessionToken), { username, role: "user", characterId: null });
 
   const contents = await readFile(process.env.AUTH_USERS_FILE!, "utf8");
   assert.equal(contents.includes(password), false);
@@ -37,7 +37,7 @@ test("registration, password login, and logout use server-owned sessions", async
 
   const login = await loginAccount(username.toUpperCase(), password);
   assert.ok("sessionToken" in login);
-  if ("sessionToken" in login) assert.deepEqual(await getSession(login.sessionToken), { username, role: "user" });
+  if ("sessionToken" in login) assert.deepEqual(await getSession(login.sessionToken), { username, role: "user", characterId: null });
   const changed = await changeAccountPassword(username, password, "qa-new-passphrase-3819");
   assert.ok("sessionToken" in changed);
   if ("sessionToken" in changed) assert.equal(await getSession(changed.sessionToken) !== null, true);
