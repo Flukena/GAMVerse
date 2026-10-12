@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0"
+    "dev": "vite --host 0.0.0.0",
+    "test": "pnpm --filter @gammyverse/shared exec tsx --test ../client/src/ui/connection/officeReconnection.test.ts ../client/src/world/camera/cameraState.test.ts ../client/src/world/camera/cameraPose.test.ts ../client/src/world/camera/springArm.test.ts ../client/src/world/camera/cameraInput.test.ts ../client/src/world/camera/cameraColliders.test.ts"
   },
   "dependencies": {
     "@colyseus/sdk": "^0.18.1",

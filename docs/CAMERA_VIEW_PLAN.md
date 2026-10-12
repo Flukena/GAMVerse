@@ -103,3 +103,20 @@ Phases 1 and 2 are independent and small, so ship them first. Phase 4 depends on
 - Implementation: Codex (`gpt-6.1-sol`, `medium`). Claude reviews each diff.
 - Every behaviour fix ships with a test that fails when the fix is reverted.
 - Browser check for each phase. Use two sessions for Phase 2.
+
+## Implementation notes — Phases 3, 5, 4 (2026-10-12)
+
+Implemented in that order in the working tree, preserving the preceding session and facing work. No commits or branches were created.
+
+- Phase 3: the reducer owns mode, follow/edit state, arrival lifecycle and framing values. First-person yaw remains in the OfficeApp-owned ref; leaving FPP preserves it, while a fresh arrival aligns once an avatar is available. Pure pose smoothing interpolates focus and spherical orbit coordinates. First frame, avatar arrival, mode/room changes and reduced motion snap.
+- Phase 5: camera tunables have unit-bearing names. Both drag and pointer-lock pitch use 75°, assuming the requested conservative limit. Existing pose geometry, including its elevation formula, is preserved.
+- Phase 4: TPP raycasts use static wall/prop proxies with layout coordinates, catalog heights and shared collision footprints. Door gaps and boundary footprints are shared with movement/rendering. Collision is applied after orbit smoothing to protect the displayed camera; inward correction snaps and outward distance recovers exponentially. FPP, free/edit and 2D views bypass the arm.
+
+Assumptions: saved wall volumes and collision-prop footprints are conservative camera blockers; catalog heights describe their normalized visual height. Initial padding/minimum tuning is 0.2 m / 0.5 m. No runtime model-loading dependency is needed for these proxies.
+
+Validation: the original smoothing code was confirmed on main by source inspection. Tests are registered for reducer transitions, pose geometry, convergence, frame-rate independence, snapping, orbit-radius preservation, pitch limits, spring-arm decisions, raycast exclusions, door gaps and shared wall/boundary geometry. Syntax/diff checks are local; the orchestrator must run build, tests and revert checks. Browser acceptance and frame-time profiling remain pending.
+
+Browser acceptance:
+- Phase 3: FPP toggle (including character focus while FPP), orbit, pan then walk, zoom into/out of 2D, build/map edit, room change, walking/driving target stability, fast orbit radius, reduced motion. Use two sessions to confirm the existing aim-facing contract still holds.
+- Phase 5: drag and pointer-lock reach the same ±75° pitch; recheck FPP toggle, orbit, pan, zoom/2D, build mode and room arrival framing.
+- Phase 4: back into a wall, orbit in a tight room, move past collision props and through a doorway; inward correction is immediate and outward recovery monotonic. Confirm FPP, 2D, free view and both editors bypass occlusion. Compare frame times at 1/10/25/50 players and increasing prop counts per PERFORMANCE_REVIEW.md.

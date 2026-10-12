@@ -54,6 +54,12 @@ The server validates map dimensions, counts, allowlisted assets, entrances, spaw
 
 The browser sends movement intent. The server simulates movement at a fixed interval, validates paths and collision, and broadcasts player state. Office zones and proximity groups are computed from server-owned positions. Automatic travel can route to room destinations and seats; vehicles and walk fallback are handled in the realtime room.
 
+First-person state is shared through an OfficeApp-owned ref passed into WorldCanvas alongside camera yaw. FPP input includes a validated optional facing yaw (camera yaw plus π), including stationary aim updates through the existing input send gate. The server applies aim only to on-foot, unseated orientation; movement, seat and vehicle positions remain authoritative. Rendered avatar turns use shared shortest-angle interpolation, and leaving FPP preserves the current view yaw.
+
+Camera modes and framing transitions live in the reducer under `packages/client/src/world/camera/`. Pose computation, orbit-frame position/target smoothing, and spring-arm distance decisions are pure functions. WorldCanvas wires inputs and applies the resulting pose. A flat list of collision proxies is built at scene/layout setup from solid wall spans, map boundaries, and collision-prop footprints/heights; only TPP uses it. Shared wall-span and boundary helpers keep movement, rendering and camera geometry consistent. Camera and connection tests are registered in the client test script.
+
+Office connections are keyed by username and office ID. Movement intent changes and the 50 ms heartbeat share a 30 ms minimum send interval. During transport drops, movement sending pauses; the client routes close code 4002 into Colyseus 0.18's automatic session retries, then falls back to a fresh join after terminal reconnect failure. The server reserves dropped seats for 20 seconds and cancels a reserved reconnect when another session replaces it. Drop diagnostics include close codes, inbound counters and room-clock timing; simultaneous-drop causes still require runtime investigation.
+
 LiveKit carries audio and video directly between browser and SFU. The realtime service issues short-lived, scoped media tokens only after checking live meeting, private-zone, or proximity membership. The client has microphone, camera, and screen-share controls. Statuses such as Do Not Disturb and Toilet pause interaction while presence remains online. Room entry and exit notification sounds are generated in the browser.
 
 ### Assets and licenses
@@ -63,7 +69,7 @@ Deployable models, previews, textures, and pack license notices are under `packa
 ### Development and deployment
 
 - `docker compose up -d` runs the complete development stack at `https://localhost:5173` by default. Development Caddy uses a local CA certificate. Set `DEV_HOST` in an ignored `.env` file for another local hostname.
-- `pnpm install --frozen-lockfile`, `pnpm build`, and `pnpm test` are the root workspace commands. The root test script covers the shared package; the server has a separate test script. `pnpm dev` does not start PostgreSQL, LiveKit, or Caddy.
+- `pnpm install --frozen-lockfile`, `pnpm build`, and `pnpm test` are the root workspace commands. The root test script covers the shared package and client connection/camera tests; the server has a separate test script. `pnpm dev` does not start PostgreSQL, LiveKit, or Caddy.
 - `compose.production.yaml`, `Caddyfile`, and `.env.production.example` define a single-host Linux deployment. Configure DNS, unique secrets, HTTPS, WebRTC/TURN ports, backups, and external-network checks before use. `/health/live` and `/health/ready` are provided by API and realtime services.
 - `.env`, local certificates, dependency backups, and load-test outputs are generated/private material and should not be committed. The repository itself has no initialized Git metadata in this workspace; initialize and review the staged file list before pushing to GitHub.
 

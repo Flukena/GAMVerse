@@ -8,7 +8,7 @@
     "dev:server": "pnpm --filter @gammyverse/server dev",
     "dev:client": "pnpm --filter @gammyverse/client dev",
     "build": "pnpm --filter @gammyverse/shared exec tsc --noEmit && pnpm --filter @gammyverse/server exec tsc --noEmit && pnpm --filter @gammyverse/server build && pnpm --filter @gammyverse/client exec tsc --noEmit && pnpm --filter @gammyverse/client exec vite build",
-    "test": "pnpm --filter @gammyverse/shared test"
+    "test": "pnpm --filter @gammyverse/shared test && pnpm --filter @gammyverse/client test"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

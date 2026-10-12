@@ -1,4 +1,4 @@
-import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, parseRoomPropSeatReference, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone } from "@gammyverse/shared";
+import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, parseRoomPropSeatReference, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone } from "@gammyverse/shared";
 import type { MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -8,6 +8,12 @@ import { loadCharacterAsset, type LoadedCharacterAsset } from "../assets/charact
 import { loadGltfAsset, loadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
 import { createOfficePropGeometry } from "./officePropGeometry";
+import { cameraReducer, createCameraState, type CameraEvent } from "./camera/cameraState";
+import { computeCameraFrame, applyCameraProjection, campusOverviewDistance } from "./camera/cameraFrame";
+import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, panEditorCamera, hasCameraMovement } from "./camera/cameraInput";
+import { CameraColliders } from "./camera/cameraColliders";
+import { smoothCameraPose, type CameraPose } from "./camera/cameraPose";
+import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_BOUNDARY_WALL_HEIGHT_M, CAMERA_ZOOM_BUTTON_RATIO, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
 
 type CharacterModelId = KenneyCharacterId | `custom-${string}`;
 type PlayerStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
@@ -24,6 +30,7 @@ interface Props {
   speakingUsernamesRef?: MutableRefObject<Set<string>>;
   heldKeysRef?: MutableRefObject<Set<string>>;
   cameraYawRef: MutableRefObject<number>;
+  firstPersonViewRef: MutableRefObject<boolean>;
   roomPortals?: RoomPortalVisual[];
   roomLayout: RoomLayout | null;
   personalDeskZone?: RoomLayoutZone | null;
@@ -67,23 +74,8 @@ interface Props {
 }
 
 type CampusFloorId = 0;
-// Keep the default third-person view within the normal office zoom range,
-// with enough room to see the avatar and nearby furniture.
-const LIVE_OFFICE_FOCUS_DISTANCE = 7.5;
-const DEFAULT_TPP_CAMERA_ELEVATION = Math.atan2(1.5, 5.2);
-// Start and enter the campus overview from above so the initial zoom-in reads
-// as a deliberate top-down arrival instead of a low sweep across the floor.
-const DEFAULT_CAMPUS_CAMERA_ELEVATION = THREE.MathUtils.degToRad(42);
-const LIVE_OFFICE_MIN_ZOOM = 1.8;
 // Keep imported props at the same normalized scale as the playable office scene.
 const CAMPUS_FURNITURE_SCALE = 1;
-// Enter 2D while zoomed in; permit zooming out until the campus boundary
-// reaches the viewport edge (fit distance).
-const CAMPUS_2D_ZOOM_THRESHOLD = 0.3;
-// This is the closest permitted campus camera distance. Keep focus actions and
-// interactive zoom on the same bound so focusing never bypasses the zoom limit.
-const CAMPUS_MIN_ZOOM_IN = 0.025;
-const CAMPUS_MAX_ZOOM_OUT = 1;
 
 function makeCampusRoom(room: CampusRoom, floor: CampusFloorId) {
   const palette: Record<CampusRoom["kind"], number> = {
@@ -227,27 +219,6 @@ function makeCampusRoom(room: CampusRoom, floor: CampusFloorId) {
   return group;
 }
 
-function campusOverviewDistance(width: number, depth: number, aspect: number, yaw: number, elevation: number, fovDegrees: number) {
-  const verticalTangent = Math.tan(THREE.MathUtils.degToRad(fovDegrees / 2)) * 0.84;
-  const horizontalTangent = verticalTangent * Math.max(aspect, 0.35);
-  const direction = new THREE.Vector3(Math.sin(yaw) * Math.cos(elevation), Math.sin(elevation), Math.cos(yaw) * Math.cos(elevation));
-  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-  const up = new THREE.Vector3(-Math.sin(yaw) * Math.sin(elevation), Math.cos(elevation), -Math.cos(yaw) * Math.sin(elevation));
-  let fitDistance = 0;
-  for (const x of [-width / 2, width / 2]) {
-    for (const z of [-depth / 2, depth / 2]) {
-      const corner = new THREE.Vector3(x, 0, z);
-      const cameraDepth = corner.dot(direction);
-      fitDistance = Math.max(
-        fitDistance,
-        cameraDepth + Math.abs(corner.dot(right)) / horizontalTangent,
-        cameraDepth + Math.abs(corner.dot(up)) / verticalTangent,
-      );
-    }
-  }
-  return fitDistance + 5;
-}
-
 function makeCampusFloor(floor: { id: number; name: string; width: number; depth: number }) {
   const group = new THREE.Group();
   const base = new THREE.Mesh(
@@ -259,17 +230,9 @@ function makeCampusFloor(floor: { id: number; name: string; width: number; depth
   group.add(base);
 
   const edge = new THREE.MeshStandardMaterial({ color: 0xd7d8d0, roughness: 0.86 });
-  const thickness = 0.3;
-  const wallHeight = 1.35;
-  const wallSpecs = [
-    [floor.width, thickness, floor.width / 2, 0],
-    [floor.width, thickness, floor.width / 2, floor.depth],
-    [thickness, floor.depth, 0, floor.depth / 2],
-    [thickness, floor.depth, floor.width, floor.depth / 2],
-  ] as const;
-  for (const [width, depth, x, z] of wallSpecs) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(width, wallHeight, depth), edge);
-    wall.position.set(x, wallHeight / 2, z);
+  for (const footprint of roomBoundaryWalls(floor.width, floor.depth)) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(footprint.width, CAMPUS_BOUNDARY_WALL_HEIGHT_M, footprint.depth), edge);
+    wall.position.set(footprint.x + floor.width / 2, CAMPUS_BOUNDARY_WALL_HEIGHT_M / 2, footprint.z + floor.depth / 2);
     wall.castShadow = true;
     wall.receiveShadow = true;
     group.add(wall);
@@ -632,7 +595,7 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
-export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onBlasterShot, onWeaponEquip, blasterEventsRef, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
+export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, firstPersonViewRef, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onBlasterShot, onWeaponEquip, blasterEventsRef, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compassRoseRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -655,23 +618,33 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const [weaponInventoryOpen, setWeaponInventoryOpen] = useState(false);
   const weaponInventoryOpenRef = useRef(false);
   weaponInventoryOpenRef.current = weaponInventoryOpen;
-  const firstPersonViewRef = useRef(false);
   firstPersonViewRef.current = firstPersonView;
+  useEffect(() => () => { firstPersonViewRef.current = false; }, [firstPersonViewRef]);
   const previousRoomKeyRef = useRef(cameraRoomKey);
-  const thirdPersonCloseRequestRef = useRef(false);
-  const alignThirdPersonBehindRef = useRef(true);
+  const cameraStateRef = useRef(createCameraState(activeRoomKey === "lobby"));
+  const dispatchCamera = (event: CameraEvent) => {
+    cameraStateRef.current = cameraReducer(cameraStateRef.current, event);
+  };
+  const toggleCameraView = () => {
+    dispatchCamera({ type: "toggle-fpp" });
+    const enteringFirstPerson = cameraStateRef.current.mode === "fpp";
+    setActiveFloatingGroup(null);
+    setFirstPersonView(enteringFirstPerson);
+    firstPersonViewRef.current = enteringFirstPerson;
+    buildCallbacksRef.current.onWeaponEquip?.(enteringFirstPerson ? selectedBlasterIdRef.current : "");
+    setWeaponInventoryOpen(false);
+    if (document.pointerLockElement) document.exitPointerLock();
+  };
   const drivingRef = useRef(false);
   const vehicleInteractRef = useRef(onVehicleInteract);
   vehicleInteractRef.current = onVehicleInteract;
   const campusOverview = activeRoomKey === "lobby";
   const campusOverviewRef = useRef(true);
   campusOverviewRef.current = campusOverview;
-  const focusCharacterRequestRef = useRef(true);
-  const campusCharacterFocusedRef = useRef(true);
-  const campusZoomRef = useRef(1);
+
   const map2dCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const cameraPanTargetRef = useRef<THREE.Vector3 | null>(null);
-  const cameraElevationRef = useRef(activeRoomKey === "lobby" ? DEFAULT_CAMPUS_CAMERA_ELEVATION : DEFAULT_TPP_CAMERA_ELEVATION);
+  const cameraLookTargetRef = useRef<THREE.Vector3 | null>(null);
   const cameraPositionRef = useRef<THREE.Vector3 | null>(null);
   const mapEditModeRef = useRef(mapEditMode);
   mapEditModeRef.current = mapEditMode;
@@ -698,7 +671,16 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   }, [lockedZoneIds]);
   useEffect(() => { zoneStartRef.current = null; }, [buildTool]);
   useEffect(() => { const canvas = hostRef.current?.querySelector("canvas"); if (canvas) canvas.style.cursor = zoneDrawing ? "crosshair" : buildMode ? (buildTool === "place" ? "copy" : "crosshair") : "grab"; }, [buildMode, buildTool, zoneDrawing]);
-  useEffect(() => { if (!buildMode) return; setFirstPersonView(false); setWeaponInventoryOpen(false); if (document.pointerLockElement) document.exitPointerLock(); }, [buildMode]);
+  useEffect(() => {
+    const lookTarget = cameraLookTargetRef.current;
+    if ((buildMode || mapEditMode) && cameraStateRef.current.following && lookTarget) cameraPanTargetRef.current?.copy(lookTarget);
+    dispatchCamera({ type: "edit", active: buildMode || mapEditMode });
+    if (!buildMode && !mapEditMode) return;
+    setFirstPersonView(false);
+    firstPersonViewRef.current = false;
+    setWeaponInventoryOpen(false);
+    if (document.pointerLockElement) document.exitPointerLock();
+  }, [buildMode, mapEditMode, firstPersonViewRef]);
   useEffect(() => { if (buildMode) return; movePropArmedIdRef.current = null; setMovePropArmedId(null); setPropActionMenu(null); }, [buildMode]);
   useEffect(() => {
     if (previousRoomKeyRef.current === cameraRoomKey) return;
@@ -710,18 +692,13 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     setFirstPersonView(false);
     setWeaponInventoryOpen(false);
     if (document.pointerLockElement) document.exitPointerLock();
-    campusCharacterFocusedRef.current = true;
-    focusCharacterRequestRef.current = true;
-    thirdPersonCloseRequestRef.current = true;
-    const walkingKeys = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
-    const isWalking = Boolean(heldKeysRef?.current && walkingKeys.some((key) => heldKeysRef.current.has(key)));
     // Room-entry alignment changes camera-relative movement directions. Keep
     // the current yaw while a key is held so walking backward across a zone
     // boundary cannot reverse the input basis and bounce between its edges.
-    alignThirdPersonBehindRef.current = !isWalking;
-    cameraElevationRef.current = activeRoomKey === "lobby" ? DEFAULT_CAMPUS_CAMERA_ELEVATION : DEFAULT_TPP_CAMERA_ELEVATION;
+    const walking = Boolean(heldKeysRef?.current && hasCameraMovement(heldKeysRef.current));
+    dispatchCamera({ type: "room-change", campus: activeRoomKey === "lobby", alignBehind: !walking });
     cameraPositionRef.current = null;
-  }, [activeRoomKey, cameraRoomKey]);
+  }, [activeRoomKey, cameraRoomKey, firstPersonViewRef]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -730,10 +707,14 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const mapWorld = { ...CAMPUS_WORLD, ...dimensions };
     const activeFloor = { ...CAMPUS_LAYOUT.floors[0]!, ...dimensions };
 
+    const cameraColliders = new CameraColliders(campusOverview ? roomLayout : null, {
+      x: campusOverview ? mapWorld.width / 2 : 0,
+      z: campusOverview ? mapWorld.depth / 2 : 0,
+    }, campusOverview);
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#d8e5df");
     scene.fog = null;
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 7000);
+    const camera = new THREE.PerspectiveCamera(TPP_FOV_DEG, 1, CAMERA_NEAR_MAX_M, CAMERA_FAR_MIN_M);
     if (cameraPositionRef.current) camera.position.copy(cameraPositionRef.current);
     scene.add(camera);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -1405,13 +1386,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
       }
       for (const wall of roomLayout.walls) {
-        const gaps = roomLayout.doors.filter((door) => door.wallId === wall.id)
-          .map((door) => ({ start: Math.max(-wall.length / 2, door.offset - door.width / 2), end: Math.min(wall.length / 2, door.offset + door.width / 2) }))
-          .filter((gap) => gap.end > gap.start).sort((a, b) => a.start - b.start);
-        const segments: Array<{ start: number; end: number }> = [];
-        let cursor = -wall.length / 2;
-        for (const gap of gaps) { if (gap.start > cursor) segments.push({ start: cursor, end: gap.start }); cursor = Math.max(cursor, gap.end); }
-        if (cursor < wall.length / 2) segments.push({ start: cursor, end: wall.length / 2 });
+        const segments = roomWallSolidSegments(wall, roomLayout.doors);
         for (const segment of segments) {
           const segmentLength = segment.end - segment.start;
           const centerX = wall.x + (wall.axis === "horizontal" ? (segment.start + segment.end) / 2 : 0) + mapWorld.width / 2;
@@ -1842,22 +1817,27 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     let previousFrame = performance.now();
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const motionScale = reduceMotion ? 0 : 1;
-    let cameraInitialized = false;
-    const cameraFocus = new THREE.Vector3();
+    let previousCameraPose: CameraPose | null = null;
+    let previousCameraMode = cameraStateRef.current.mode;
+    let previousCameraRoomKey = previousRoomKeyRef.current;
     const cameraPanTarget = cameraPanTargetRef.current ?? new THREE.Vector3(activeFloor.width / 2, 0, activeFloor.depth / 2);
     cameraPanTargetRef.current = cameraPanTarget;
     const currentLookTarget = cameraPanTarget.clone();
-    let zoomDistance = activeRoomKey === "lobby" ? Math.hypot(CAMERA.offsetX, CAMERA.offsetZ) : LIVE_OFFICE_FOCUS_DISTANCE;
+    cameraLookTargetRef.current = currentLookTarget;
     let cameraDrag: { pointerId: number; mode: "pan" | "rotate"; x: number; y: number; startX: number; startY: number; moved: boolean } | null = null;
     let suppressNextContextMenu = false;
     let deskZonePress: { pointerId: number; zoneId: string | null } | null = null;
-    let cameraElevation = cameraElevationRef.current;
     // A slight upward neutral pitch keeps the center reticle at the horizon
     // on the default office spawn instead of pointing into the near floor.
-    let firstPersonPitch = THREE.MathUtils.degToRad(6);
+    let firstPersonPitch = THREE.MathUtils.degToRad(FPP_INITIAL_PITCH_DEG);
+    const lookFirstPerson = (deltaXPixel: number, deltaYPixel: number, sensitivityRadPerPixel: number) => {
+      const aim = rotateFirstPersonAim(cameraYawRef.current, firstPersonPitch, deltaXPixel, deltaYPixel, sensitivityRadPerPixel);
+      cameraYawRef.current = aim.yawRad;
+      firstPersonPitch = aim.pitchRad;
+    };
     let lastMapEditMode = false;
     const mapEditMovementKeys = new Set<string>();
-    const mapEditMovementCodes = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"]);
+    const mapEditMovementCodes = new Set<string>(CAMERA_MOVEMENT_KEY_CODES);
     const getOfficePropIdAt = (clientX: number, clientY: number) => {
       const bounds = renderer.domElement.getBoundingClientRect();
       mapPointerNdc.set((clientX - bounds.left) / bounds.width * 2 - 1, -((clientY - bounds.top) / bounds.height) * 2 + 1);
@@ -2054,8 +2034,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           renderer.domElement.style.cursor = "pointer";
         } else {
           // Empty space remains available for moving the map camera in editor mode.
-          if (campusCharacterFocusedRef.current) cameraPanTarget.copy(currentLookTarget);
-          campusCharacterFocusedRef.current = false;
+          if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
+          dispatchCamera({ type: "manual-drag" });
           cameraDrag = { pointerId: event.pointerId, mode: "pan", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
           renderer.domElement.setPointerCapture(event.pointerId);
           renderer.domElement.style.cursor = "grabbing";
@@ -2074,8 +2054,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         deskZonePress = { pointerId: event.pointerId, zoneId: deskZone?.id ?? null };
       }
       if (event.button === 0 && !buildModeRef.current) {
-        if (campusCharacterFocusedRef.current) cameraPanTarget.copy(currentLookTarget);
-        campusCharacterFocusedRef.current = false;
+        if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
+        dispatchCamera({ type: "manual-drag" });
         cameraDrag = { pointerId: event.pointerId, mode: "pan", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
       } else if (event.button === 2) {
         event.preventDefault();
@@ -2087,8 +2067,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         // orbiting. After auto-move the camera is often still character-focused;
         // without clearing that state, the render loop keeps pulling the view
         // back toward the moving/arrived player and makes the drag feel ignored.
-        if (campusCharacterFocusedRef.current) cameraPanTarget.copy(currentLookTarget);
-        campusCharacterFocusedRef.current = false;
+        if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
+        dispatchCamera({ type: "manual-drag" });
         // Right-drag orbits in the normal view and Modify props; map editing
         // keeps its established right-drag pan behavior.
         cameraDrag = { pointerId: event.pointerId, mode: mapEditModeRef.current ? "pan" : "rotate", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
@@ -2120,9 +2100,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         if (!cameraDrag) return;
       }
       if (campusOverviewRef.current && firstPersonViewRef.current && document.pointerLockElement === renderer.domElement && !weaponInventoryOpenRef.current) {
-        const sensitivity = 0.0022;
-        cameraYawRef.current -= event.movementX * sensitivity;
-        firstPersonPitch = THREE.MathUtils.clamp(firstPersonPitch - event.movementY * sensitivity, THREE.MathUtils.degToRad(-78), THREE.MathUtils.degToRad(78));
+        lookFirstPerson(event.movementX, event.movementY, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL);
         return;
       }
       if (zoneAreaDrag?.pointerId === event.pointerId) {
@@ -2172,28 +2150,24 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       cameraDrag.y = event.clientY;
       if (Math.hypot(event.clientX - cameraDrag.startX, event.clientY - cameraDrag.startY) >= 4) cameraDrag.moved = true;
       if (cameraDrag.mode === "rotate") {
-        cameraYawRef.current -= deltaX * CAMERA.dragSensitivity;
         if (firstPersonViewRef.current) {
-          firstPersonPitch = THREE.MathUtils.clamp(firstPersonPitch - deltaY * CAMERA.dragSensitivity, THREE.MathUtils.degToRad(-75), THREE.MathUtils.degToRad(75));
+          lookFirstPerson(deltaX, deltaY, CAMERA.dragSensitivity);
         } else {
-          cameraElevation = THREE.MathUtils.clamp(cameraElevation + deltaY * CAMERA.dragSensitivity, THREE.MathUtils.degToRad(8), THREE.MathUtils.degToRad(68));
+          cameraYawRef.current -= deltaX * CAMERA.dragSensitivity;
+          dispatchCamera({ type: "elevation", radians: cameraStateRef.current.elevationRad + deltaY * CAMERA.dragSensitivity });
         }
       } else {
-        const distance = campusOverviewDistance(activeFloor.width, activeFloor.depth, camera.aspect, cameraYawRef.current, cameraElevation, camera.fov) * campusZoomRef.current;
-        const worldPerPixel = 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / Math.max(renderer.domElement.clientHeight, 1);
-        const yaw = cameraYawRef.current;
-        cameraPanTarget.x += -Math.cos(yaw) * deltaX * worldPerPixel - Math.sin(yaw) * deltaY * worldPerPixel;
-        cameraPanTarget.z += Math.sin(yaw) * deltaX * worldPerPixel - Math.cos(yaw) * deltaY * worldPerPixel;
+        const distance = campusOverviewDistance(activeFloor.width, activeFloor.depth, camera.aspect, cameraYawRef.current, cameraStateRef.current.elevationRad, camera.fov) * cameraStateRef.current.zoomRatio;
+        cameraPanTarget.copy(panCameraTarget({
+          target: cameraPanTarget, yawRad: cameraYawRef.current, distanceM: distance,
+          fovDeg: camera.fov, viewportHeightPixel: renderer.domElement.clientHeight,
+          deltaXPixel: deltaX, deltaYPixel: deltaY,
+        }));
       }
     };
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      if (campusOverviewRef.current) {
-        const fitDistance = campusOverviewDistance(activeFloor.width, activeFloor.depth, camera.aspect, cameraYawRef.current, cameraElevation, camera.fov);
-        campusZoomRef.current = THREE.MathUtils.clamp(campusZoomRef.current * Math.exp(event.deltaY * 0.001), CAMPUS_MIN_ZOOM_IN, CAMPUS_MAX_ZOOM_OUT);
-      } else {
-        zoomDistance = THREE.MathUtils.clamp(zoomDistance + Math.sign(event.deltaY) * CAMERA.zoomStep, LIVE_OFFICE_MIN_ZOOM, CAMERA.maxZoom);
-      }
+      dispatchCamera(cameraWheelEvent(cameraStateRef.current, event.deltaY));
     };
     const stopRotating = (event: PointerEvent) => {
       if (zoneAreaDrag?.pointerId === event.pointerId) {
@@ -2320,36 +2294,15 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         lastMapEditMode = mapEditModeRef.current;
         if (lastMapEditMode) {
           mapEditMovementKeys.clear();
-          if (campusCharacterFocusedRef.current) cameraPanTarget.copy(currentLookTarget);
-          campusCharacterFocusedRef.current = false;
-          focusCharacterRequestRef.current = false;
+          if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
+          dispatchCamera({ type: "manual-drag" });
         }
       }
       const delta = Math.min((now - previousFrame) / 1000, 0.05);
       previousFrame = now;
       if (mapEditModeRef.current && mapEditMovementKeys.size > 0) {
-        const right = Number(mapEditMovementKeys.has("KeyD") || mapEditMovementKeys.has("ArrowRight"))
-          - Number(mapEditMovementKeys.has("KeyA") || mapEditMovementKeys.has("ArrowLeft"));
-        const forward = Number(mapEditMovementKeys.has("KeyW") || mapEditMovementKeys.has("ArrowUp"))
-          - Number(mapEditMovementKeys.has("KeyS") || mapEditMovementKeys.has("ArrowDown"));
-        const magnitude = Math.hypot(right, forward);
-        if (magnitude > 0) {
-          const yaw = cameraYawRef.current;
-          const normalizedRight = right / magnitude;
-          const normalizedForward = forward / magnitude;
-          const speed = 18;
-          cameraPanTarget.x = THREE.MathUtils.clamp(
-            cameraPanTarget.x + (normalizedRight * Math.cos(yaw) - normalizedForward * Math.sin(yaw)) * speed * delta,
-            0,
-            mapWorld.width,
-          );
-          cameraPanTarget.z = THREE.MathUtils.clamp(
-            cameraPanTarget.z + (-normalizedRight * Math.sin(yaw) - normalizedForward * Math.cos(yaw)) * speed * delta,
-            0,
-            mapWorld.depth,
-          );
-          campusCharacterFocusedRef.current = false;
-        }
+        cameraPanTarget.copy(panEditorCamera(cameraPanTarget, mapEditMovementKeys, cameraYawRef.current, delta, mapWorld.width, mapWorld.depth));
+        dispatchCamera({ type: "manual-drag" });
       }
       const currentPortalIds = new Set<string>();
       for (const portal of roomPortalsRef.current) {
@@ -2729,7 +2682,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         // Kenney's authored sit clip faces the opposite local direction from
         // the chair fronts in our office furniture assets.
         const targetRotation = sittingProp ? (sittingAnchor?.rotation ?? sittingProp.rotation) + rotationOffset + Math.PI : player.rotation + rotationOffset;
-        avatar.rotation.y = THREE.MathUtils.lerp(avatar.rotation.y, targetRotation, blend);
+        avatar.rotation.y = lerpAngle(avatar.rotation.y, targetRotation, blend);
         // While mounted, keep the avatar hidden even when the vehicle is idle.
         avatar.visible = !vehicleId;
 
@@ -2871,108 +2824,41 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       // Portal frames and their depth-independent labels otherwise sit directly
       // in front of the avatar while the focus camera tracks the local player.
       for (const entry of roomPortalMeshes.values()) {
-        entry.root.visible = !campusCharacterFocusedRef.current;
+        entry.root.visible = !cameraStateRef.current.following;
       }
 
       const local = localId ? avatars.get(localId) : undefined;
       const localPlayerState = localId ? playersRef.current.get(localId) : undefined;
-      // On first load, room entry, and return from FPP, place the camera behind
-      // the avatar's facing direction. Once aligned, normal mouse orbit stays
-      // available until the next camera transition.
-      if (alignThirdPersonBehindRef.current && localPlayerState && !firstPersonViewRef.current) {
-        cameraYawRef.current = localPlayerState.rotation + Math.PI;
-        alignThirdPersonBehindRef.current = false;
+      if (cameraStateRef.current.arrival === "awaiting-avatar" && local && localPlayerState) {
+        if (cameraStateRef.current.alignBehind) cameraYawRef.current = localPlayerState.rotation + Math.PI;
+        dispatchCamera({ type: "avatar-ready" });
+        previousCameraPose = null;
       }
-      if (thirdPersonCloseRequestRef.current && !firstPersonViewRef.current) {
-        zoomDistance = LIVE_OFFICE_FOCUS_DISTANCE;
-        campusCharacterFocusedRef.current = true;
-        if (campusOverviewRef.current) focusCharacterRequestRef.current = true;
-        thirdPersonCloseRequestRef.current = false;
-      }
-      if (focusCharacterRequestRef.current && campusOverviewRef.current && local) {
-        campusZoomRef.current = CAMPUS_MIN_ZOOM_IN;
-        campusCharacterFocusedRef.current = true;
-        focusCharacterRequestRef.current = false;
-      }
-      // Manual camera pan/orbit detaches the view from the local character.
-      // In third-person character mode, walking should resume following the
-      // avatar so the player never keeps moving off-screen. Keep the 2D map,
-      // first-person view, and editing modes under their existing controls.
+      const editing = mapEditModeRef.current || buildModeRef.current;
+      if (cameraStateRef.current.editing !== editing) dispatchCamera({ type: "edit", active: editing });
       const heldKeys = heldKeysRef?.current;
-      const walkingInput = Boolean(heldKeys && [
-        "KeyW", "KeyA", "KeyS", "KeyD",
-        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
-      ].some((key) => heldKeys.has(key)));
-      const mapIsIn2dMode = campusOverviewRef.current && campusZoomRef.current >= CAMPUS_2D_ZOOM_THRESHOLD;
-      if (walkingInput && !firstPersonViewRef.current && !mapIsIn2dMode && !mapEditModeRef.current && !buildModeRef.current) {
-        campusCharacterFocusedRef.current = true;
-      }
-      const characterTarget = !campusOverviewRef.current && local
-        ? local.position.clone().add(new THREE.Vector3(0, 0.95, 0))
-        : !campusOverviewRef.current
-          ? new THREE.Vector3(0, 0, 0)
-          : local?.position.clone().add(new THREE.Vector3(0, 0.95, 0)) ?? new THREE.Vector3(activeFloor.width / 2, 0, activeFloor.depth / 2);
-      const focus = campusCharacterFocusedRef.current ? characterTarget : cameraPanTarget;
-      currentLookTarget.copy(focus);
-      if (!cameraInitialized || reduceMotion) cameraFocus.copy(focus);
-      const target = reduceMotion ? cameraFocus : focus;
-      // Keep the 2D map aligned to the camera/map direction. Following the
-      // avatar's rotation here makes the entire map spin whenever they walk
-      // and turn; movement already uses cameraYawRef so the map remains the
-      // stable frame of reference for the movement controls.
-      const cameraYaw = cameraYawRef.current;
-      const firstPerson = campusOverviewRef.current && firstPersonViewRef.current && Boolean(local);
-      // The local-avatar camera override must preserve the mounted-vehicle
-      // visibility rule set in the player loop above.
+      const walkingInput = Boolean(heldKeys && hasCameraMovement(heldKeys));
+      if (walkingInput) dispatchCamera({ type: "walk-input" });
+      const frame = computeCameraFrame({
+        state: cameraStateRef.current, localPosition: local?.position, panTarget: cameraPanTarget,
+        width: activeFloor.width, depth: activeFloor.depth, aspect: camera.aspect,
+        yaw: cameraYawRef.current, pitch: firstPersonPitch,
+      });
+      currentLookTarget.copy(frame.focus);
+      const firstPerson = frame.mode === "fpp";
       if (local) local.visible = !firstPerson && !localPlayerState?.vehicleId;
       firstPersonViewModel.visible = firstPerson && !mapEditModeRef.current && !buildModeRef.current && !localPlayerState?.vehicleId;
       if (firstPersonViewModel.visible) equipFirstPersonBlaster(selectedBlasterIdRef.current);
-      const targetFov = firstPerson ? 68 : 38;
-      if (camera.fov !== targetFov) {
-        camera.fov = targetFov;
-        camera.updateProjectionMatrix();
-      }
-      const horizontalDistance = zoomDistance;
-      const mapZoomDistance = campusOverviewRef.current
-        ? campusOverviewDistance(activeFloor.width, activeFloor.depth, camera.aspect, cameraYaw, cameraElevation, camera.fov) * campusZoomRef.current
-        : horizontalDistance;
-      if (campusOverviewRef.current) {
-        const near = Math.max(Number.EPSILON, Math.min(0.1, mapZoomDistance / 1_000));
-        const far = Math.max(7_000, mapZoomDistance * 2);
-        if (camera.near !== near || camera.far !== far) {
-          camera.near = near;
-          camera.far = far;
-          camera.updateProjectionMatrix();
-        }
-      }
-      const zoomScale = mapZoomDistance / Math.hypot(CAMERA.offsetX, CAMERA.offsetZ);
-      const elevatedHorizontalDistance = mapZoomDistance * Math.cos(cameraElevation);
-      const shoulderRight = new THREE.Vector3(Math.cos(cameraYaw), 0, -Math.sin(cameraYaw));
-      const shoulderOffset = campusCharacterFocusedRef.current && local && !mapEditModeRef.current ? 0.68 : 0;
-      const desiredCamera = firstPerson && local
-        ? local.position.clone().add(new THREE.Vector3(0, 1.42, 0))
-        : new THREE.Vector3(
-            target.x + Math.sin(cameraYaw) * elevatedHorizontalDistance,
-            target.y + Math.tan(cameraElevation) * mapZoomDistance,
-            target.z + Math.cos(cameraYaw) * elevatedHorizontalDistance,
-          ).addScaledVector(shoulderRight, shoulderOffset);
-      if (reduceMotion) {
-        camera.position.copy(desiredCamera);
-      } else {
-        camera.position.lerp(desiredCamera, 1 - Math.pow(0.92, delta * 60));
-      }
-      cameraInitialized = true;
-      if (firstPerson && local) {
-        const forward = new THREE.Vector3(
-          -Math.sin(cameraYaw) * Math.cos(firstPersonPitch),
-          Math.sin(firstPersonPitch),
-          -Math.cos(cameraYaw) * Math.cos(firstPersonPitch),
-        );
-        camera.lookAt(camera.position.clone().add(forward));
-      } else {
-        const shoulderTarget = target.clone().addScaledVector(shoulderRight, shoulderOffset * 0.55);
-        camera.lookAt(shoulderTarget.x, shoulderTarget.y, shoulderTarget.z);
-      }
+      applyCameraProjection(camera, frame, campusOverviewRef.current);
+      const roomChanged = previousCameraRoomKey !== previousRoomKeyRef.current;
+      const modeChanged = previousCameraMode !== frame.mode;
+      const pose = smoothCameraPose(previousCameraPose, frame.pose, delta, { reduceMotion, modeChanged, roomChanged });
+      const visiblePose = cameraColliders.apply(pose, frame.mode, delta, reduceMotion || modeChanged || roomChanged || !previousCameraPose);
+      camera.position.copy(visiblePose.position);
+      camera.lookAt(visiblePose.lookAt);
+      previousCameraPose = pose;
+      previousCameraMode = frame.mode;
+      previousCameraRoomKey = previousRoomKeyRef.current;
       const actionMenu = propActionMenuRef.current;
       const actionMenuElement = propActionMenuElementRef.current;
       if (actionMenuElement) {
@@ -3135,7 +3021,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       if (placementGhost.visible) {
         placementGhost.position.set(placementGhostPosition.x, placementGhostElevation, placementGhostPosition.z);
       }
-      const showMap2d = campusOverviewRef.current && campusZoomRef.current >= CAMPUS_2D_ZOOM_THRESHOLD && !buildModeRef.current && !mapEditModeRef.current && !firstPersonViewRef.current;
+      const showMap2d = cameraStateRef.current.mode === "map2d";
       renderer.domElement.style.opacity = showMap2d ? "0" : "1";
       map2dCanvas.style.display = showMap2d ? "block" : "none";
       if (showMap2d) {
@@ -3221,8 +3107,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     return () => {
       if (draggingMapProp) endMapPropDrag(draggingMapProp);
       draggingMapProp = null;
-      cameraElevationRef.current = cameraElevation;
       cameraPositionRef.current = camera.position.clone();
+      cameraColliders.dispose();
       disposed = true;
       zoneLockIconsRef.current.clear();
       cancelAnimationFrame(animationFrame);
@@ -3304,7 +3190,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       deskClaimLayer.remove();
       renderer.domElement.remove();
     };
-  }, [playersRef, localSessionIdRef, cameraYawRef, activeRoomKey, roomLayout, appPaused]);
+  }, [playersRef, localSessionIdRef, cameraYawRef, firstPersonViewRef, activeRoomKey, roomLayout, appPaused]);
 
   return (
     <>
@@ -3327,7 +3213,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       </div>}
       {campusOverview && !mapEditMode && !buildMode && <div className="world-control-dock" aria-label="Map controls">
         <div className="world-control-group" role="group" aria-label="Character actions">
-          <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" onClick={() => { setActiveFloatingGroup(null); campusCharacterFocusedRef.current = true; focusCharacterRequestRef.current = true; }}>
+          <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "focus-character" }); }}>
             <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.3"/></svg>
           </button>
           {personalDeskZone && currentPrivateZoneId !== personalDeskZone.id && <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={appPaused} onClick={() => { setActiveFloatingGroup(null); buildCallbacksRef.current.onAutoMove?.({ x: personalDeskZone.x, z: personalDeskZone.z }, false); }}>
@@ -3349,7 +3235,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         </div>}
         <div className={`world-control-group${activeFloatingGroup === "view" ? " is-active" : ""}`}>
           {activeFloatingGroup === "view" && <div className="world-control-actions" id="map-view-actions" role="group" aria-label="Camera actions">
-            <button type="button" className="camera-view-control" aria-label={firstPersonView ? "Switch to third-person view" : "Switch to first-person view"} title={firstPersonView ? "Third-person view" : "First-person view"} onClick={() => { const enteringFirstPerson = !firstPersonView; setActiveFloatingGroup(null); setFirstPersonView(enteringFirstPerson); if (!enteringFirstPerson) { firstPersonViewRef.current = false; campusCharacterFocusedRef.current = true; focusCharacterRequestRef.current = true; thirdPersonCloseRequestRef.current = true; alignThirdPersonBehindRef.current = true; cameraElevationRef.current = DEFAULT_TPP_CAMERA_ELEVATION; } buildCallbacksRef.current.onWeaponEquip?.(enteringFirstPerson ? selectedBlasterIdRef.current : ""); setWeaponInventoryOpen(false); if (document.pointerLockElement) document.exitPointerLock(); }}>
+            <button type="button" className="camera-view-control" aria-label={firstPersonView ? "Switch to third-person view" : "Switch to first-person view"} title={firstPersonView ? "Third-person view" : "First-person view"} onClick={toggleCameraView}>
               {firstPersonView ? "3P" : "1P"}
             </button>
             {firstPersonView && <button type="button" className={`weapon-inventory-control${weaponInventoryOpen ? " is-active" : ""}`} aria-label={weaponInventoryOpen ? "Close weapon inventory" : "Open weapon inventory"} title="Weapon inventory · B" onClick={() => { setWeaponInventoryOpen((open) => !open); if (!weaponInventoryOpen && document.pointerLockElement) document.exitPointerLock(); }}>
@@ -3362,7 +3248,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         </div>
         <div className={`world-control-group${activeFloatingGroup === "zoom" ? " is-active" : ""}`}>
           {activeFloatingGroup === "zoom" && <div className="world-control-actions" id="map-zoom-actions" role="group" aria-label="Zoom actions">
-            <div className="overview-zoom-controls"><button type="button" aria-label="Zoom in one level" title="Zoom in 1×" onClick={() => { campusZoomRef.current = THREE.MathUtils.clamp(campusZoomRef.current / 1.25, CAMPUS_MIN_ZOOM_IN, CAMPUS_MAX_ZOOM_OUT); }}>+</button><button type="button" aria-label="Zoom out one level" title="Zoom out 1×" onClick={() => { campusZoomRef.current = THREE.MathUtils.clamp(campusZoomRef.current * 1.25, CAMPUS_MIN_ZOOM_IN, CAMPUS_MAX_ZOOM_OUT); }}>−</button></div>
+            <div className="overview-zoom-controls"><button type="button" aria-label="Zoom in one level" title="Zoom in 1×" onClick={() => { dispatchCamera({ type: "zoom", ratio: cameraStateRef.current.zoomRatio / CAMERA_ZOOM_BUTTON_RATIO }); }}>+</button><button type="button" aria-label="Zoom out one level" title="Zoom out 1×" onClick={() => { dispatchCamera({ type: "zoom", ratio: cameraStateRef.current.zoomRatio * CAMERA_ZOOM_BUTTON_RATIO }); }}>−</button></div>
           </div>}
           <button type="button" className="world-control-trigger" aria-label="Zoom controls" title="Zoom controls" aria-expanded={activeFloatingGroup === "zoom"} aria-controls="map-zoom-actions" onClick={() => setActiveFloatingGroup((group) => group === "zoom" ? null : "zoom")}>
             <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.5 4.5M8 10.8h5.6M10.8 8v5.6"/></svg>
