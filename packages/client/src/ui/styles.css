@@ -233,6 +233,10 @@ button:focus-visible { outline: 3px solid #287a59; outline-offset: 3px; }
 .meta-divider { color: #c0c8c2; }
 
 .office-space-card { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid #edf0ed; color: #929d95; font-size: 9px; }
+.workspace-share-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: auto; height: 32px; min-width: 0; min-height: 32px; margin-top: 11px; padding: 0 9px; border: 1px solid rgba(2, 48, 71, .14); border-radius: 8px; background: rgba(255, 255, 255, .72); color: #176d83; font: 650 10px/1 "DM Sans", sans-serif; white-space: nowrap; cursor: pointer; }
+.workspace-share-button:hover { border-color: rgba(33, 158, 188, .48); background: #eaf7fa; }
+.workspace-share-button svg { display: block; flex: 0 0 15px; width: 15px; height: 15px; }
+.workspace-share-notice { margin: 6px 0 0; color: #668272; font-size: 9px; }
 .sidebar-people { min-height: 0; padding: 14px 16px 12px; overflow: auto; }
 .people-search { display: flex; align-items: center; gap: 8px; min-height: 36px; margin: 12px 0; padding: 0 10px; border: 1px solid rgba(2, 48, 71, .14); border-radius: 10px; background: rgba(255, 255, 255, .58); color: #78909a; }
 .people-search:focus-within { border-color: #219ebc; box-shadow: 0 0 0 3px rgba(33, 158, 188, .13); }
