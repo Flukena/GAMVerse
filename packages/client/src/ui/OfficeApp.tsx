@@ -348,9 +348,8 @@ export function OfficeApp() {
   const [managedOfficeName, setManagedOfficeName] = useState("");
   const [officeMembers, setOfficeMembers] = useState<OfficeMember[]>([]);
   const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
-  const [copiedMeetingOfficeId, setCopiedMeetingOfficeId] = useState<string | null>(null);
-  const [workspaceInviteBusy, setWorkspaceInviteBusy] = useState(false);
-  const [workspaceInviteMessage, setWorkspaceInviteMessage] = useState<string | null>(null);
+  const [inviteLinkBusyOfficeId, setInviteLinkBusyOfficeId] = useState<string | null>(null);
+  const [inviteLinkFeedback, setInviteLinkFeedback] = useState<{ officeId: string; message: string } | null>(null);
   const [meetingZoneActive, setMeetingZoneActive] = useState(false);
   const [meetingZoneId, setMeetingZoneId] = useState<string | null>(null);
   const [activeCameraRoomKey, setActiveCameraRoomKey] = useState("lobby");
@@ -1877,23 +1876,22 @@ const toggleMeetingMute = async () => {
     finally { setLobbyBusy(false); }
   };
 
-  const copyWorkspaceInviteLink = async () => {
-    if (!activeOffice) return;
-    setWorkspaceInviteBusy(true);
-    setWorkspaceInviteMessage(null);
+  const createAndCopyOfficeInviteLink = async (officeId: string) => {
+    setInviteLinkBusyOfficeId(officeId);
+    setInviteLinkFeedback(null);
     try {
-      const response = await fetch(`${endpoint}/offices/${activeOffice.id}/invites`, {
+      const response = await fetch(`${endpoint}/offices/${officeId}/invites`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: "user" }),
       });
       const result = await response.json() as { invite?: { token?: string }; error?: string };
       if (!response.ok || !result.invite?.token) throw new Error(result.error ?? "Could not create an invite link.");
       await navigator.clipboard.writeText(`${window.location.origin}/join/${result.invite.token}`);
-      setWorkspaceInviteMessage("Invite link copied · one use · expires in 7 days");
+      setInviteLinkFeedback({ officeId, message: "Invite link copied · one use · expires in 7 days" });
     } catch (cause) {
-      setWorkspaceInviteMessage(cause instanceof Error ? cause.message : "Could not copy the invite link.");
+      setInviteLinkFeedback({ officeId, message: cause instanceof Error ? cause.message : "Could not copy the invite link." });
     } finally {
-      setWorkspaceInviteBusy(false);
+      setInviteLinkBusyOfficeId(null);
     }
   };
 
@@ -2411,8 +2409,8 @@ const toggleMeetingMute = async () => {
               {offices.length === 0 ? <p className="empty-people">No offices yet. Create one or accept an invite.</p> : <div className="office-grid">{offices.map((office) => <article className="office-tile" key={office.id}>
                 <div><span className="live-indicator" /><span className="office-role">{office.role}</span></div><h3>{office.name}</h3><p>Owner: {office.ownerUsername}</p>
                 <button className="lobby-button primary" disabled={lobbyBusy} onClick={() => selectOffice(office)}>Enter office</button>
-                <button className="lobby-button" disabled={lobbyBusy} onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/meeting/${office.id}`).then(() => setCopiedMeetingOfficeId(office.id)); }}>Copy meeting link</button>
-                {copiedMeetingOfficeId === office.id && <p className="invite-notice">Link copied · office members only</p>}
+                {(["owner", "admin", "maintainer"] as string[]).includes(office.role) ? <button className="lobby-button" disabled={lobbyBusy || inviteLinkBusyOfficeId !== null} onClick={() => void createAndCopyOfficeInviteLink(office.id)}>{inviteLinkBusyOfficeId === office.id ? "Creating invite…" : "Copy invite link"}</button> : <p className="invite-notice">Ask an office admin to invite someone.</p>}
+                {inviteLinkFeedback?.officeId === office.id && <p className="invite-notice" role="status">{inviteLinkFeedback.message}</p>}
                 {["owner", "admin", "maintainer"].includes(office.role) && <button className="lobby-button office-manage-button" disabled={lobbyBusy} onClick={() => void openOfficeManager(office)}>Manage office</button>}
               </article>)}</div>}
             </section>}
@@ -2539,11 +2537,11 @@ const toggleMeetingMute = async () => {
           <h1>{activeOffice.name}</h1>
           <div className="room-meta"><span className="live-indicator" /> {activeOffice.role} <span className="meta-divider">·</span> Owner: {activeOffice.ownerUsername}</div>
           <div className="office-space-card" aria-label="Office space"><span>200 × 250 m</span><span>One shared space</span></div>
-          {(["owner", "admin", "maintainer"] as string[]).includes(activeOffice.role) ? <button type="button" className="workspace-share-button" aria-label="Create and copy office invite link" title="Create and copy invite link" disabled={workspaceInviteBusy} onClick={() => void copyWorkspaceInviteLink()}>
+          {(["owner", "admin", "maintainer"] as string[]).includes(activeOffice.role) ? <button type="button" className="workspace-share-button" aria-label="Create and copy office invite link" title="Create and copy invite link" disabled={inviteLinkBusyOfficeId !== null} onClick={() => void createAndCopyOfficeInviteLink(activeOffice.id)}>
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10.5 10.5 7a3 3 0 0 1 4.2 4.2l-2 2"/><path d="m13 9.5-3.5 3.5a3 3 0 0 1-4.2-4.2l2-2"/></svg>
-            <span>{workspaceInviteBusy ? "Creating…" : "Copy invite link"}</span>
+            <span>{inviteLinkBusyOfficeId === activeOffice.id ? "Creating…" : "Copy invite link"}</span>
           </button> : <p className="workspace-share-notice">Ask an office admin to invite someone.</p>}
-          {workspaceInviteMessage && <p className="workspace-share-notice" role="status">{workspaceInviteMessage}</p>}
+          {inviteLinkFeedback?.officeId === activeOffice.id && <p className="workspace-share-notice" role="status">{inviteLinkFeedback.message}</p>}
         </section>}
         {activeLeftTab === "people" && <section id="people-panel" className="sidebar-people" aria-label="People in the office">
         <div className="card-heading"><div><span className="eyebrow">IN THE SPACE</span><h2>People <span>{playerCount}</span></h2></div></div>
