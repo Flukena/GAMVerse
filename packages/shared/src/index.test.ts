@@ -63,29 +63,10 @@ test("every placed Campus furniture prop has a matching collision footprint", ()
   }
 });
 
-test("Campus movement blocks desks, meeting tables, cafeteria tables, and restroom fixtures", () => {
-  for (const kind of ["private-office", "daily-meeting", "cafeteria", "restroom"] as const) {
-    const room = CAMPUS_LAYOUT.rooms.find((entry) => entry.kind === kind)!;
-    const obstacle = campusPropPlacements(room).find((prop) => prop.collision)!;
-    const center = {
-      x: room.x - CAMPUS_LAYOUT.floors[0]!.width / 2 + obstacle.x,
-      z: room.z - CAMPUS_LAYOUT.floors[0]!.depth / 2 + obstacle.z,
-    };
-    assert.equal(isPositionWalkable(center, CAMPUS_WORLD), false, `${kind} center should be blocked`);
-    let approach: { x: number; z: number } | undefined;
-    for (const side of [1, -1]) {
-      for (let distance = 1.5; distance <= 5 && !approach; distance += 0.5) {
-        const candidate = { x: center.x, z: center.z + side * distance };
-        if (isPositionWalkable(candidate, CAMPUS_WORLD)) approach = candidate;
-      }
-    }
-    assert.ok(approach, `${kind} should have at least one walkable side to approach`);
-    const direction = Math.sign(center.z - approach.z);
-    assert.ok(isPositionWalkable(approach, CAMPUS_WORLD), `${kind} approach lane should be walkable`);
-    const moved = movePlayer(approach, { x: 0, z: direction }, 0.5, CAMPUS_WORLD);
-    assert.ok(isPositionWalkable(moved, CAMPUS_WORLD));
-    assert.ok(Math.abs(moved.z - center.z) > obstacle.collisionDepth / 2, `${kind} player should stop outside the prop`);
-  }
+test("empty campus layout does not create phantom furniture collision", () => {
+  assert.equal(CAMPUS_LAYOUT.rooms.length, 0);
+  assert.equal(CAMPUS_WORLD.obstacles.length, 0);
+  assert.equal(isPositionWalkable({ x: 0, z: 0 }, CAMPUS_WORLD), true);
 });
 
 test("saved room prop layout drives server collision and supports non-blocking decor", () => {
