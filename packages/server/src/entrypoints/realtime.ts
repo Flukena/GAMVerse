@@ -40,6 +40,19 @@ const server = defineServer({
         response.status(503).json({ error: "Could not refresh office map." });
       }
     });
+    app.post("/internal/offices/desk-zone", (request: AuthRequest, response: AuthResponse) => {
+      if (!authorizedServiceCall(request)) { response.sendStatus(401); return; }
+      const officeId = request.body?.officeId;
+      const zoneId = request.body?.zoneId;
+      const name = request.body?.name;
+      const ownerUsername = request.body?.ownerUsername;
+      if (typeof officeId !== "string" || typeof zoneId !== "string" || typeof name !== "string"
+        || typeof ownerUsername !== "string") {
+        response.status(400).json({ error: "Office id, desk zone id, name, and owner are required." }); return;
+      }
+      OfficeRoom.updateDeskZone(officeId, { id: zoneId, name, ownerUsername: ownerUsername || null });
+      response.sendStatus(204);
+    });
     app.post("/internal/members/kick", (request: AuthRequest, response: AuthResponse) => {
       if (!authorizedServiceCall(request)) { response.sendStatus(401); return; }
       const officeId = request.body?.officeId; const username = request.body?.username;

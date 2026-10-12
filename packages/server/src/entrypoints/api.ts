@@ -1,5 +1,6 @@
 import express from "express";
 import { createServer } from "node:http";
+import { readRoomLayout } from "@gammyverse/shared";
 import { changeAccountPassword, completePasswordReset, createPasswordResetLink, getSession, listAccountsForMaintainer, loginAccount, pruneInactiveAccounts, registerAccount, revokeSession, updateAccountCharacter } from "../auth/service.js";
 import { deleteUserCharacterModel, getCharacterModel, listUserCharacterModels, uploadUserCharacterModel } from "../auth/characterModels.js";
 import { databaseIsReady, initializeDatabase } from "../infra/db.js";
@@ -276,7 +277,8 @@ function configureApi() {
         if (!session) { response.status(401).json({ error: "Authentication required." }); return; }
         try {
           const result = await claimOfficeDeskZone(session.username, request.params.officeId, request.params.zoneId);
-          await notifyRealtime("offices/map", { officeId: request.params.officeId });
+          const zone = readRoomLayout(result.config).zones.find((entry) => entry.id === request.params.zoneId);
+          if (zone) await notifyRealtime("offices/desk-zone", { officeId: request.params.officeId, zoneId: zone.id, name: zone.name, ownerUsername: zone.ownerUsername ?? "" });
           logServerEvent("api", "desk.claimed", { officeId: request.params.officeId, zoneId: request.params.zoneId, username: session.username });
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
@@ -292,7 +294,8 @@ function configureApi() {
         if (!session) { response.status(401).json({ error: "Authentication required." }); return; }
         try {
           const result = await unclaimOfficeDeskZone(session.username, request.params.officeId, request.params.zoneId);
-          await notifyRealtime("offices/map", { officeId: request.params.officeId });
+          const zone = readRoomLayout(result.config).zones.find((entry) => entry.id === request.params.zoneId);
+          if (zone) await notifyRealtime("offices/desk-zone", { officeId: request.params.officeId, zoneId: zone.id, name: zone.name, ownerUsername: zone.ownerUsername ?? "" });
           logServerEvent("api", "desk.unclaimed", { officeId: request.params.officeId, zoneId: request.params.zoneId, username: session.username });
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
