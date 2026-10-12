@@ -17,7 +17,7 @@ import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_
 
 type CharacterModelId = KenneyCharacterId | `custom-${string}`;
 type PlayerStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
-type PlayerSnapshot = { x: number; z: number; rotation: number; displayName: string; characterId: CharacterModelId; petId?: string; weaponId?: KenneyBlasterId | ""; vehicleId?: string; vehicleMode?: "" | "manual" | "auto"; vehiclePropId?: string; vehiclePropX?: number; vehiclePropZ?: number; vehiclePropRotation?: number; sittingPropId?: string; dancing?: boolean; status?: PlayerStatus };
+type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; characterId: CharacterModelId; petId?: string; weaponId?: KenneyBlasterId | ""; vehicleId?: string; vehicleMode?: "" | "manual" | "auto"; vehiclePropId?: string; vehiclePropX?: number; vehiclePropZ?: number; vehiclePropRotation?: number; sittingPropId?: string; dancing?: boolean; status?: PlayerStatus };
 type RoomPortalVisual = { roomKey: string; name: string; x: number; z: number; isLocked: boolean };
 type BlasterVector = { x: number; y: number; z: number };
 type BlasterShotEvent = { shooterSessionId: string; start: BlasterVector; end: BlasterVector };
@@ -38,6 +38,7 @@ interface Props {
   inboundAudioMuted?: boolean;
   appPaused?: boolean;
   idleAnimationsEnabled?: boolean;
+  ghostSessionIds?: ReadonlySet<string>;
   mapEditMode?: boolean;
   spawnPlacementMode?: boolean;
   onMoveSpawnPoint?: (position: { x: number; z: number }) => void;
@@ -62,6 +63,8 @@ interface Props {
   canClaimDesk?: boolean;
   deskClaimingZoneId?: string | null;
   onAutoMove?: (destination: { x: number; z: number }, randomVehicle: boolean) => void;
+  onSelectPlayer?: (sessionId: string, screenX: number, screenY: number) => void;
+  onGhostModeChange?: (enabled: boolean) => void;
   onBlasterShot?: (shot: { start: BlasterVector; end: BlasterVector; targetSessionId?: string }) => void;
   onWeaponEquip?: (weaponId: KenneyBlasterId | "") => void;
   blasterEventsRef?: MutableRefObject<BlasterShotEvent[]>;
@@ -71,6 +74,37 @@ interface Props {
   mapEditLockPending?: boolean;
   onEditMap?: () => void;
   onModifyProps?: () => void;
+}
+
+const ghostMaterialOverrides = new WeakMap<THREE.Mesh, { original: THREE.Material | THREE.Material[]; faded: THREE.Material[] }>();
+const ghostModelOpacity = new WeakMap<THREE.Object3D, boolean>();
+
+function setGhostModelOpacity(model: THREE.Object3D, enabled: boolean) {
+  if (ghostModelOpacity.get(model) === enabled) return;
+  model.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    let override = ghostMaterialOverrides.get(object);
+    if (enabled) {
+      if (!override) {
+        const original = object.material;
+        const originals = Array.isArray(original) ? original : [original];
+        const faded = originals.map((material) => material.clone());
+        override = { original, faded };
+        ghostMaterialOverrides.set(object, override);
+        object.material = Array.isArray(original) ? faded : faded[0]!;
+      }
+      for (const material of override.faded) {
+        material.transparent = true;
+        material.opacity = 0.4;
+        material.depthWrite = false;
+      }
+    } else if (override) {
+      object.material = override.original;
+      for (const material of override.faded) material.dispose();
+      ghostMaterialOverrides.delete(object);
+    }
+  });
+  ghostModelOpacity.set(model, enabled);
 }
 
 type CampusFloorId = 0;
@@ -263,6 +297,12 @@ function disposeAvatar(avatar: THREE.Group) {
       object.material.map?.dispose();
       object.material.dispose();
     } else if (object instanceof THREE.Mesh) {
+      const ghostOverride = ghostMaterialOverrides.get(object);
+      if (ghostOverride) {
+        object.material = ghostOverride.original;
+        ghostOverride.faded.forEach((material) => material.dispose());
+        ghostMaterialOverrides.delete(object);
+      }
       if (object.userData.sharedKenneyAvatarResources) return;
       object.geometry.dispose();
       const materials = Array.isArray(object.material) ? object.material : [object.material];
@@ -542,40 +582,81 @@ function fitVehicleToDriveScale(object: THREE.Object3D) {
   object.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale);
 }
 
-type GeneratedRoadTile = { x: number; z: number; rotation: number };
+/** Return the part of a road left visible after higher-priority avenues cross it. */
+function visibleRoadRanges(road: NonNullable<RoomLayout["roadways"]>[number], roadways: NonNullable<RoomLayout["roadways"]>) {
+  const horizontal = road.width >= road.depth;
+  const length = horizontal ? road.width : road.depth;
+  if (road.kind === "major") return [[-length / 2, length / 2] as const];
+  const blocked = roadways.flatMap((main) => {
+    if (main.kind !== "major" || (main.width >= main.depth) === horizontal) return [];
+    if (horizontal) {
+      const mainStart = main.z - main.depth / 2;
+      const mainEnd = main.z + main.depth / 2;
+      if (road.z < mainStart || road.z > mainEnd) return [];
+      return [[main.x - main.width / 2 - 0.15 - road.x, main.x + main.width / 2 + 0.15 - road.x] as const];
+    }
+    const mainStart = main.x - main.width / 2;
+    const mainEnd = main.x + main.width / 2;
+    if (road.x < mainStart || road.x > mainEnd) return [];
+    return [[main.z - main.depth / 2 - 0.15 - road.z, main.z + main.depth / 2 + 0.15 - road.z] as const];
+  }).map(([start, end]) => [Math.max(-length / 2, start), Math.min(length / 2, end)] as const)
+    .filter(([start, end]) => end > start)
+    .sort((a, b) => a[0] - b[0]);
+  const visible: Array<readonly [number, number]> = [];
+  let cursor = -length / 2;
+  for (const [start, end] of blocked) {
+    if (start > cursor) visible.push([cursor, start]);
+    cursor = Math.max(cursor, end);
+  }
+  if (cursor < length / 2) visible.push([cursor, length / 2]);
+  return visible;
+}
 
-/** Expand roadway rectangles into compact instanced Kenney road-tile placements. */
-function generatedRoadTilePlacements(roadways: NonNullable<RoomLayout["roadways"]>) {
-  const cells = new Map<string, { x: number; z: number; horizontal: boolean; vertical: boolean }>();
+/** Build lane paint as two light geometries instead of loading hundreds of road-tile models. */
+function makeRoadMarkings(roadways: NonNullable<RoomLayout["roadways"]>, mapWidth: number, mapDepth: number) {
+  const positions: number[] = [];
+  const centerPositions: number[] = [];
+  const addRect = (x: number, z: number, width: number, depth: number, centerLine = false) => {
+    const left = x + mapWidth / 2 - width / 2;
+    const right = left + width;
+    const top = z + mapDepth / 2 - depth / 2;
+    const bottom = top + depth;
+    (centerLine ? centerPositions : positions).push(left, 0.045, top, right, 0.045, top, right, 0.045, bottom,
+      left, 0.045, top, right, 0.045, bottom, left, 0.045, bottom);
+  };
   for (const road of roadways) {
-    const minX = road.x - road.width / 2;
-    const maxX = road.x + road.width / 2;
-    const minZ = road.z - road.depth / 2;
-    const maxZ = road.z + road.depth / 2;
     const horizontal = road.width >= road.depth;
-    for (let ix = Math.floor(minX); ix < Math.ceil(maxX); ix += 1) {
-      if (ix + 1 <= minX + 1e-5 || ix >= maxX - 1e-5) continue;
-      for (let iz = Math.floor(minZ); iz < Math.ceil(maxZ); iz += 1) {
-        if (iz + 1 <= minZ + 1e-5 || iz >= maxZ - 1e-5) continue;
-        const key = `${ix},${iz}`;
-        const cell = cells.get(key) ?? { x: ix + 0.5, z: iz + 0.5, horizontal: false, vertical: false };
-        if (horizontal) cell.horizontal = true;
-        else cell.vertical = true;
-        cells.set(key, cell);
+    const length = horizontal ? road.width : road.depth;
+    const width = horizontal ? road.depth : road.width;
+    const major = road.kind === "major";
+    const edgeOffset = width / 2 - 0.28;
+    const ranges = visibleRoadRanges(road, roadways);
+    for (const [rangeStart, rangeEnd] of ranges) for (const side of [-1, 1]) {
+      const rangeLength = rangeEnd - rangeStart;
+      const centerAlong = rangeStart + rangeLength / 2;
+      if (horizontal) addRect(road.x + centerAlong, road.z + side * edgeOffset, rangeLength, 0.12);
+      else addRect(road.x + side * edgeOffset, road.z + centerAlong, 0.12, rangeLength);
+    }
+    const dashLength = major ? 2.8 : 1.5;
+    const gap = major ? 2.4 : 2.5;
+    for (const [rangeStart, rangeEnd] of ranges) {
+      const phaseStart = -length / 2 + 1.5;
+      const firstDash = phaseStart + Math.max(0, Math.ceil((rangeStart - phaseStart) / (dashLength + gap))) * (dashLength + gap);
+      for (let along = firstDash; along < rangeEnd - 0.5; along += dashLength + gap) {
+        const segment = Math.min(dashLength, rangeEnd - 0.5 - along);
+        if (segment <= 0) continue;
+        if (horizontal) addRect(road.x + along + segment / 2, road.z, segment, major ? 0.14 : 0.1, major);
+        else addRect(road.x, road.z + along + segment / 2, major ? 0.14 : 0.1, segment, major);
       }
     }
   }
-
-  const placements = new Map<string, GeneratedRoadTile[]>();
-  for (const cell of cells.values()) {
-    const asset = cell.horizontal && cell.vertical
-      ? "kenney-city-kit-roads-road-crossroad"
-      : "kenney-city-kit-roads-road-straight";
-    const tiles = placements.get(asset) ?? [];
-    tiles.push({ x: cell.x, z: cell.z, rotation: cell.vertical && !cell.horizontal ? Math.PI / 2 : 0 });
-    placements.set(asset, tiles);
-  }
-  return placements;
+  const geometryFor = (vertices: number[]) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.computeVertexNormals();
+    return geometry;
+  };
+  return { edges: geometryFor(positions), center: geometryFor(centerPositions) };
 }
 
 /**
@@ -599,7 +680,7 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
-export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, firstPersonViewRef, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onBlasterShot, onWeaponEquip, blasterEventsRef, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
+export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, firstPersonViewRef, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compassRoseRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -660,8 +741,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const buildToolRef = useRef(buildTool); buildToolRef.current = buildTool;
   const selectedAssetRef = useRef(selectedAsset); selectedAssetRef.current = selectedAsset;
   const spawnPlacementModeRef = useRef(spawnPlacementMode); spawnPlacementModeRef.current = spawnPlacementMode;
-  const buildCallbacksRef = useRef({ onPlaceProp, onPlacementComplete, onMoveProp, onSelectMapItem, onDrawPrivateZone, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, onMoveSpawnPoint, onClaimDeskZone, onAutoMove, onBlasterShot, onWeaponEquip });
-  buildCallbacksRef.current = { onPlaceProp, onPlacementComplete, onMoveProp, onSelectMapItem, onDrawPrivateZone, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, onMoveSpawnPoint, onClaimDeskZone, onAutoMove, onBlasterShot, onWeaponEquip };
+  const ghostSessionIdsRef = useRef(ghostSessionIds); ghostSessionIdsRef.current = ghostSessionIds;
+  const buildCallbacksRef = useRef({ onPlaceProp, onPlacementComplete, onMoveProp, onSelectMapItem, onDrawPrivateZone, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, onMoveSpawnPoint, onClaimDeskZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip });
+  buildCallbacksRef.current = { onPlaceProp, onPlacementComplete, onMoveProp, onSelectMapItem, onDrawPrivateZone, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, onMoveSpawnPoint, onClaimDeskZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip };
   const canClaimDeskRef = useRef(canClaimDesk);
   canClaimDeskRef.current = canClaimDesk;
   const deskClaimingZoneIdRef = useRef(deskClaimingZoneId);
@@ -1046,56 +1128,30 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     }
     const roadwayGroup = new THREE.Group();
     roadwayGroup.name = "Generated office roads";
-    const generatedRoadTileTemplates: THREE.Object3D[] = [];
     const roadMaterials = {
       major: new THREE.MeshStandardMaterial({ color: 0x58656a, roughness: 0.96 }),
       small: new THREE.MeshStandardMaterial({ color: 0x899397, roughness: 0.94 }),
     };
-    for (const road of roomLayout?.roadways ?? []) {
+    // Draw side streets first so the arterial surface owns every junction.
+    const roads = [...(roomLayout?.roadways ?? [])].sort((a, b) => Number(a.kind === "major") - Number(b.kind === "major"));
+    for (const road of roads) {
       const surface = new THREE.Mesh(new THREE.BoxGeometry(road.width, 0.035, road.depth), roadMaterials[road.kind]);
       surface.name = `${road.kind} road ${road.id}`;
-      surface.position.set(road.x + mapWorld.width / 2, 0.02, road.z + mapWorld.depth / 2);
+      surface.position.set(road.x + mapWorld.width / 2, road.kind === "major" ? 0.026 : 0.02, road.z + mapWorld.depth / 2);
       surface.receiveShadow = true;
       surface.userData.blasterSurface = "floor";
       roadwayGroup.add(surface);
     }
-    campusRoot.add(roadwayGroup);
-    // Use the same real Kenney tiles exposed by Modify Props for generated
-    // roads too. Instance each shared GLB mesh across the grid so the campus
-    // can show continuous tile roads without creating thousands of independent
-    // scene objects or network requests.
-    for (const [asset, tiles] of generatedRoadTilePlacements(roomLayout?.roadways ?? [])) {
-      const definition = ROOM_PROP_CATALOG.find((item) => item.asset === asset);
-      if (!definition || tiles.length === 0) continue;
-      loadObjModel(asset, (template) => {
-        if (disposed) { disposeObjectResources(template); return; }
-        generatedRoadTileTemplates.push(template);
-        template.updateMatrixWorld(true);
-        template.traverse((source) => {
-          if (!(source instanceof THREE.Mesh)) return;
-          const geometry = source.geometry.clone();
-          geometry.applyMatrix4(source.matrixWorld);
-          const instances = new THREE.InstancedMesh(geometry, source.material, tiles.length);
-          instances.name = `${asset} generated road tiles`;
-          instances.castShadow = true;
-          instances.receiveShadow = true;
-          const matrix = new THREE.Matrix4();
-          const rotation = new THREE.Quaternion();
-          const position = new THREE.Vector3();
-          const scale = new THREE.Vector3(1, 1, 1);
-          for (let index = 0; index < tiles.length; index += 1) {
-            const tile = tiles[index]!;
-            position.set(tile.x + mapWorld.width / 2, 0.04, tile.z + mapWorld.depth / 2);
-            rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), tile.rotation);
-            matrix.compose(position, rotation, scale);
-            instances.setMatrixAt(index, matrix);
-          }
-          instances.instanceMatrix.needsUpdate = true;
-          instances.computeBoundingSphere();
-          roadwayGroup.add(instances);
-        });
-      }, (error) => console.warn(`Could not load generated road tiles ${asset}.`, error));
+    const roadMarkingGeometry = makeRoadMarkings(roomLayout?.roadways ?? [], mapWorld.width, mapWorld.depth);
+    for (const [name, geometry, color] of [["Road edge and side-street paint", roadMarkingGeometry.edges, 0xe9eeee], ["Major road center paint", roadMarkingGeometry.center, 0xf5c842]] as const) {
+      if (geometry.getAttribute("position").count === 0) { geometry.dispose(); continue; }
+      const marking = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+      marking.name = name;
+      marking.renderOrder = 2;
+      marking.userData.blasterSurface = "floor";
+      roadwayGroup.add(marking);
     }
+    campusRoot.add(roadwayGroup);
     const mapFineLines: number[] = [];
     const mapMajorLines: number[] = [];
     const gridY = 0.005;
@@ -2209,6 +2265,36 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       }
       if (event.pointerId !== cameraDrag?.pointerId) return;
       if (event.button === 2 && cameraDrag.moved) suppressNextContextMenu = true;
+      if (!cameraDrag.moved && campusOverviewRef.current && !firstPersonViewRef.current && !mapEditModeRef.current && !buildModeRef.current) {
+        const canvasBounds = renderer.domElement.getBoundingClientRect();
+        const localId = localSessionIdRef.current;
+        const isMap2d = cameraStateRef.current.mode === "map2d";
+        let selectedPlayerId: string | null = null;
+        let closestDistance = isMap2d ? 19 : 30;
+        for (const [id, player] of playersRef.current) {
+          if (id === localId) continue;
+          const avatar = avatars.get(id);
+          if (!avatar || (!isMap2d && !avatar.visible)) continue;
+          // Project a point around the avatar's torso so the hit target stays
+          // usable at different map zoom levels and camera angles.
+          const projected = avatar.position.clone().add(new THREE.Vector3(0, isMap2d ? 0.18 : 0.85, 0)).project(camera);
+          if (projected.z < -1 || projected.z > 1) continue;
+          const screenX = canvasBounds.left + (projected.x * 0.5 + 0.5) * canvasBounds.width;
+          const screenY = canvasBounds.top + (-projected.y * 0.5 + 0.5) * canvasBounds.height;
+          const distance = Math.hypot(event.clientX - screenX, event.clientY - screenY);
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            selectedPlayerId = id;
+          }
+        }
+        if (selectedPlayerId) {
+          deskZonePress = null;
+          cameraDrag = null;
+          renderer.domElement.style.cursor = "grab";
+          buildCallbacksRef.current.onSelectPlayer?.(selectedPlayerId, event.clientX, event.clientY);
+          return;
+        }
+      }
       if (deskZonePress?.pointerId === event.pointerId) {
         if (!cameraDrag.moved) {
           if (mapEditModeRef.current) buildCallbacksRef.current.onSelectMapZone?.(deskZonePress.zoneId);
@@ -2235,6 +2321,21 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       event.preventDefault();
       vehicleInteractRef.current?.(nearby.vehicleId, nearby.propId);
     };
+    let ghostKeyHeld = false;
+    const onGhostModeKeyDown = (event: KeyboardEvent) => {
+      if (appPaused || event.repeat || event.code !== "KeyG" || buildModeRef.current || mapEditModeRef.current || ghostKeyHeld) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      event.preventDefault();
+      ghostKeyHeld = true;
+      buildCallbacksRef.current.onGhostModeChange?.(true);
+    };
+    const stopGhostKey = () => {
+      if (!ghostKeyHeld) return;
+      ghostKeyHeld = false;
+      buildCallbacksRef.current.onGhostModeChange?.(false);
+    };
+    const onGhostModeKeyUp = (event: KeyboardEvent) => { if (event.code === "KeyG") stopGhostKey(); };
     const onFirstPersonKeyDown = (event: KeyboardEvent) => {
       if (appPaused || (event.code !== "KeyB" && event.key.toLowerCase() !== "b") || event.repeat || !campusOverviewRef.current || !firstPersonViewRef.current || mapEditModeRef.current || buildModeRef.current) return;
       const target = event.target;
@@ -2267,6 +2368,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     renderer.domElement.addEventListener("pointercancel", stopRotating);
     renderer.domElement.addEventListener("lostpointercapture", stopRotating);
     window.addEventListener("keydown", onVehicleKeyDown);
+    window.addEventListener("keydown", onGhostModeKeyDown);
+    window.addEventListener("keyup", onGhostModeKeyUp);
+    window.addEventListener("blur", stopGhostKey);
     window.addEventListener("keydown", onFirstPersonKeyDown);
     window.addEventListener("pointerdown", primeBlasterAudio, { once: true, capture: true });
     window.addEventListener("keydown", primeBlasterAudio, { once: true });
@@ -2608,7 +2712,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           avatar.add(speakingBubble);
           avatarSpeakingBubbles.set(id, speakingBubble);
         }
-        speakingBubble.visible = Boolean(speakingUsernamesRef?.current.has(player.displayName.trim().toLocaleLowerCase()));
+          speakingBubble.visible = Boolean(speakingUsernamesRef?.current.has(player.username.trim().toLocaleLowerCase()));
 
         const requestedWeapon = player.weaponId && KENNEY_BLASTER_IDS.includes(player.weaponId) ? player.weaponId : "";
         let heldWeapon = heldWeaponBySessionId.get(id);
@@ -2710,6 +2814,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         avatar.rotation.y = lerpAngle(avatar.rotation.y, targetRotation, blend);
         // While mounted, keep the avatar hidden even when the vehicle is idle.
         avatar.visible = !vehicleId;
+        const avatarModel = animation?.model;
+        if (avatarModel) setGhostModelOpacity(avatarModel, ghostSessionIdsRef.current.has(id));
 
         if (petIds.get(id) !== petId) {
           const previousPet = petGroups.get(id);
@@ -3070,7 +3176,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         if (overviewPlayers.size !== map2dPlayerState.size) map2dDirty = true;
         for (const [id, player] of overviewPlayers) {
           const local = id === localId;
-          const speaking = Boolean(speakingUsernamesRef?.current.has(player.displayName.trim().toLocaleLowerCase()));
+          const speaking = Boolean(speakingUsernamesRef?.current.has(player.username.trim().toLocaleLowerCase()));
           const cached = map2dPlayerState.get(id);
           if (!cached || cached.x !== player.x || cached.z !== player.z || cached.displayName !== player.displayName || cached.local !== local || cached.speaking !== speaking) map2dDirty = true;
           if (cached) { cached.x = player.x; cached.z = player.z; cached.displayName = player.displayName; cached.local = local; cached.speaking = speaking; }
@@ -3094,14 +3200,39 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           };
           const floorCorners = [projectMapPoint(-mapWorld.width / 2, -mapWorld.depth / 2, 0), projectMapPoint(mapWorld.width / 2, -mapWorld.depth / 2, 0), projectMapPoint(mapWorld.width / 2, mapWorld.depth / 2, 0), projectMapPoint(-mapWorld.width / 2, mapWorld.depth / 2, 0)];
           ctx.beginPath(); ctx.moveTo(floorCorners[0]!.x, floorCorners[0]!.y); floorCorners.slice(1).forEach((point) => ctx.lineTo(point.x, point.y)); ctx.closePath(); ctx.fillStyle = "#f7f8f4"; ctx.fill(); ctx.strokeStyle = "#c7d3cf"; ctx.lineWidth = 1; ctx.stroke();
-          for (const road of roomLayout?.roadways ?? []) drawMapRect(road.x, road.z, road.width, road.depth, road.kind === "major" ? "#98a8a6" : "#c5cfcb");
+          const overviewRoads = [...(roomLayout?.roadways ?? [])].sort((a, b) => Number(a.kind === "major") - Number(b.kind === "major"));
+          for (const road of overviewRoads) {
+            drawMapRect(road.x, road.z, road.width, road.depth, road.kind === "major" ? "#98a8a6" : "#c5cfcb");
+            const horizontal = road.width >= road.depth;
+            const roadWidth = horizontal ? road.depth : road.width;
+            const roadLength = horizontal ? road.width : road.depth;
+            const ranges = visibleRoadRanges(road, overviewRoads);
+            for (const [rangeStart, rangeEnd] of ranges) for (const side of [-1, 1]) {
+              const offset = roadWidth / 2 - 0.28;
+              if (horizontal) drawMapRect(road.x + (rangeStart + rangeEnd) / 2, road.z + side * offset, rangeEnd - rangeStart, 0.12, "#e9eeee");
+              else drawMapRect(road.x + side * offset, road.z + (rangeStart + rangeEnd) / 2, 0.12, rangeEnd - rangeStart, "#e9eeee");
+            }
+            const dashLength = road.kind === "major" ? 2.8 : 1.5;
+            const dashGap = road.kind === "major" ? 2.4 : 2.5;
+            for (const [rangeStart, rangeEnd] of ranges) {
+              const phaseStart = -roadLength / 2 + 1.5;
+              const firstDash = phaseStart + Math.max(0, Math.ceil((rangeStart - phaseStart) / (dashLength + dashGap))) * (dashLength + dashGap);
+              for (let along = firstDash; along < rangeEnd - 0.5; along += dashLength + dashGap) {
+                const segment = Math.min(dashLength, rangeEnd - 0.5 - along);
+                if (segment <= 0) continue;
+                const color = road.kind === "major" ? "#f5c842" : "#f1f3ed";
+                if (horizontal) drawMapRect(road.x + along + segment / 2, road.z, segment, road.kind === "major" ? 0.14 : 0.1, color);
+                else drawMapRect(road.x, road.z + along + segment / 2, road.kind === "major" ? 0.14 : 0.1, segment, color);
+              }
+            }
+          }
           for (const zone of roomLayout?.zones ?? []) {
             drawMapRect(zone.x, zone.z, zone.width, zone.depth, zone.kind === "meeting" ? "#e8ddc6" : zone.kind === "restroom" ? "#d9e9f2" : "#e2e8e3", "#23495a");
             const center = projectMapPoint(zone.x, zone.z, 0.08);
             if (zone.kind === "private" && zone.ownerUsername?.trim()) {
               const ownerInitial = Array.from(zone.ownerUsername.trim())[0]!.toLocaleUpperCase();
-              ctx.beginPath(); ctx.arc(center.x, center.y, 8, 0, Math.PI * 2); ctx.fillStyle = "#159bb4"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
-              ctx.fillStyle = "#fff"; ctx.font = "700 10px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(ownerInitial, center.x, center.y);
+              ctx.beginPath(); ctx.roundRect(center.x - 8, center.y - 7, 16, 14, 4); ctx.fillStyle = "#f0bd4e"; ctx.fill(); ctx.strokeStyle = "#76531d"; ctx.lineWidth = 1.5; ctx.stroke();
+              ctx.fillStyle = "#183b4b"; ctx.font = "800 9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(ownerInitial, center.x, center.y);
             }
             if (zone.kind !== "private" && zone.width > 16) { ctx.fillStyle = "#183b4b"; ctx.font = "600 10px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(zone.name, center.x, center.y); }
           }
@@ -3111,7 +3242,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             const initials = words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0]?.slice(0, 2) ?? "?");
             ctx.beginPath(); ctx.arc(x, z, radius, 0, Math.PI * 2); ctx.fillStyle = id === localId ? "#159bb4" : "#51647c"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
             ctx.fillStyle = "#fff"; ctx.font = "700 9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(initials.toUpperCase(), x, z);
-            if (speakingUsernamesRef?.current.has(player.displayName.trim().toLocaleLowerCase())) {
+            if (speakingUsernamesRef?.current.has(player.username.trim().toLocaleLowerCase())) {
               const bubbleX = x + 12; const bubbleY = z - 16;
               ctx.beginPath(); ctx.roundRect(bubbleX - 14, bubbleY - 9, 30, 17, 8); ctx.fillStyle = "#fff"; ctx.fill(); ctx.strokeStyle = "#c5e9ef"; ctx.lineWidth = 1; ctx.stroke();
               ctx.beginPath(); ctx.moveTo(bubbleX - 2, bubbleY + 7); ctx.lineTo(bubbleX + 4, bubbleY + 7); ctx.lineTo(bubbleX, bubbleY + 12); ctx.closePath(); ctx.fillStyle = "#fff"; ctx.fill();
@@ -3147,6 +3278,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       renderer.domElement.removeEventListener("pointercancel", stopRotating);
       renderer.domElement.removeEventListener("lostpointercapture", stopRotating);
       window.removeEventListener("keydown", onVehicleKeyDown);
+      window.removeEventListener("keydown", onGhostModeKeyDown);
+      window.removeEventListener("keyup", onGhostModeKeyUp);
+      window.removeEventListener("blur", stopGhostKey);
+      stopGhostKey();
       window.removeEventListener("keydown", onFirstPersonKeyDown);
       window.removeEventListener("pointerdown", primeBlasterAudio, true);
       window.removeEventListener("keydown", primeBlasterAudio);
@@ -3164,7 +3299,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       if (blasterAudio) void blasterAudio.close();
       furniturePieces.forEach(disposeObjectResources);
       campusPropTemplates.forEach(disposeObjectResources);
-      generatedRoadTileTemplates.forEach(disposeObjectResources);
       if (floorTemplate) disposeObjectResources(floorTemplate);
       if (wallTemplate) disposeObjectResources(wallTemplate);
       fallbackFloor.geometry.dispose();

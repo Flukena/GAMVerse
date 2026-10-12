@@ -289,6 +289,7 @@ export const PlayerState = schema(
     rotation: t.float32(),
     worldVersion: t.uint8(),
     displayName: t.string(),
+    username: t.string(),
     characterId: t.string(),
     petId: t.string(),
     vehicleId: t.string(),

@@ -21,6 +21,8 @@ const MAP_DEPTH = 260;
 const TOP_TEAM_START_Z = -104;
 const BOTTOM_TEAM_START_Z = 60;
 const MEETING_EDGE_ROAD_Z = 108;
+const MAX_GENERATED_PROPS = 10_000;
+const OUTDOOR_FLOOR_COVERAGE = 0.05;
 const COLORS = ["#ffb703", "#fb8500", "#219ebc", "#8ecae6", "#70c1b3", "#b8a1d9", "#e5989b", "#84a59d", "#f6bd60", "#90be6d"];
 
 function seededRandom(seed: number) {
@@ -65,7 +67,7 @@ function addZone(layout: RoomLayout, zone: RoomLayoutZone, doorSide: "north" | "
   });
 }
 
-function addProp(layout: RoomLayout, id: string, asset: string, x: number, z: number, rotation = 0, elevation?: number) {
+function addProp(layout: RoomLayout, id: string, asset: string, x: number, z: number, rotation = 0) {
   const definition = ROOM_PROP_CATALOG.find((item) => item.asset === asset);
   if (!definition) return;
   layout.props.push({
@@ -73,134 +75,7 @@ function addProp(layout: RoomLayout, id: string, asset: string, x: number, z: nu
     collision: definition.collision,
     width: definition.width,
     depth: definition.depth,
-    ...(elevation && elevation > 0 ? { elevation } : {}),
   });
-}
-
-const OFFICE_PLANTS = ["kit:plantsmall1", "kit:plantsmall2", "kit:plantsmall3", "kit:pottedplant", "pottedPlant"] as const;
-const OFFICE_CORNER_DECOR = ["kit:trashcan", "kit:coatrack", "kit:coatrackstanding", "kit:radio", "kit:speaker", "kit:speakersmall"] as const;
-const WALL_DECOR = ["office-wall-picture", "office-wall-shelf"] as const;
-
-function variantIndex(id: string, count: number) {
-  let hash = 2166136261;
-  for (const character of id) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
-  return (hash >>> 0) % count;
-}
-
-function addWallDecor(layout: RoomLayout, id: string, asset: typeof WALL_DECOR[number], zone: RoomLayoutZone, wall: "north" | "east" | "south" | "west", offset = 0) {
-  const wallMountDepth = ROOM_PROP_CATALOG.find((item) => item.asset === asset)?.depth ?? 0.14;
-  // Seat the back of the prop against the inside face of the wall instead
-  // of centering the whole model on the wall plane.
-  const inset = 0.09 + wallMountDepth / 2;
-  const halfWidth = zone.width / 2;
-  const halfDepth = zone.depth / 2;
-  const placement = wall === "north" ? { x: zone.x + offset, z: zone.z - halfDepth + inset, rotation: 0 }
-    : wall === "south" ? { x: zone.x + offset, z: zone.z + halfDepth - inset, rotation: Math.PI }
-      : wall === "east" ? { x: zone.x + halfWidth - inset, z: zone.z + offset, rotation: -Math.PI / 2 }
-        : { x: zone.x - halfWidth + inset, z: zone.z + offset, rotation: Math.PI / 2 };
-  addProp(layout, id, asset, placement.x, placement.z, placement.rotation, 1.15);
-}
-
-function furnishZone(layout: RoomLayout, zone: RoomLayoutZone) {
-  const { x, z, id } = zone;
-  if (zone.kind === "private") {
-    // Keep the work area consistent, then decorate the four corners while
-    // leaving the center and the doorway clear.
-    addProp(layout, `${id}-desk`, "kit:desk", x, z - 0.8);
-    addProp(layout, `${id}-chair`, "kit:chairdesk", x, z + 1.15, Math.PI);
-    // The monitor has a 1 × 1 m minimum footprint; align its center with the
-    // desk so the full footprint is supported on the tabletop.
-    addProp(layout, `${id}-monitor`, "kit:computerscreen", x, z - 0.8, 0, 0.82);
-    const plant = variantIndex(id, OFFICE_PLANTS.length);
-    addProp(layout, `${id}-decor-plant`, OFFICE_PLANTS[plant]!, x - 2.65, z - 2.65);
-    // Alternate framed art and a floating book shelf along the uncluttered
-    // east wall so compact offices keep their floor area open.
-    addWallDecor(layout, `${id}-wall-decor`, WALL_DECOR[variantIndex(id, WALL_DECOR.length)]!, zone, "east", -1.8);
-    return;
-  }
-  if (zone.id.startsWith("meeting-")) {
-    addProp(layout, `${id}-table`, "kit:table", x, z - 1.2);
-    for (let index = 0; index < 6; index += 1) {
-      const column = index % 3;
-      const row = Math.floor(index / 3);
-      addProp(layout, `${id}-seat-${index + 1}`, "kit:chair", x - 2.4 + column * 2.4, z + (row === 0 ? -3.4 : 1.2), row === 0 ? 0 : Math.PI);
-    }
-    const decorAsset = WALL_DECOR[variantIndex(id, WALL_DECOR.length)]!;
-    addWallDecor(layout, `${id}-wall-decor`, decorAsset, zone, "east", -zone.depth * 0.22);
-    return;
-  }
-  if (id === "shared-townhall") {
-    addProp(layout, `${id}-stage`, "office-townhall-stage", x, z - 16);
-    addProp(layout, `${id}-podium`, "office-townhall-podium", x, z - 12);
-    for (let row = 0; row < 3; row += 1) for (let column = 0; column < 8; column += 1) {
-      addProp(layout, `${id}-seat-${row * 8 + column + 1}`, "kit:chair", x - 13.3 + column * 3.8, z + row * 5 + 1);
-    }
-    const plantOffset = zone.width < 40 ? 14 : 18;
-    addProp(layout, `${id}-plant-west`, "kit:plantsmall1", x - plantOffset, z + 17);
-    addProp(layout, `${id}-plant-east`, "kit:plantsmall2", x + plantOffset, z + 17);
-    addProp(layout, `${id}-speaker`, "kit:speaker", x - 17, z - 17);
-    addWallDecor(layout, `${id}-wall-art`, "office-wall-picture", zone, "west", -5);
-    return;
-  }
-  if (id === "shared-cafeteria") {
-    addProp(layout, `${id}-counter`, "quaternius-sushi-counter", x, z - 17, Math.PI / 2);
-    addProp(layout, `${id}-counter-corner`, "quaternius-sushi-counter-corner", x + 2.5, z - 18);
-    addProp(layout, `${id}-oven`, "quaternius-sushi-oven", x - 7, z - 17);
-    addProp(layout, `${id}-fridge`, "quaternius-sushi-fridge", x + 7, z - 17);
-    addProp(layout, `${id}-stool`, "quaternius-sushi-stool", x - 3.5, z - 12);
-    for (let row = 0; row < 2; row += 1) for (let column = 0; column < 2; column += 1) {
-      const tableX = x - 9 + column * 18;
-      const tableZ = z - 4 + row * 13;
-      const suffix = `${row * 2 + column + 1}`;
-      addProp(layout, `${id}-table-${suffix}`, "quaternius-sushi-table", tableX, tableZ);
-      addProp(layout, `${id}-chair-${suffix}-a`, "quaternius-sushi-chair-1", tableX - 1.3, tableZ + 0.8, Math.PI / 2);
-      addProp(layout, `${id}-chair-${suffix}-b`, "quaternius-sushi-chair-1", tableX + 1.3, tableZ + 0.8, -Math.PI / 2);
-      if (row === 0 && column === 0) addProp(layout, `${id}-chair-extra`, "quaternius-sushi-chair-2", tableX, tableZ - 2.2);
-      // Serve one small dish per tabletop. These assets use a 1 × 1 m
-      // placement footprint, so centering them keeps them fully supported.
-      if (row === 0 && column === 0) addProp(layout, `${id}-onigiri`, "quaternius-sushi-onigiri", tableX, tableZ, 0, 0.76);
-      else if (row === 1 && column === 1) addProp(layout, `${id}-nigiri`, "quaternius-sushi-nigiri", tableX, tableZ, 0, 0.76);
-      else addProp(layout, `${id}-food-${suffix}`, "quaternius-sushi-ramen", tableX, tableZ, 0, 0.76);
-    }
-    const plantOffset = zone.width < 36 ? 13 : 16;
-    addProp(layout, `${id}-plant-west`, "quaternius-sushi-plant-1", x - plantOffset, z + 18);
-    addProp(layout, `${id}-plant-east`, "quaternius-sushi-plant-2", x + plantOffset, z + 18);
-    addProp(layout, `${id}-bench`, "quaternius-sushi-bench", x - 13, z + 12, Math.PI / 2);
-    addProp(layout, `${id}-sofa`, "quaternius-sushi-sofa", x + 13, z + 12, -Math.PI / 2);
-    addWallDecor(layout, `${id}-wall-shelf`, "office-wall-shelf", zone, "north");
-    return;
-  }
-  if (zone.kind === "restroom") {
-    for (let index = 0; index < 4; index += 1) {
-      const fixtureX = x - 9 + index * 6;
-      addProp(layout, `${id}-toilet-${index + 1}`, "kit:toilet", fixtureX, z - 8);
-      if (index < 3) addProp(layout, `${id}-partition-${index + 1}`, "office-restroom-partition", fixtureX + 3, z - 8, Math.PI / 2);
-    }
-    addProp(layout, `${id}-sink-west`, "kit:bathroomsink", x - 5, z - 14, Math.PI);
-    addProp(layout, `${id}-sink-east`, "kit:bathroomsink", x + 5, z - 14, Math.PI);
-    addProp(layout, `${id}-plant`, "kit:plantsmall3", x + (zone.width < 24 ? 8 : 10), z + 12);
-    const doorWall = layout.doors.find((door) => door.id.startsWith(`${id}-entrance-`))?.wallId ?? "";
-    const oppositeWall = doorWall.endsWith("-wall-e") ? "west" : doorWall.endsWith("-wall-w") ? "east" : doorWall.endsWith("-wall-n") ? "south" : "north";
-    addWallDecor(layout, `${id}-wall-decor`, WALL_DECOR[variantIndex(id, WALL_DECOR.length)]!, zone, oppositeWall, -6);
-    return;
-  }
-  if (id === "shared-lobby") {
-    addProp(layout, `${id}-reception-desk`, "kit:desk", x - 5, z - 7);
-    addProp(layout, `${id}-reception-chair`, "kit:chairdesk", x - 5, z - 5.2, Math.PI);
-    addProp(layout, `${id}-reception-monitor`, "kit:computerscreen", x - 5, z - 7, 0, 0.82);
-    addProp(layout, `${id}-waiting-sofa`, "kit:loungesofa", x + 4, z + 8, Math.PI / 2);
-    addProp(layout, `${id}-plant-west`, "kit:plantsmall1", x - 10, z + 13);
-    addWallDecor(layout, `${id}-wall-art`, "office-wall-picture", zone, "north", 4);
-    return;
-  }
-  // Shared lounge: a small seating cluster and greenery.
-  addProp(layout, `${id}-sofa-west`, "kit:loungesofa", x - 6, z - 4, Math.PI / 2);
-  addProp(layout, `${id}-sofa-east`, "kit:loungesofa", x + 6, z - 4, -Math.PI / 2);
-  addProp(layout, `${id}-coffee-table`, "kit:tablecoffeesquare", x, z + 1);
-  const plantZ = zone.depth < 30 ? 7 : 11;
-  addProp(layout, `${id}-plant-west`, "kit:plantsmall1", x - 10, z + plantZ);
-  addProp(layout, `${id}-plant-east`, "kit:plantsmall2", x + 10, z + plantZ);
-  addWallDecor(layout, `${id}-wall-art`, "office-wall-picture", zone, "north", -5);
 }
 
 /** Build a compact, symmetric campus plan with road vehicles and landscaping. */
@@ -209,7 +84,7 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
   if (![totalPeople, peoplePerTeam, teamCount].every((value) => Number.isInteger(value) && value > 0)) throw new Error("Enter positive whole numbers for people and teams.");
   if (totalPeople !== peoplePerTeam * teamCount) throw new Error("Total people must equal people per team × team count.");
   if (peoplePerTeam > 16) throw new Error("This layout supports up to 16 private rooms per team.");
-  if (peoplePerTeam * teamCount + 15 > 250 || peoplePerTeam * teamCount * 4 + 60 > 1000) throw new Error("These inputs create more zones or walls than one office map can save. Reduce the team count or team size.");
+  if (peoplePerTeam * teamCount + 15 > 250) throw new Error("These inputs create more zones or walls than one office map can save. Reduce the team count or team size.");
 
   const topTeams = Math.ceil(teamCount / 2);
   const bottomTeams = teamCount - topTeams;
@@ -298,7 +173,8 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
     addZone(layout, { id: "shared-restroom-east", name: "Restroom", kind: "restroom", x: 98, z: 0, width: 28, depth: 34, color: "#70c1b3" });
   }
 
-  for (const zone of layout.zones) furnishZone(layout, zone);
+  // Keep generated office interiors empty so teams can furnish their rooms
+  // themselves. Landscaping and street props are added below, outside zones.
 
   const roads = layout.roadways!;
   if (compactFivePerHalf) {
@@ -402,31 +278,179 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
     layout.props.push({ id: `campus-vehicle-${index + 1}`, asset, ...spot, collision: definition.collision, width: definition.width, depth: definition.depth });
   }
 
-  // Fill leftover open pockets with mirrored trees. Keep every planting clear of
-  // rooms and roads so landscaping never blocks doors or the driving lanes.
-  const treeDefinition = ROOM_PROP_CATALOG.find((item) => item.asset === "kenney-city-kit-suburban-tree-small");
-  if (treeDefinition) {
-    const candidates: Array<{ x: number; z: number }> = [];
-    for (let x = 12; x <= 100; x += 10) for (let z = 12; z <= 112; z += 10) candidates.push({ x, z });
-    for (let index = candidates.length - 1; index > 0; index -= 1) {
-      const swap = Math.floor(random() * (index + 1));
-      [candidates[index], candidates[swap]] = [candidates[swap]!, candidates[index]!];
+  // Street furniture stays beside the road surface, outside room footprints,
+  // and clear of parked cars. Keeping these as ordinary catalog props means
+  // their assets remain editable while road slabs/markings stay lightweight.
+  const streetLight = ROOM_PROP_CATALOG.find((item) => item.asset === "kenney-city-kit-roads-light-curved");
+  const streetBin = ROOM_PROP_CATALOG.find((item) => item.asset === "external-city-park-and-playground-33675")
+    ?? ROOM_PROP_CATALOG.find((item) => item.asset === "kit:trashcan");
+  const canPlaceStreetProp = (x: number, z: number, definition: NonNullable<typeof streetLight>) => {
+    const halfW = definition.width / 2 + 0.7;
+    const halfD = definition.depth / 2 + 0.7;
+    if (layout.zones.some((zone) => Math.abs(x - zone.x) < zone.width / 2 + halfW && Math.abs(z - zone.z) < zone.depth / 2 + halfD)) return false;
+    if (layout.props.some((prop) => Math.abs(x - prop.x) < (prop.width + definition.width) / 2 + 0.7 && Math.abs(z - prop.z) < (prop.depth + definition.depth) / 2 + 0.7)) return false;
+    return Math.abs(x) + definition.width / 2 <= width / 2 && Math.abs(z) + definition.depth / 2 <= depth / 2;
+  };
+  const inFootprint = (x: number, z: number, centerX: number, centerZ: number, footprintWidth: number, footprintDepth: number) => Math.abs(x - centerX) < footprintWidth / 2 && Math.abs(z - centerZ) < footprintDepth / 2;
+  if (streetLight) {
+    let placedLights = 0;
+    const avenues = compactFivePerHalf ? [-24, 24] : [0];
+    for (const avenueX of avenues) {
+      for (const side of [-1, 1]) {
+        for (let z = -106; z <= 106 && placedLights < 24; z += 28) {
+          const x = avenueX + side * 5.2;
+          if (!canPlaceStreetProp(x, z, streetLight)) continue;
+          addProp(layout, `campus-street-light-${placedLights + 1}`, streetLight.asset, x, z, side < 0 ? Math.PI : 0);
+          placedLights += 1;
+        }
+      }
     }
-    let planted = 0;
-    for (const point of candidates) {
-      if (planted >= 16) break;
-      const mirrored = [{ x: point.x, z: point.z }, { x: -point.x, z: point.z }, { x: point.x, z: -point.z }, { x: -point.x, z: -point.z }];
-      const clear = mirrored.every((candidate) => {
-        const overlapsZone = layout.zones.some((zone) => Math.abs(candidate.x - zone.x) < zone.width / 2 + 2 && Math.abs(candidate.z - zone.z) < zone.depth / 2 + 2);
-        const overlapsRoad = roads.some((road) => Math.abs(candidate.x - road.x) < road.width / 2 + 3 && Math.abs(candidate.z - road.z) < road.depth / 2 + 3);
-        const overlapsTree = layout.props.some((prop) => Math.abs(candidate.x - prop.x) < (prop.width + treeDefinition.width) / 2 + 2 && Math.abs(candidate.z - prop.z) < (prop.depth + treeDefinition.depth) / 2 + 2);
-        return !overlapsZone && !overlapsRoad && !overlapsTree && Math.abs(candidate.x) + treeDefinition.width / 2 <= width / 2 && Math.abs(candidate.z) + treeDefinition.depth / 2 <= depth / 2;
-      });
-      if (!clear) continue;
-      for (const [index, candidate] of mirrored.entries()) layout.props.push({ id: `campus-tree-${planted + index + 1}`, asset: treeDefinition.asset, ...candidate, rotation: 0, collision: treeDefinition.collision, width: treeDefinition.width, depth: treeDefinition.depth });
-      planted += mirrored.length;
+  }
+  if (streetBin) {
+    let placedBins = 0;
+    for (const [index, point] of [{ x: -90, z: 0 }, { x: -18, z: -18 }, { x: 18, z: 18 }, { x: 90, z: 0 }].entries()) {
+      if (canPlaceStreetProp(point.x, point.z, streetBin)) {
+        placedBins += 1;
+        addProp(layout, `campus-street-bin-${placedBins}`, streetBin.asset, point.x, point.z);
+      }
+    }
+    const roadsideBinSpots: Array<{ x: number; z: number }> = [];
+    for (const road of roads.filter((item) => item.kind === "major")) {
+      if (road.width >= road.depth) {
+        for (let x = road.x - road.width / 2 + 8; x <= road.x + road.width / 2 - 8; x += 18) {
+          roadsideBinSpots.push({ x, z: road.z - road.depth / 2 - 1.2 }, { x, z: road.z + road.depth / 2 + 1.2 });
+        }
+      } else {
+        for (let z = road.z - road.depth / 2 + 8; z <= road.z + road.depth / 2 - 8; z += 18) {
+          roadsideBinSpots.push({ x: road.x - road.width / 2 - 1.2, z }, { x: road.x + road.width / 2 + 1.2, z });
+        }
+      }
+    }
+    for (let index = roadsideBinSpots.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(random() * (index + 1));
+      [roadsideBinSpots[index], roadsideBinSpots[swap]] = [roadsideBinSpots[swap]!, roadsideBinSpots[index]!];
+    }
+    const desiredBins = Math.max(4, Math.ceil(teamCount / 2));
+    for (const point of roadsideBinSpots) {
+      if (placedBins >= desiredBins) break;
+      const clearOfRoads = roads.every((road) => !inFootprint(point.x, point.z, road.x, road.z, road.width + streetBin.width + 0.2, road.depth + streetBin.depth + 0.2));
+      if (!clearOfRoads || !canPlaceStreetProp(point.x, point.z, streetBin)) continue;
+      placedBins += 1;
+      addProp(layout, `campus-street-bin-${placedBins}`, streetBin.asset, point.x, point.z);
     }
   }
 
+  // Put traffic signals beside the main avenue intersections, beyond both road
+  // edges. They are actual props, while the road surfaces remain lightweight.
+  const trafficLight = ROOM_PROP_CATALOG.find((item) => item.asset === "kenney-city-kit-roads-traffic-light");
+  if (trafficLight) {
+    let signalIndex = 0;
+    const avenues = compactFivePerHalf ? [-24, 24] : [0];
+    const crossStreets = compactFivePerHalf ? [-40, 40, 114] : [-MEETING_EDGE_ROAD_Z, -50, 50, MEETING_EDGE_ROAD_Z];
+    for (const avenueX of avenues) for (const crossZ of crossStreets) for (const sideX of [-1, 1]) for (const sideZ of [-1, 1]) {
+      const x = avenueX + sideX * (CENTRAL_ROAD / 2 + trafficLight.width / 2 + 0.7);
+      const z = crossZ + sideZ * (CENTRAL_ROAD / 2 + trafficLight.depth / 2 + 0.7);
+      const clearOfRoads = roads.every((road) => !inFootprint(x, z, road.x, road.z, road.width + trafficLight.width + 0.2, road.depth + trafficLight.depth + 0.2));
+      if (!clearOfRoads || !canPlaceStreetProp(x, z, trafficLight)) continue;
+      signalIndex += 1;
+      addProp(layout, `campus-traffic-signal-${signalIndex}`, trafficLight.asset, x, z, sideX > 0 ? Math.PI : 0);
+    }
+  }
+
+  // Keep the middle of open spaces walkable: fill to 8% coverage with
+  // landscaping candidates beside road edges only. Rooms and roadways are
+  // excluded from the denominator, and model footprints cannot overlap them.
+  const landscapingAssets = [
+    "external-city-park-and-playground-33682", // Flower bed
+    "external-city-park-and-playground-33684", // Broadleaf tree
+    "external-city-park-and-playground-33683", // Conifer tree
+    "external-city-park-and-playground-33685", // Shrub
+    "kenney-city-kit-suburban-tree-small",
+    "kit-mini-forest-rocks-low",
+  ].map((asset) => ROOM_PROP_CATALOG.find((item) => item.asset === asset)).filter((item): item is (typeof ROOM_PROP_CATALOG)[number] => Boolean(item));
+  if (landscapingAssets.length) {
+    const cellSize = 1;
+    const columns = Math.ceil(width / cellSize);
+    const rows = Math.ceil(depth / cellSize);
+    const cellKey = (column: number, row: number) => row * columns + column;
+    const outdoorCells = new Set<number>();
+    const occupiedOutdoorCells = new Set<number>();
+    const cellPosition = (column: number, row: number) => ({ x: -width / 2 + (column + 0.5) * cellSize, z: -depth / 2 + (row + 0.5) * cellSize });
+    for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+      const point = cellPosition(column, row);
+      if (layout.zones.some((zone) => inFootprint(point.x, point.z, zone.x, zone.z, zone.width, zone.depth))) continue;
+      if (roads.some((road) => inFootprint(point.x, point.z, road.x, road.z, road.width, road.depth))) continue;
+      outdoorCells.add(cellKey(column, row));
+    }
+    const occupyPropFootprint = (x: number, z: number, propWidth: number, propDepth: number) => {
+      for (const key of outdoorCells) {
+        const row = Math.floor(key / columns);
+        const column = key - row * columns;
+        const point = cellPosition(column, row);
+        if (inFootprint(point.x, point.z, x, z, propWidth, propDepth)) occupiedOutdoorCells.add(key);
+      }
+    };
+    for (const prop of layout.props) {
+      const rotated = Math.abs(Math.sin(prop.rotation)) > 0.5;
+      occupyPropFootprint(prop.x, prop.z, rotated ? prop.depth : prop.width, rotated ? prop.width : prop.depth);
+    }
+    const targetArea = Math.ceil(outdoorCells.size * OUTDOOR_FLOOR_COVERAGE);
+    const landscapingCandidates: Array<{ column: number; row: number }> = [];
+    const ROAD_EDGE_LANDSCAPING_BAND_M = 7;
+    for (const key of outdoorCells) {
+      const row = Math.floor(key / columns);
+      const column = key - row * columns;
+      const point = cellPosition(column, row);
+      const besideRoad = roads.some((road) => {
+        const edgeX = Math.max(0, Math.abs(point.x - road.x) - road.width / 2);
+        const edgeZ = Math.max(0, Math.abs(point.z - road.z) - road.depth / 2);
+        return Math.hypot(edgeX, edgeZ) <= ROAD_EDGE_LANDSCAPING_BAND_M;
+      });
+      if (besideRoad) landscapingCandidates.push({ column, row });
+    }
+    for (let index = landscapingCandidates.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(random() * (index + 1));
+      [landscapingCandidates[index], landscapingCandidates[swap]] = [landscapingCandidates[swap]!, landscapingCandidates[index]!];
+    }
+    let landscapingIndex = 0;
+    for (const candidate of landscapingCandidates) {
+      if (occupiedOutdoorCells.size >= targetArea) break;
+      const point = cellPosition(candidate.column, candidate.row);
+      const definition = landscapingAssets[Math.floor(random() * landscapingAssets.length)]!;
+      const rotated = random() > 0.5;
+      const footprintWidth = rotated ? definition.depth : definition.width;
+      const footprintDepth = rotated ? definition.width : definition.depth;
+      const candidateCells: number[] = [];
+      let valid = true;
+      if (point.x - footprintWidth / 2 < -width / 2 || point.x + footprintWidth / 2 > width / 2 || point.z - footprintDepth / 2 < -depth / 2 || point.z + footprintDepth / 2 > depth / 2) continue;
+      const minColumn = Math.max(0, Math.floor((point.x - footprintWidth / 2 + width / 2) / cellSize));
+      const maxColumn = Math.min(columns, Math.ceil((point.x + footprintWidth / 2 + width / 2) / cellSize));
+      const minRow = Math.max(0, Math.floor((point.z - footprintDepth / 2 + depth / 2) / cellSize));
+      const maxRow = Math.min(rows, Math.ceil((point.z + footprintDepth / 2 + depth / 2) / cellSize));
+      for (let row = minRow; row < maxRow && valid; row += 1) for (let column = minColumn; column < maxColumn; column += 1) {
+        const cell = cellPosition(column, row);
+        if (!inFootprint(cell.x, cell.z, point.x, point.z, footprintWidth, footprintDepth)) continue;
+        const key = cellKey(column, row);
+        if (!outdoorCells.has(key) || occupiedOutdoorCells.has(key)) { valid = false; break; }
+        candidateCells.push(key);
+      }
+      if (!valid || candidateCells.length < Math.floor(definition.width * definition.depth)) continue;
+      const overlapsRoadOrZone = [...roads, ...layout.zones.map((zone) => ({ x: zone.x, z: zone.z, width: zone.width, depth: zone.depth }))]
+        .some((area) => inFootprint(point.x, point.z, area.x, area.z, area.width + footprintWidth + 0.1, area.depth + footprintDepth + 0.1));
+      if (overlapsRoadOrZone) continue;
+      const overlapsProp = layout.props.some((prop) => {
+        const propRotated = Math.abs(Math.sin(prop.rotation)) > 0.5;
+        const propWidth = propRotated ? prop.depth : prop.width;
+        const propDepth = propRotated ? prop.width : prop.depth;
+        return Math.abs(point.x - prop.x) < (footprintWidth + propWidth) / 2 && Math.abs(point.z - prop.z) < (footprintDepth + propDepth) / 2;
+      });
+      if (overlapsProp) continue;
+      landscapingIndex += 1;
+      addProp(layout, `campus-landscape-${landscapingIndex}`, definition.asset, point.x, point.z, rotated ? Math.PI / 2 : 0);
+      for (const key of candidateCells) occupiedOutdoorCells.add(key);
+    }
+  }
+
+  if (layout.props.length > MAX_GENERATED_PROPS) throw new Error(`This layout needs ${layout.props.length.toLocaleString()} environment props. The current limit is ${MAX_GENERATED_PROPS.toLocaleString()}.`);
   return { layout, dimensions: { width, depth }, privateRoomCount: peoplePerTeam * teamCount, teamCount };
 }

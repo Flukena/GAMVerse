@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ROOM_PROP_CATALOG, type RoomLayoutProp } from "@gammyverse/shared";
 import { preloadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
+import { PropThumbnail } from "./PropThumbnail";
 import "./ModifyPropsEditor.css";
 
 export type ModifyPropsCatalogItem = (typeof ROOM_PROP_CATALOG)[number];
@@ -88,7 +89,7 @@ export function ModifyPropsEditor({ open, officeName, dimension, props, catalog 
           </section>
           {selectedDefinition && <div className="modify-props-selected-hint"><span>Selected on map: <strong>{selectedDefinition.label}</strong></span>{onRotateProp && <button type="button" onClick={() => onRotateProp(selectedPropId!)}>Rotate 90°</button>}</div>}
           <div className="modify-props-catalog">{filteredCatalog.map((item) => <button type="button" key={item.asset} aria-label={item.label} title={item.label} className={`modify-props-catalog-card ${placingAsset === item.asset ? "is-selected" : ""}`} onMouseEnter={() => scheduleCatalogAssetPreload(item)} onFocus={() => preloadCatalogAsset(item)} onClick={() => { if (!item.geometry && !item.vehicleId) void preloadRoomPropAsset(roomPropAssetPaths(item)).catch(() => undefined); onSelectProp?.(null); onRequestPlacement?.(item.asset); }}>
-            <span className="modify-props-thumb">{item.preview && !isPackPreview(item.preview) ? <img src={item.preview} alt="" loading="lazy" /> : <span aria-hidden="true">▧</span>}</span>
+            <span className="modify-props-thumb"><PropThumbnail item={item} preview={item.preview} packPreview={Boolean(item.preview && isPackPreview(item.preview))} /></span>
           </button>)}</div>
         </aside>
       </div>

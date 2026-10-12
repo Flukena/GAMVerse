@@ -59,7 +59,7 @@ const userStatusOptions: Array<{ value: UserStatus; label: string; icon: string;
   { value: "lunch", label: "Lunch", icon: "♨", color: "#e08b22" },
   { value: "coffee-break", label: "Coffee break", icon: "☕", color: "#8a5a35" },
 ];
-type PlayerSnapshot = { x: number; z: number; rotation: number; displayName: string; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean };
+type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean };
 
 function voiceParticipantUsername(participant: { name?: string; identity: string }) {
   return (participant.name?.trim() || participant.identity.replace(/-[a-f0-9]{16}$/i, "")).toLocaleLowerCase();
@@ -68,7 +68,7 @@ type FollowAlert = { followerSessionId: string; followerName: string };
 type WaveAlert = { senderSessionId: string; senderName: string };
 type BlasterVector = { x: number; y: number; z: number };
 type BlasterShotEvent = { shooterSessionId: string; start: BlasterVector; end: BlasterVector };
-type AuthUser = { username: string; role: "maintainer" | "user"; characterId: CharacterSelectionId | null };
+type AuthUser = { username: string; nickname: string | null; role: "maintainer" | "user"; characterId: CharacterSelectionId | null };
 type Office = { id: string; name: string; ownerUsername: string; role: "owner" | "admin" | "user" | "maintainer" };
 type OfficeInvite = { id: string; officeId: string; officeName: string; inviter: string; role: "admin" | "user"; expiresAt: string };
 type OfficeMember = { username: string; role: "owner" | "admin" | "user"; joinedAt: string | null };
@@ -346,6 +346,7 @@ export function OfficeApp() {
   const [mapZoneArea, setMapZoneArea] = useState<{ x: number; z: number; width: number; depth: number } | null>(null);
   const [mapZoneName, setMapZoneName] = useState("");
   const [mapZoneKind, setMapZoneKind] = useState<"meeting" | "private" | "restroom">("meeting");
+  const [mapZoneEnclosureEnabled, setMapZoneEnclosureEnabled] = useState(true);
   const [mapZoneEntranceSide, setMapZoneEntranceSide] = useState<"north" | "east" | "south" | "west">("south");
   const [mapZoneEntranceKind, setMapZoneEntranceKind] = useState<"door" | "opening">("door");
   const [mapZoneDoorCount, setMapZoneDoorCount] = useState(1);
@@ -355,6 +356,8 @@ export function OfficeApp() {
   const [mapZoneWallAsset, setMapZoneWallAsset] = useState<(typeof ROOM_WALL_MODEL_ASSETS)[number]>(ROOM_WALL_MODEL_ASSETS[0]);
   const [mapZoneWallColor, setMapZoneWallColor] = useState("#023047");
   const [mapZoneDoorStyle, setMapZoneDoorStyle] = useState<"geometry" | "asset">("geometry");
+  const [ghostModeEnabled, setGhostModeEnabled] = useState(false);
+  const [ghostSessionIds, setGhostSessionIds] = useState<Set<string>>(() => new Set());
   const [mapZoneSaving, setMapZoneSaving] = useState(false);
   const [selectedMapZoneId, setSelectedMapZoneId] = useState<string | null>(null);
   const [mapZoneDeleting, setMapZoneDeleting] = useState(false);
@@ -404,10 +407,22 @@ export function OfficeApp() {
   const [activePetId, setActivePetId] = useState<KenneyPetId | "">("");
   const [autoMoveNotice, setAutoMoveNotice] = useState<string | null>(null);
   const [followingSessionId, setFollowingSessionId] = useState<string | null>(null);
+  const [mapPlayerAction, setMapPlayerAction] = useState<{ sessionId: string; displayName: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!mapPlayerAction) return;
+    const dismissOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setMapPlayerAction(null); };
+    window.addEventListener("keydown", dismissOnEscape);
+    return () => window.removeEventListener("keydown", dismissOnEscape);
+  }, [mapPlayerAction]);
   const [followAlerts, setFollowAlerts] = useState<FollowAlert[]>([]);
   const [waveAlerts, setWaveAlerts] = useState<WaveAlert[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const [nicknameSaving, setNicknameSaving] = useState(false);
+  const [nicknameError, setNicknameError] = useState<string | null>(null);
+  const [nicknameSaved, setNicknameSaved] = useState(false);
+  useEffect(() => { setNicknameDraft(authUser?.nickname ?? ""); }, [authUser?.username, authUser?.nickname]);
   const [idleAnimationsEnabled, setIdleAnimationsEnabled] = useState(() => {
     try { return window.localStorage.getItem("gammyverse.idleAnimationsEnabled") !== "false"; }
     catch { return true; }
@@ -464,6 +479,9 @@ export function OfficeApp() {
   const [error, setError] = useState<string | null>(null);
   const [playerCount, setPlayerCount] = useState(0);
   const [people, setPeople] = useState<Array<[string, PlayerSnapshot]>>([]);
+  useEffect(() => {
+    if (mapPlayerAction && !people.some(([id, player]) => id === mapPlayerAction.sessionId && player.presence === "online")) setMapPlayerAction(null);
+  }, [people, mapPlayerAction]);
   const [peopleSearch, setPeopleSearch] = useState("");
   const [userStatus, setUserStatus] = useState<UserStatus>("available");
   const userStatusRef = useRef<UserStatus>("available");
@@ -663,6 +681,24 @@ export function OfficeApp() {
     } finally {
       setCharacterBusy(false);
     }
+  };
+
+  const saveNickname = async () => {
+    if (!authUser) return;
+    setNicknameSaving(true);
+    setNicknameError(null);
+    setNicknameSaved(false);
+    try {
+      const response = await fetch(`${endpoint}/auth/nickname`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nickname: nicknameDraft }) });
+      const result = await response.json() as { nickname?: string | null; error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Could not save your nickname.");
+      const nickname = result.nickname ?? null;
+      setAuthUser((user) => user ? { ...user, nickname } : user);
+      roomRef.current?.send("nickname");
+      setNicknameSaved(true);
+    } catch (cause) {
+      setNicknameError(cause instanceof Error ? cause.message : "Could not save your nickname.");
+    } finally { setNicknameSaving(false); }
   };
 
   const uploadPersonalAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -918,13 +954,12 @@ export function OfficeApp() {
   const updateProximityAudioVolumes = () => {
     const local = localSessionIdRef.current ? playersRef.current.get(localSessionIdRef.current) : undefined;
     const onlinePlayers = [...playersRef.current.values()].filter((player) => player.presence === "online");
-    const onlinePlayersByDisplayName = new Map<string, (typeof onlinePlayers)[number]>();
+    const onlinePlayersByUsername = new Map<string, (typeof onlinePlayers)[number]>();
     for (const player of onlinePlayers) {
-      // Match the old Array.find behavior when display names are not unique.
-      if (!onlinePlayersByDisplayName.has(player.displayName)) onlinePlayersByDisplayName.set(player.displayName, player);
+      if (!onlinePlayersByUsername.has(player.username)) onlinePlayersByUsername.set(player.username, player);
     }
     for (const { track, username } of proximityAudioTracksRef.current.values()) {
-      const remote = onlinePlayersByDisplayName.get(username);
+      const remote = onlinePlayersByUsername.get(username);
       if (!local || !remote) { track.setVolume(0); continue; }
       const distance = Math.hypot(local.x - remote.x, local.z - remote.z);
       const fade = Math.max(0, Math.min(1, (CAMPUS_WORLD.proximityRadius - distance) / (CAMPUS_WORLD.proximityRadius - CAMPUS_WORLD.voiceFullVolumeRadius)));
@@ -1466,6 +1501,12 @@ const toggleMeetingMute = async () => {
       });
       const mapResult = await mapResponse.json() as { config?: unknown; error?: string };
       if (!mapResponse.ok || !mapResult.config) throw new Error(`Office created, but its generated map could not be saved: ${mapResult.error ?? "Please open Edit map and save the layout again."}`);
+      const propsResponse = await fetch(`${endpoint}/offices/${result.office.id}/props`, {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ configVersion: 1, props: generatedLayout.props }),
+      });
+      const propsResult = await propsResponse.json() as { error?: string };
+      if (!propsResponse.ok) throw new Error(`Office created and map saved, but its generated props could not be saved: ${propsResult.error ?? "Please open Edit map and save the props again."}`);
       setCreateOfficeDialogOpen(false);
     } catch (cause) {
       setLobbyError(cause instanceof Error ? cause.message : "Could not create office.");
@@ -1669,6 +1710,7 @@ const toggleMeetingMute = async () => {
     setMapZoneArea(null);
     setMapZoneName("");
     setMapZoneKind("meeting");
+    setMapZoneEnclosureEnabled(true);
     setMapZoneEntranceSide("south");
     setMapZoneEntranceKind("door");
     setMapZoneDoorCount(1);
@@ -1693,6 +1735,15 @@ const toggleMeetingMute = async () => {
     if (!officeMapLayout || !mapZoneArea) return null;
     const name = mapZoneKind === "private" ? "Available desk" : mapZoneKind === "restroom" ? "Restroom" : mapZoneName.trim() || "Meeting zone";
     const { x, z, width, depth } = mapZoneArea;
+    const zone: RoomLayoutZone = {
+      id, name: name.slice(0, 32), kind: mapZoneKind,
+      x, z, width, depth, color: mapZoneKind === "meeting" ? "#8ecae6" : mapZoneKind === "restroom" ? "#70c1b3" : "#ffb703",
+    };
+    if (!mapZoneEnclosureEnabled) {
+      const layout: RoomLayout = { ...officeMapLayout, zones: [...officeMapLayout.zones, zone] };
+      const withinBounds = Math.abs(x) + width / 2 <= mapDimensions.width / 2 && Math.abs(z) + depth / 2 <= mapDimensions.depth / 2;
+      return { layout, withinBounds };
+    }
     const rawWallSpecs: Array<{ side: "north" | "east" | "south" | "west"; axis: "horizontal" | "vertical"; x: number; z: number; length: number }> = [
       { side: "north", axis: "horizontal", x, z: z - depth / 2, length: width },
       { side: "east", axis: "vertical", x: x + width / 2, z, length: depth },
@@ -1733,10 +1784,6 @@ const toggleMeetingMute = async () => {
       leaves: mapZoneEntranceKind === "door" ? mapZoneDoorLeaves : 1,
       ...(mapZoneEntranceKind === "door" && mapZoneDoorStyle === "asset" ? { asset: ROOM_DOOR_FRAME_ASSETS[0] } : {}),
     }));
-    const zone: RoomLayoutZone = {
-      id, name: name.slice(0, 32), kind: mapZoneKind,
-      x, z, width, depth, color: mapZoneKind === "meeting" ? "#8ecae6" : mapZoneKind === "restroom" ? "#70c1b3" : "#ffb703",
-    };
     const layout: RoomLayout = {
       ...officeMapLayout,
       zones: [...officeMapLayout.zones, zone],
@@ -2116,6 +2163,7 @@ const toggleMeetingMute = async () => {
               x: entry.x,
               z: entry.z,
               rotation: entry.rotation,
+              username: entry.username,
               displayName: entry.displayName,
               characterId: entry.characterId as CharacterSelectionId,
               petId: (entry.petId || "") as KenneyPetId | "",
@@ -2290,6 +2338,17 @@ const toggleMeetingMute = async () => {
           proximityGroupIdRef.current = groupId;
           setProximityGroupId(groupId);
         });
+        room.onMessage("ghost-mode-status", (payload: unknown) => {
+          if (typeof payload !== "object" || payload === null || !("enabled" in payload) || typeof payload.enabled !== "boolean") return;
+          const sessionId = "sessionId" in payload && typeof payload.sessionId === "string" ? payload.sessionId : room.sessionId;
+          setGhostSessionIds((previous) => {
+            const next = new Set(previous);
+            if (payload.enabled) next.add(sessionId);
+            else next.delete(sessionId);
+            return next;
+          });
+          if (sessionId === room.sessionId) setGhostModeEnabled(payload.enabled);
+        });
         room.onMessage("private-zone", (payload: unknown) => {
           if (typeof payload !== "object" || payload === null || !("zoneId" in payload)) return;
           const zoneId = typeof payload.zoneId === "string" ? payload.zoneId : null;
@@ -2315,7 +2374,7 @@ const toggleMeetingMute = async () => {
           if (payload.status === "arrived" && connectionUsername) {
             window.localStorage.removeItem(`gammyverse.vehicle.${connectionUsername}`);
           }
-          let message = payload.status === "started" ? "Moving automatically" : payload.status === "arrived" ? "Arrived" : "Can't reach that spot";
+          let message = payload.status === "started" ? "Moving automatically" : payload.status === "arrived" ? ("teleported" in payload && payload.teleported === true ? "Warped past an obstruction" : "Arrived") : "Can't reach that spot";
           if (payload.status === "started" && "randomVehicle" in payload && payload.randomVehicle === true && "vehicleId" in payload && typeof payload.vehicleId === "string" && KENNEY_VEHICLE_IDS.includes(payload.vehicleId as KenneyVehicleId)) {
             message = `Driving ${vehicleLabel(payload.vehicleId as KenneyVehicleId)}`;
           }
@@ -2471,7 +2530,6 @@ const toggleMeetingMute = async () => {
           <a className="auth-switch" href={maintainerPortal ? "/" : "/maintainer"}>{maintainerPortal ? "Regular user sign in" : "Maintainer sign in"}</a>
         </form>
       </main>
-      <PageTutorial page={maintainerPortal ? "maintainer" : authMode === "register" ? "register" : "sign-in"} />
       {authBusy && <FullScreenLoading label={authMode === "register" ? "Creating your account…" : "Signing in…"} />}
       </>
     );
@@ -2487,7 +2545,7 @@ const toggleMeetingMute = async () => {
         {characterError && <p className="auth-error" role="alert">{characterError}</p>}
         <button data-tutorial-target="character-continue" className="auth-submit" type="button" disabled={characterBusy || !characterDraft} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : "Continue"}</button>
       </section>
-    </main><PageTutorial page="character-setup" username={authUser.username} />{characterBusy && <FullScreenLoading label="Saving your character…" />}</>;
+    </main>{characterBusy && <FullScreenLoading label="Saving your character…" />}</>;
   }
 
   if (!activeOffice) {
@@ -2607,9 +2665,9 @@ const toggleMeetingMute = async () => {
   const entranceOpeningWidth = Math.min(mapZoneEntranceKind === "opening" ? 1.2 : mapZoneDoorLeaves === 2 ? 2.4 : 1.2, entranceWallLength);
   const entrancePositions = mapZoneDoorOffsets.slice(0, mapZoneDoorCount).map((offset) => Math.max(-entranceWallLength / 2 + entranceOpeningWidth / 2, Math.min(entranceWallLength / 2 - entranceOpeningWidth / 2, offset))).sort((a, b) => a - b);
   const entrancesOverlap = entrancePositions.some((offset, index) => index > 0 && offset - entrancePositions[index - 1]! < entranceOpeningWidth - 0.01);
-  const entrancesFit = entranceWallLength >= entranceOpeningWidth * mapZoneDoorCount && !entrancesOverlap;
+  const entrancesFit = !mapZoneEnclosureEnabled || (entranceWallLength >= entranceOpeningWidth * mapZoneDoorCount && !entrancesOverlap);
   const mapZoneDraft = mapZoneArea ? buildMapZoneDraft("zone-preview") : null;
-  const zoneEntranceIssue = mapZoneDraft ? roomZoneEntranceIssues(mapZoneDraft.layout, new Set(["zone-preview"]))[0] : undefined;
+  const zoneEntranceIssue = mapZoneEnclosureEnabled && mapZoneDraft ? roomZoneEntranceIssues(mapZoneDraft.layout, new Set(["zone-preview"]))[0] : undefined;
   const zoneOverlapsExisting = Boolean(mapZoneArea && officeMapLayout?.zones.some((zone) =>
     Math.abs(mapZoneArea.x - zone.x) < (mapZoneArea.width + zone.width) / 2 - 0.01 &&
     Math.abs(mapZoneArea.z - zone.z) < (mapZoneArea.depth + zone.depth) / 2 - 0.01));
@@ -2633,11 +2691,22 @@ const toggleMeetingMute = async () => {
   const previewCharacterId = characterDraft ?? authUser.characterId ?? DEFAULT_CHARACTER_ID;
   const previewCharacter = characterDetails(previewCharacterId, personalAvatarModels);
   const displayedOfficeMapLayout = modifyPropsOpen && officeMapLayout ? { ...officeMapLayout, props: modifyPropsDraft } : officeMapLayout;
+  const setGhostMode = (enabled: boolean) => {
+    if (enabled && (appPausedRef.current || userStatusRef.current === "do-not-disturb" || userStatusRef.current === "in-meeting")) return;
+    roomRef.current?.send("ghost-mode", { enabled });
+  };
 
   return (
     <main className={`app-shell${characterPanelOpen ? " character-panel-open" : ""}`}>
       <PageTutorial page={meetingEntry ? "meeting" : "office"} username={authUser.username} />
-      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} firstPersonViewRef={firstPersonViewRef} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused} idleAnimationsEnabled={idleAnimationsEnabled} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} />
+      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} firstPersonViewRef={firstPersonViewRef} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} onSelectPlayer={(sessionId, x, y) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") setMapPlayerAction({ sessionId, displayName: player.displayName, x, y }); }} onGhostModeChange={setGhostMode} />
+      {mapPlayerAction && <div className="map-player-action-backdrop" role="presentation" onPointerDown={() => setMapPlayerAction(null)}>
+        <div className="map-player-action-menu" role="menu" aria-label={`Actions for ${mapPlayerAction.displayName}`} style={{ left: Math.max(8, Math.min(mapPlayerAction.x, window.innerWidth - 188)), top: Math.max(8, Math.min(mapPlayerAction.y, window.innerHeight - 104)) }} onPointerDown={(event) => event.stopPropagation()}>
+          <strong>{mapPlayerAction.displayName}</strong>
+          <button type="button" role="menuitem" onClick={() => { if (followingSessionId === mapPlayerAction.sessionId) roomRef.current?.send("follow-stop"); else roomRef.current?.send("follow-player", { targetSessionId: mapPlayerAction.sessionId }); setMapPlayerAction(null); }}>{followingSessionId === mapPlayerAction.sessionId ? "Stop following" : "Follow"}</button>
+          <button type="button" role="menuitem" onClick={() => { roomRef.current?.send("wave", { targetSessionId: mapPlayerAction.sessionId }); setMapPlayerAction(null); }}>Wave</button>
+        </div>
+      </div>}
       {blasterHitNotice !== null && <div className="blaster-hit-feedback" key={blasterHitNotice} aria-hidden="true" />}
       <header className="topbar">
         <div className="topbar-side topbar-side-left">
@@ -2749,7 +2818,7 @@ const toggleMeetingMute = async () => {
       {settingsOpen && <div className="profile-dialog-backdrop settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="profile-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
         <header className="profile-dialog-header"><div><span className="eyebrow">USER SETTINGS</span><h2 id="settings-dialog-title">Settings</h2></div><button type="button" className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><FeatherIcon name="close" size={17} /></button></header>
         <div className="settings-dialog-body"><nav className="settings-section-nav" aria-label="Settings topics"><button type="button" className={settingsSection === "general" ? "active" : ""} aria-current={settingsSection === "general" ? "page" : undefined} onClick={() => setSettingsSection("general")}>General</button><button type="button" className={settingsSection === "permissions" ? "active" : ""} aria-current={settingsSection === "permissions" ? "page" : undefined} onClick={() => setSettingsSection("permissions")}>Permission</button><button type="button" className={settingsSection === "security" ? "active" : ""} aria-current={settingsSection === "security" ? "page" : undefined} onClick={() => setSettingsSection("security")}>Security</button></nav>
-          <div className="settings-section-content">{settingsSection === "general" ? <section aria-labelledby="general-settings-title"><span className="eyebrow">PREFERENCES</span><h3 id="general-settings-title">General</h3><p className="settings-intro">Adjust client-side preferences for this device.</p><div className="permission-row settings-general-row"><div><strong>Idle animations</strong><small>Turn off idle movement for characters and pets</small></div><label className="settings-toggle-control"><span className="sr-only">Idle animations</span><input type="checkbox" role="switch" checked={idleAnimationsEnabled} onChange={(event) => updateIdleAnimationsEnabled(event.target.checked)} /><span aria-hidden="true" /></label></div><div className="permission-row settings-general-row"><div><strong>Noise reduction</strong><small>Reduce background noise locally with RNNoise</small><small className={`noise-reduction-status ${noiseReductionStatus}`} role="status">{noiseReductionStatus === "checking" ? "Loading local noise filter…" : noiseReductionStatus === "enabled" ? "RNNoise noise reduction is active" : noiseReductionStatus === "fallback" ? `RNNoise unavailable: ${noiseReductionDetails || "browser noise reduction remains active"}` : noiseReductionStatus === "disabled" ? "Using browser noise reduction" : "Applies when you join voice"}</small></div><label className="settings-toggle-control"><span className="sr-only">Noise reduction</span><input type="checkbox" role="switch" checked={noiseReductionEnabled} onChange={(event) => updateNoiseReductionPreference(event.target.checked)} /><span aria-hidden="true" /></label></div></section> : settingsSection === "permissions" ? <section aria-labelledby="permissions-title"><span className="eyebrow">DEVICE ACCESS</span><h3 id="permissions-title">Permissions</h3><p className="settings-intro">Allow GAMVerse to use your microphone, camera, or screen when you choose those controls.</p>
+          <div className="settings-section-content">{settingsSection === "general" ? <section aria-labelledby="general-settings-title"><span className="eyebrow">PREFERENCES</span><h3 id="general-settings-title">General</h3><p className="settings-intro">Adjust your profile and client-side preferences.</p><form className="nickname-settings" onSubmit={(event) => { event.preventDefault(); void saveNickname(); }}><label htmlFor="nickname-setting">Nickname <span>(optional)</span></label><div><input id="nickname-setting" type="text" maxLength={32} autoComplete="nickname" value={nicknameDraft} onChange={(event) => { setNicknameDraft(event.target.value); setNicknameSaved(false); setNicknameError(null); }} placeholder={authUser?.username ?? "Choose a nickname"} /><button type="submit" className="lobby-button" disabled={nicknameSaving || nicknameDraft === (authUser?.nickname ?? "")}>{nicknameSaving ? "Saving…" : "Save"}</button></div><small>Others will see this name. Leave it blank to show your username.</small>{nicknameError && <small className="auth-error" role="alert">{nicknameError}</small>}{nicknameSaved && <small className="nickname-saved" role="status">Nickname updated.</small>}</form><div className="permission-row settings-general-row"><div><strong>Idle animations</strong><small>Turn off idle movement for characters and pets</small></div><label className="settings-toggle-control"><span className="sr-only">Idle animations</span><input type="checkbox" role="switch" checked={idleAnimationsEnabled} onChange={(event) => updateIdleAnimationsEnabled(event.target.checked)} /><span aria-hidden="true" /></label></div><div className="permission-row settings-general-row"><div><strong>Noise reduction</strong><small>Reduce background noise locally with RNNoise</small><small className={`noise-reduction-status ${noiseReductionStatus}`} role="status">{noiseReductionStatus === "checking" ? "Loading local noise filter…" : noiseReductionStatus === "enabled" ? "RNNoise noise reduction is active" : noiseReductionStatus === "fallback" ? `RNNoise unavailable: ${noiseReductionDetails || "browser noise reduction remains active"}` : noiseReductionStatus === "disabled" ? "Using browser noise reduction" : "Applies when you join voice"}</small></div><label className="settings-toggle-control"><span className="sr-only">Noise reduction</span><input type="checkbox" role="switch" checked={noiseReductionEnabled} onChange={(event) => updateNoiseReductionPreference(event.target.checked)} /><span aria-hidden="true" /></label></div></section> : settingsSection === "permissions" ? <section aria-labelledby="permissions-title"><span className="eyebrow">DEVICE ACCESS</span><h3 id="permissions-title">Permissions</h3><p className="settings-intro">Allow GAMVerse to use your microphone, camera, or screen when you choose those controls.</p>
             {(["microphone", "camera"] as const).map((kind) => <div className="permission-row" key={kind}><div><strong>{kind === "microphone" ? "Microphone" : "Camera"}</strong><small className={`permission-state ${browserPermissions[kind]}`}>{browserPermissions[kind] === "unknown" ? "Status unavailable" : browserPermissions[kind]}</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission(kind)}>{permissionBusy === kind ? "Checking…" : browserPermissions[kind] === "denied" ? "Check again" : "Allow access"}</button></div>)}
             <div className="permission-row"><div><strong>Screen sharing</strong><small>Browser asks each time you share</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission("screen")}>{permissionBusy === "screen" ? "Checking…" : "Check sharing"}</button></div>
             {permissionMessage && <p className="permission-message" role="status">{permissionMessage}</p>}{screenPermissionResult && <p className="permission-message" role="status">{screenPermissionResult}</p>}
@@ -2797,23 +2866,26 @@ const toggleMeetingMute = async () => {
           {mapZoneKind === "private" && <p className="map-zone-help">This desk starts available. Its name becomes the owner’s desk when claimed.</p>}
           {mapZoneKind === "meeting" && <p className="map-zone-help">Anyone can enter. Audio and video are scoped to people inside the zone.</p>}
           {mapZoneKind === "restroom" && <p className="map-zone-help">A restroom is a map destination for the Toilet status. It does not create a voice room.</p>}
-          <label>Wall style<select value={mapZoneWallStyle} onChange={(event) => setMapZoneWallStyle(event.target.value as "geometry" | "asset")}><option value="geometry">Geometry wall</option><option value="asset">Asset model</option></select></label>
-          {mapZoneWallStyle === "asset" && <><label>Wall model<select value={mapZoneWallAsset} onChange={(event) => setMapZoneWallAsset(event.target.value as (typeof ROOM_WALL_MODEL_ASSETS)[number])}>{ROOM_WALL_OPTION_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.items.map((item) => <option key={item.asset} value={item.asset}>{item.label}</option>)}</optgroup>)}</select></label>{ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.preview && <img src={ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.preview} alt={`${ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.label ?? "Wall model"} preview`} style={{ width: "100%", height: 78, objectFit: "contain", borderRadius: 10, background: "rgba(255,255,255,.55)" }} />}</>}
-          {mapZoneWallStyle === "geometry" && <label>Wall color<input type="color" value={mapZoneWallColor} onChange={(event) => setMapZoneWallColor(event.target.value)} /></label>}
-          {mapZoneEntranceKind === "door" && <label>Door frame<select value={mapZoneDoorStyle} onChange={(event) => setMapZoneDoorStyle(event.target.value as "geometry" | "asset")}><option value="geometry">Geometry frame</option><option value="asset">Kenney doorway · Building Kit</option></select></label>}
-          <div className="map-zone-wizard-row"><label>Door wall<select value={mapZoneEntranceSide} onChange={(event) => { const side = event.target.value as "north" | "east" | "south" | "west"; setMapZoneEntranceSide(side); changeMapZoneDoorCount(mapZoneDoorCount, side); }}><option value="north">North wall</option><option value="east">East wall</option><option value="south">South wall</option><option value="west">West wall</option></select></label><label>Entrance<select value={mapZoneEntranceKind} onChange={(event) => setMapZoneEntranceKind(event.target.value as "door" | "opening")}><option value="door">Door</option><option value="opening">Open gap</option></select></label></div>
-          <div className="map-zone-wizard-row"><label>Number of doors<select value={mapZoneDoorCount} onChange={(event) => changeMapZoneDoorCount(Number(event.target.value))}><option value={1}>1 entrance</option><option value={2}>2 entrances</option><option value={3}>3 entrances</option><option value={4}>4 entrances</option></select></label>{mapZoneEntranceKind === "door" && <label>Door leaves<select value={mapZoneDoorLeaves} onChange={(event) => { const leaves = Number(event.target.value) as 1 | 2; setMapZoneDoorLeaves(leaves); changeMapZoneDoorCount(mapZoneDoorCount, mapZoneEntranceSide, leaves); }}><option value={1}>Single leaf</option><option value={2}>Double leaf</option></select></label>}</div>
+          <label className="map-zone-enclosure-option"><input type="checkbox" checked={mapZoneEnclosureEnabled} onChange={(event) => setMapZoneEnclosureEnabled(event.target.checked)} /> Create enclosing walls and an entrance</label>
+          {mapZoneEnclosureEnabled ? <>
+            <label>Wall style<select value={mapZoneWallStyle} onChange={(event) => setMapZoneWallStyle(event.target.value as "geometry" | "asset")}><option value="geometry">Geometry wall</option><option value="asset">Asset model</option></select></label>
+            {mapZoneWallStyle === "asset" && <><label>Wall model<select value={mapZoneWallAsset} onChange={(event) => setMapZoneWallAsset(event.target.value as (typeof ROOM_WALL_MODEL_ASSETS)[number])}>{ROOM_WALL_OPTION_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.items.map((item) => <option key={item.asset} value={item.asset}>{item.label}</option>)}</optgroup>)}</select></label>{ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.preview && <img src={ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.preview} alt={`${ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.label ?? "Wall model"} preview`} style={{ width: "100%", height: 78, objectFit: "contain", borderRadius: 10, background: "rgba(255,255,255,.55)" }} />}</>}
+            {mapZoneWallStyle === "geometry" && <label>Wall color<input type="color" value={mapZoneWallColor} onChange={(event) => setMapZoneWallColor(event.target.value)} /></label>}
+            {mapZoneEntranceKind === "door" && <label>Door frame<select value={mapZoneDoorStyle} onChange={(event) => setMapZoneDoorStyle(event.target.value as "geometry" | "asset")}><option value="geometry">Geometry frame</option><option value="asset">Kenney doorway · Building Kit</option></select></label>}
+            <div className="map-zone-wizard-row"><label>Door wall<select value={mapZoneEntranceSide} onChange={(event) => { const side = event.target.value as "north" | "east" | "south" | "west"; setMapZoneEntranceSide(side); changeMapZoneDoorCount(mapZoneDoorCount, side); }}><option value="north">North wall</option><option value="east">East wall</option><option value="south">South wall</option><option value="west">West wall</option></select></label><label>Entrance<select value={mapZoneEntranceKind} onChange={(event) => setMapZoneEntranceKind(event.target.value as "door" | "opening")}><option value="door">Door</option><option value="opening">Open gap</option></select></label></div>
+            <div className="map-zone-wizard-row"><label>Number of doors<select value={mapZoneDoorCount} onChange={(event) => changeMapZoneDoorCount(Number(event.target.value))}><option value={1}>1 entrance</option><option value={2}>2 entrances</option><option value={3}>3 entrances</option><option value={4}>4 entrances</option></select></label>{mapZoneEntranceKind === "door" && <label>Door leaves<select value={mapZoneDoorLeaves} onChange={(event) => { const leaves = Number(event.target.value) as 1 | 2; setMapZoneDoorLeaves(leaves); changeMapZoneDoorCount(mapZoneDoorCount, mapZoneEntranceSide, leaves); }}><option value={1}>Single leaf</option><option value={2}>Double leaf</option></select></label>}</div>
           {mapZoneArea && Array.from({ length: mapZoneDoorCount }, (_, index) => {
             const wallLength = mapZoneEntranceSide === "north" || mapZoneEntranceSide === "south" ? mapZoneArea.width : mapZoneArea.depth;
             const openingWidth = Math.min(mapZoneEntranceKind === "opening" ? 1.2 : mapZoneDoorLeaves === 2 ? 2.4 : 1.2, wallLength);
             const maxOffset = Math.max(0, wallLength / 2 - openingWidth / 2);
             return <label key={index}>{mapZoneDoorCount > 1 ? `Door ${index + 1} position along the wall` : "Door position along the wall"}<input type="range" min={-maxOffset} max={maxOffset} step="0.5" value={Math.max(-maxOffset, Math.min(maxOffset, mapZoneDoorOffsets[index] ?? 0))} onChange={(event) => setMapZoneDoorOffsets((offsets) => offsets.map((offset, offsetIndex) => offsetIndex === index ? Number(event.target.value) : offset))} /><small>{(mapZoneDoorOffsets[index] ?? 0).toFixed(1)} m from wall center</small></label>;
           })}
+          </> : <p className="map-zone-help">This zone still marks the room and controls its features, but creates no physical walls or doors.</p>}
           {!entrancesFit && <p className="auth-error" role="alert">{entrancesOverlap ? "Door positions overlap. Move them apart along the wall." : "The selected wall is too short for this many entrances. Choose fewer doors or draw a wider zone."}</p>}
           {mapZoneDraft && !mapZoneDraft.withinBounds && <p className="auth-error" role="alert">This zone is too close to the map edge. Move it inward so its walls stay inside the office.</p>}
           {zoneOverlapsExisting && <p className="auth-error" role="alert">This zone overlaps an existing room. Move it to an empty part of the map.</p>}
           {zoneEntranceIssue && <p className="auth-error" role="alert">This entrance has no clear path outside the room. Move the zone away from the map edge or nearby walls, or choose another door wall.</p>}
-          <p className="map-zone-help">Walls and the selected entrance will be created around this grid area.</p>
+          {mapZoneEnclosureEnabled && <p className="map-zone-help">Walls and the selected entrance will be created around this grid area.</p>}
           {lobbyError && <p className="auth-error" role="alert">{lobbyError}</p>}
           <footer><button type="button" className="lobby-button" onClick={() => { setMapZoneArea(null); setLobbyError(null); }}>Cancel</button><button type="button" className="lobby-button primary" disabled={!zoneCreationValid} onClick={saveMapZone}>Add to map draft</button></footer>
         </section>}
@@ -2846,6 +2918,7 @@ const toggleMeetingMute = async () => {
         <button type="button" className={`dock-button ${cameraEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "videoOff" : "video"} /></button>
         <button type="button" className={`dock-button ${screenShareEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name="screen" /></button>
         <button type="button" className={`dock-button ${userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "active" : ""}`} aria-pressed={userStatus === "do-not-disturb" || userStatus === "in-meeting"} title={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Headphones off · click to set Available" : "Headphones on · click to turn on Do not disturb"} aria-label={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Turn headphones on" : "Turn headphones off"} onClick={toggleHeadphones}><FeatherIcon name={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "headphonesOff" : "headphones"} /></button>
+        <button type="button" className={`dock-button ghost-mode-button${ghostModeEnabled ? " active" : ""}`} aria-pressed={ghostModeEnabled} title="Hold this button or hold G to pass through props and interior walls" aria-label="Hold to enable ghost mode" disabled={appPaused} onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); setGhostMode(true); }} onPointerUp={() => setGhostMode(false)} onPointerCancel={() => setGhostMode(false)} onLostPointerCapture={() => setGhostMode(false)} onBlur={() => setGhostMode(false)} onKeyDown={(event) => { if ((event.code === "Space" || event.code === "Enter") && !event.repeat) { event.preventDefault(); setGhostMode(true); } }} onKeyUp={(event) => { if (event.code === "Space" || event.code === "Enter") setGhostMode(false); }}><kbd>G</kbd><span>{ghostModeEnabled ? "Ghost on" : "Hold Ghost"}</span></button>
         <span className="dock-separator" />
         <div className="user-status-dock-control">
           <button type="button" className={`dock-button user-status-trigger${userStatusMenuOpen ? " active" : ""}`} aria-label={`Your status: ${userStatusOptions.find((item) => item.value === userStatus)?.label ?? "Available"}`} title={`Status · ${userStatusOptions.find((item) => item.value === userStatus)?.label ?? "Available"}`} aria-haspopup="menu" aria-expanded={userStatusMenuOpen} onClick={() => setUserStatusMenuOpen((open) => !open)}>
