@@ -1,32 +1,14 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import "./PageTutorial.css";
 
-export type TutorialPage = "sign-in" | "register" | "maintainer" | "password-reset" | "character-setup" | "lobby" | "office" | "meeting";
+export type TutorialPage = "password-reset" | "lobby" | "office" | "meeting";
 
 type TutorialStep = { title: string; body: string; target?: string; keyboard?: string };
 
 const tutorials: Record<TutorialPage, { title: string; steps: TutorialStep[] }> = {
-  "sign-in": { title: "Welcome to GAMVerse", steps: [
-    { title: "Your username", body: "Sign in with the username for your office account.", target: "auth-username" },
-    { title: "Your password", body: "Enter your password here. Use the eye button if you want to check what you typed.", target: "auth-password" },
-    { title: "Sign in", body: "When the fields are ready, continue into your workspace.", target: "auth-submit" },
-  ] },
-  register: { title: "Create your account", steps: [
-    { title: "Choose a username", body: "This is the name teammates use to recognize you.", target: "auth-username" },
-    { title: "Set a password", body: "Choose a password with at least 8 characters.", target: "auth-password" },
-    { title: "Create your account", body: "Email is optional. Finish here to continue to character setup.", target: "auth-submit" },
-  ] },
-  maintainer: { title: "Platform operations", steps: [
-    { title: "Maintainer account", body: "Sign in with a maintainer account to manage offices and account recovery.", target: "auth-username" },
-    { title: "Sign in", body: "Use your maintainer password, then open the operations workspace.", target: "auth-submit" },
-  ] },
   "password-reset": { title: "Reset your password", steps: [
     { title: "New password", body: "Choose a password with at least 8 characters. The recovery link is single-use and expires after 15 minutes.", target: "reset-password" },
     { title: "Save password", body: "Save your new password, then return to sign in.", target: "reset-submit" },
-  ] },
-  "character-setup": { title: "Choose your character", steps: [
-    { title: "Pick a character", body: "Select the character other people will see in the shared office.", target: "character-picker" },
-    { title: "Continue", body: "Save your choice and open your workspace.", target: "character-continue" },
   ] },
   lobby: { title: "Your workspace", steps: [
     { title: "Create an office", body: "Create a new office and generate its map. You can also enter an office listed below.", target: "lobby-create-office" },

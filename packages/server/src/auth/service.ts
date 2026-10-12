@@ -14,7 +14,7 @@ const activityWriteIntervalMs = 24 * 60 * 60 * 1000;
 const sessions = new Map<string, { username: string; role: PlatformRole; expiresAt: number }>();
 const lastActivityWriteAt = new Map<string, number>();
 export type PlatformRole = "maintainer" | "user";
-type UserRecord = { username: string; salt: string; passwordHash: string; createdAt: string; lastActiveAt?: string; isMaintainer?: boolean; email?: string | null; characterId?: string | null };
+type UserRecord = { username: string; salt: string; passwordHash: string; createdAt: string; lastActiveAt?: string; isMaintainer?: boolean; email?: string | null; characterId?: string | null; nickname?: string | null };
 let userRecordsPromise: Promise<UserRecord[]> | undefined;
 let writeQueue = Promise.resolve();
 
@@ -67,7 +67,7 @@ function normalizeCharacterId(characterId: string | null | undefined) {
   return KENNEY_CHARACTER_IDS.includes(characterId as KenneyCharacterId) ? characterId : DEFAULT_CHARACTER_ID;
 }
 
-async function issueSession(username: string, role: PlatformRole, characterId: string | null = DEFAULT_CHARACTER_ID) {
+async function issueSession(username: string, role: PlatformRole, characterId: string | null = DEFAULT_CHARACTER_ID, nickname: string | null = null) {
   const sessionToken = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + sessionTtlMs);
   if (database) {
@@ -78,7 +78,7 @@ async function issueSession(username: string, role: PlatformRole, characterId: s
   } else {
     sessions.set(sessionToken, { username, role, expiresAt: expiresAt.getTime() });
   }
-  return { sessionToken, user: { username, role, characterId: normalizeCharacterId(characterId) } };
+  return { sessionToken, user: { username, nickname, role, characterId: normalizeCharacterId(characterId) } };
 }
 
 function normalizeEmail(value: unknown): string | null | undefined {
@@ -127,7 +127,7 @@ export async function loginAccount(usernameValue: unknown, passwordValue: unknow
   if (!username || !validPassword(passwordValue)) return { error: "Username or password is incorrect." };
   const record = database
     ? (await database.query<UserRecord>(
-      "SELECT username, password_salt AS salt, password_hash AS \"passwordHash\", created_at AS \"createdAt\", last_active_at AS \"lastActiveAt\", is_maintainer AS \"isMaintainer\", COALESCE('custom-' || custom_character_model_id::text, character_id) AS \"characterId\" FROM app_users WHERE username = $1",
+      "SELECT username, nickname, password_salt AS salt, password_hash AS \"passwordHash\", created_at AS \"createdAt\", last_active_at AS \"lastActiveAt\", is_maintainer AS \"isMaintainer\", COALESCE('custom-' || custom_character_model_id::text, character_id) AS \"characterId\" FROM app_users WHERE username = $1",
       [username],
     )).rows[0]
     : (await users()).find((item) => item.username === username);
@@ -140,7 +140,7 @@ export async function loginAccount(usernameValue: unknown, passwordValue: unknow
   const role: PlatformRole = record.isMaintainer ? "maintainer" : "user";
   if (role !== portal) return { error: portal === "maintainer" ? "This account is not a maintainer account." : "Use the maintainer sign-in page for this account." };
   await markUserActive(username);
-  return issueSession(username, role, record.characterId === undefined ? DEFAULT_CHARACTER_ID : record.characterId);
+  return issueSession(username, role, record.characterId === undefined ? DEFAULT_CHARACTER_ID : record.characterId, record.nickname ?? null);
 }
 
 export async function changeAccountPassword(usernameValue: unknown, currentPassword: unknown, newPassword: unknown) {
@@ -148,7 +148,7 @@ export async function changeAccountPassword(usernameValue: unknown, currentPassw
   if (!username || !validPassword(currentPassword)) return { error: "Current password is incorrect." };
   if (!validPassword(newPassword)) return { error: "New password must be between 8 and 128 characters." };
   const record = database
-    ? (await database.query<UserRecord>("SELECT username, password_salt AS salt, password_hash AS \"passwordHash\", COALESCE('custom-' || custom_character_model_id::text, character_id) AS \"characterId\" FROM app_users WHERE username = $1", [username])).rows[0]
+    ? (await database.query<UserRecord>("SELECT username, nickname, is_maintainer AS \"isMaintainer\", password_salt AS salt, password_hash AS \"passwordHash\", COALESCE('custom-' || custom_character_model_id::text, character_id) AS \"characterId\" FROM app_users WHERE username = $1", [username])).rows[0]
     : (await users()).find((item) => item.username === username);
   if (!record) return { error: "Current password is incorrect." };
   const submitted = await hashPassword(currentPassword, record.salt);
@@ -176,7 +176,7 @@ export async function changeAccountPassword(usernameValue: unknown, currentPassw
       for (const [token, session] of sessions) if (session.username === username) sessions.delete(token);
     });
   }
-  return issueSession(username, database ? (record.isMaintainer ? "maintainer" : "user") : "user", record.characterId === undefined ? DEFAULT_CHARACTER_ID : record.characterId);
+  return issueSession(username, database ? (record.isMaintainer ? "maintainer" : "user") : "user", record.characterId === undefined ? DEFAULT_CHARACTER_ID : record.characterId, record.nickname ?? null);
 }
 
 export async function listAccountsForMaintainer() {
@@ -305,12 +305,12 @@ export async function pruneInactiveAccounts(now = Date.now()) {
 export async function getSession(value: unknown) {
   if (typeof value !== "string") return null;
   if (database) {
-    const result = await database.query<{ username: string; is_maintainer: boolean; character_id: string | null }>(
-      "SELECT users.username, users.is_maintainer, COALESCE('custom-' || users.custom_character_model_id::text, users.character_id) AS character_id FROM app_sessions sessions JOIN app_users users USING (username) WHERE sessions.token_hash = $1 AND sessions.revoked_at IS NULL AND sessions.expires_at > now()",
+    const result = await database.query<{ username: string; nickname: string | null; is_maintainer: boolean; character_id: string | null }>(
+      "SELECT users.username, users.nickname, users.is_maintainer, COALESCE('custom-' || users.custom_character_model_id::text, users.character_id) AS character_id FROM app_sessions sessions JOIN app_users users USING (username) WHERE sessions.token_hash = $1 AND sessions.revoked_at IS NULL AND sessions.expires_at > now()",
       [tokenHash(value)],
     );
     const user = result.rows[0];
-    return user ? { username: user.username, role: user.is_maintainer ? "maintainer" as const : "user" as const, characterId: normalizeCharacterId(user.character_id) } : null;
+    return user ? { username: user.username, nickname: user.nickname, role: user.is_maintainer ? "maintainer" as const : "user" as const, characterId: normalizeCharacterId(user.character_id) } : null;
   }
   const session = sessions.get(value);
   if (!session) return null;
@@ -320,7 +320,46 @@ export async function getSession(value: unknown) {
   }
   const record = (await users()).find((item) => item.username === session.username);
   if (!record) return null;
-  return { username: session.username, role: session.role, characterId: normalizeCharacterId(record.characterId === undefined ? DEFAULT_CHARACTER_ID : record.characterId) };
+  return { username: session.username, nickname: record.nickname ?? null, role: session.role, characterId: normalizeCharacterId(record.characterId === undefined ? DEFAULT_CHARACTER_ID : record.characterId) };
+}
+
+function normalizeNickname(value: unknown): string | null | undefined {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") return undefined;
+  const nickname = value.trim();
+  if (!nickname) return null;
+  return nickname.length <= 32 && !/[\u0000-\u001f\u007f]/.test(nickname) ? nickname : undefined;
+}
+
+export async function updateAccountNickname(usernameValue: unknown, nicknameValue: unknown) {
+  const username = normalizeUsername(usernameValue);
+  const nickname = normalizeNickname(nicknameValue);
+  if (!username) return { error: "Account not found." };
+  if (nickname === undefined) return { error: "Nickname must be 1–32 characters and cannot contain control characters." };
+  if (database) {
+    const result = await database.query("UPDATE app_users SET nickname = $2 WHERE username = $1", [username, nickname]);
+    if (!result.rowCount) return { error: "Account not found." };
+  } else {
+    return enqueueUserWrite(async () => {
+      const records = await users();
+      const record = records.find((item) => item.username === username);
+      if (!record) return { error: "Account not found." };
+      record.nickname = nickname;
+      await saveUsers(records);
+      return { nickname };
+    });
+  }
+  return { nickname };
+}
+
+export async function getAccountNickname(usernameValue: unknown) {
+  const username = normalizeUsername(usernameValue);
+  if (!username) return null;
+  if (database) {
+    const result = await database.query<{ nickname: string | null }>("SELECT nickname FROM app_users WHERE username = $1", [username]);
+    return result.rows[0]?.nickname ?? null;
+  }
+  return (await users()).find((record) => record.username === username)?.nickname ?? null;
 }
 
 export async function updateAccountCharacter(usernameValue: unknown, characterValue: unknown) {

@@ -1,0 +1,5291 @@
+[
+  {
+    "title": "Wall Straight 1 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-straight-1m-36e278fd",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-straight-1m-36e278fd.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-straight-1m-36e278fd",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-straight-1m-36e278fd",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.002,
+      2.7,
+      0.195
+    ],
+    "triangles": 100,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5012000203132629,
+        -2.102492303888287E-05,
+        -0.09746533187158152
+      ],
+      "max": [
+        0.5012000203132629,
+        2.700000047683716,
+        0.09746533187158152
+      ],
+      "center": [
+        0.0,
+        1.3499895113803384,
+        0.0
+      ],
+      "size": [
+        1.0024000406265259,
+        2.700021072606755,
+        0.19493066374316304
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Straight 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-straight-2m-c96dba78",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-straight-2m-c96dba78.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-straight-2m-c96dba78",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-straight-2m-c96dba78",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.002,
+      2.7,
+      0.195
+    ],
+    "triangles": 100,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011999607086182,
+        -1.0277620035324675E-05,
+        -0.09753197651850672
+      ],
+      "max": [
+        1.0011999607086182,
+        2.700000047683716,
+        0.09753197651850672
+      ],
+      "center": [
+        0.0,
+        1.3499948850318402,
+        0.0
+      ],
+      "size": [
+        2.0023999214172363,
+        2.7000103253037513,
+        0.19506395303701343
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Straight 3 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-straight-3m-761deb7a",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-straight-3m-761deb7a.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-straight-3m-761deb7a",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-straight-3m-761deb7a",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      3.002,
+      2.7,
+      0.195
+    ],
+    "triangles": 100,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.5011999607086182,
+        -3.202059309170835E-05,
+        -0.09749301176146548
+      ],
+      "max": [
+        1.5011999607086182,
+        2.7000320682768075,
+        0.09749301176146548
+      ],
+      "center": [
+        0.0,
+        1.350000023841858,
+        0.0
+      ],
+      "size": [
+        3.0023999214172363,
+        2.7000640888698992,
+        0.19498602352293096
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Corner (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-corner-8d51f40a",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-corner-8d51f40a.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-corner-8d51f40a",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-corner-8d51f40a",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.598,
+      2.7,
+      0.598
+    ],
+    "triangles": 200,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5012000203132629,
+        0,
+        -0.5012000203132629
+      ],
+      "max": [
+        0.09629999846220016,
+        2.700000047683716,
+        0.09629999846220016
+      ],
+      "center": [
+        -0.2024500109255314,
+        1.350000023841858,
+        -0.2024500109255314
+      ],
+      "size": [
+        0.5975000187754631,
+        2.700000047683716,
+        0.5975000187754631
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Tee (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-tee-8ecc9d25",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-tee-8ecc9d25.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-tee-8ecc9d25",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-tee-8ecc9d25",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.002,
+      2.7,
+      0.599
+    ],
+    "triangles": 244,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5012000203132629,
+        -2.102492303888287E-05,
+        -0.5011903359759777
+      ],
+      "max": [
+        0.5012000203132629,
+        2.700000047683716,
+        0.09749031208643605
+      ],
+      "center": [
+        0.0,
+        1.3499895113803384,
+        -0.20185001194477084
+      ],
+      "size": [
+        1.0024000406265259,
+        2.700021072606755,
+        0.5986806480624138
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Door 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-door-2m-cb4fc378",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-door-2m-cb4fc378.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-door-2m-cb4fc378",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-door-2m-cb4fc378",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.002,
+      2.7,
+      0.21
+    ],
+    "triangles": 684,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011999607086182,
+        -1.0277620035324675E-05,
+        -0.10496230442232109
+      ],
+      "max": [
+        1.0011999607086182,
+        2.700000047683716,
+        0.10496230442232109
+      ],
+      "center": [
+        0.0,
+        1.3499948850318402,
+        0.0
+      ],
+      "size": [
+        2.0023999214172363,
+        2.7000103253037513,
+        0.20992460884464217
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Front Door 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-front-door-2m-067c8287",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-front-door-2m-067c8287.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-front-door-2m-067c8287",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-front-door-2m-067c8287",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.002,
+      2.7,
+      0.21
+    ],
+    "triangles": 836,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011999607086182,
+        -1.0277620035324675E-05,
+        -0.10499999672174454
+      ],
+      "max": [
+        1.0011999607086182,
+        2.700000047683716,
+        0.10499999672174454
+      ],
+      "center": [
+        0.0,
+        1.3499948850318402,
+        0.0
+      ],
+      "size": [
+        2.0023999214172363,
+        2.7000103253037513,
+        0.20999999344348907
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Window 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-window-2m-c5997f2f",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-window-2m-c5997f2f.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-window-2m-c5997f2f",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-window-2m-c5997f2f",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.002,
+      2.7,
+      0.31
+    ],
+    "triangles": 456,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011999607086182,
+        -1.0277620035324675E-05,
+        -0.154985195058715
+      ],
+      "max": [
+        1.0011999607086182,
+        2.700000047683716,
+        0.154985195058715
+      ],
+      "center": [
+        0.0,
+        1.3499948850318402,
+        0.0
+      ],
+      "size": [
+        2.0023999214172363,
+        2.7000103253037513,
+        0.30997039011743
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Window 1 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-window-1m-8154ce2d",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-window-1m-8154ce2d.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-window-1m-8154ce2d",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-window-1m-8154ce2d",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.002,
+      2.7,
+      0.31
+    ],
+    "triangles": 412,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5012000203132629,
+        -2.102492303888287E-05,
+        -0.154985195058715
+      ],
+      "max": [
+        0.5012000203132629,
+        2.700000047683716,
+        0.154985195058715
+      ],
+      "center": [
+        0.0,
+        1.3499895113803384,
+        0.0
+      ],
+      "size": [
+        1.0024000406265259,
+        2.700021072606755,
+        0.30997039011743
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Arch Opening 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-arch-opening-2m-bb7cb377",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-arch-opening-2m-bb7cb377.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-arch-opening-2m-bb7cb377",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-arch-opening-2m-bb7cb377",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.002,
+      2.7,
+      0.195
+    ],
+    "triangles": 356,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011999607086182,
+        -1.0277620035324675E-05,
+        -0.09753197651850672
+      ],
+      "max": [
+        1.0011999607086182,
+        2.700000047683716,
+        0.09753197651850672
+      ],
+      "center": [
+        0.0,
+        1.3499948850318402,
+        0.0
+      ],
+      "size": [
+        2.0023999214172363,
+        2.7000103253037513,
+        0.19506395303701343
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Half Partition 1 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-half-partition-1m-f928ae3a",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-half-partition-1m-f928ae3a.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-half-partition-1m-f928ae3a",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-half-partition-1m-f928ae3a",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.002,
+      1.16,
+      0.23
+    ],
+    "triangles": 144,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5012000203132629,
+        -2.102492303888287E-05,
+        -0.11499374370555743
+      ],
+      "max": [
+        0.5012000203132629,
+        1.1599691715370577,
+        0.11499374370555743
+      ],
+      "center": [
+        0.0,
+        0.5799740733070095,
+        0.0
+      ],
+      "size": [
+        1.0024000406265259,
+        1.1599901964600965,
+        0.22998748741111485
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Fireplace 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-fireplace-2m-09f05ce0",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-fireplace-2m-09f05ce0.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-fireplace-2m-09f05ce0",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-fireplace-2m-09f05ce0",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.002,
+      2.7,
+      0.948
+    ],
+    "triangles": 520,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011999607086182,
+        -1.0277620035324675E-05,
+        -0.09753197651850672
+      ],
+      "max": [
+        1.0011999607086182,
+        2.700000047683716,
+        0.850061055273784
+      ],
+      "center": [
+        0.0,
+        1.3499948850318402,
+        0.3762645393776386
+      ],
+      "size": [
+        2.0023999214172363,
+        2.7000103253037513,
+        0.9475930317922907
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Alcove 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-alcove-2m-2547011f",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-alcove-2m-2547011f.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-alcove-2m-2547011f",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-alcove-2m-2547011f",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.002,
+      2.7,
+      0.573
+    ],
+    "triangles": 788,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011999607086182,
+        -1.0277620035324675E-05,
+        -0.4750511188906015
+      ],
+      "max": [
+        1.0011999607086182,
+        2.700000047683716,
+        0.09753197651850672
+      ],
+      "center": [
+        0.0,
+        1.3499948850318402,
+        -0.1887595711860474
+      ],
+      "size": [
+        2.0023999214172363,
+        2.7000103253037513,
+        0.5725830954091082
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Bay Window 3 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-bay-window-3m-bd9cda7c",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-bay-window-3m-bd9cda7c.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-bay-window-3m-bd9cda7c",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-bay-window-3m-bd9cda7c",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      3.001,
+      2.7,
+      0.953
+    ],
+    "triangles": 1668,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.5011999607086182,
+        -6.0427989866981835E-05,
+        -0.8549958424869124
+      ],
+      "max": [
+        1.5,
+        2.7000320682768075,
+        0.09756919177954015
+      ],
+      "center": [
+        -0.000599980354309082,
+        1.3499858201434702,
+        -0.3787133253536861
+      ],
+      "size": [
+        3.001199960708618,
+        2.7000924962666746,
+        0.9525650342664526
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Patio Slider 3 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-patio-slider-3m-58077f9e",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-patio-slider-3m-58077f9e.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-patio-slider-3m-58077f9e",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-patio-slider-3m-58077f9e",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      3.002,
+      2.7,
+      0.195
+    ],
+    "triangles": 948,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.5011999607086182,
+        -3.202059309170835E-05,
+        -0.09749301176146548
+      ],
+      "max": [
+        1.5011999607086182,
+        2.7000320682768075,
+        0.09749301176146548
+      ],
+      "center": [
+        0.0,
+        1.350000023841858,
+        0.0
+      ],
+      "size": [
+        3.0023999214172363,
+        2.7000640888698992,
+        0.19498602352293096
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Floor Wood 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-floor-wood-2m-91f6fc28",
+    "category": "tiles",
+    "file": "tiles/cozy-home-interiors-floor-wood-2m-91f6fc28.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-floor-wood-2m-91f6fc28",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-floor-wood-2m-91f6fc28",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.065,
+      2
+    ],
+    "triangles": 892,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        -2.5177397788667816E-05,
+        -1
+      ],
+      "max": [
+        1,
+        0.06505615383188336,
+        1
+      ],
+      "center": [
+        0,
+        0.03251548821704735,
+        0
+      ],
+      "size": [
+        2,
+        0.06508133122967202,
+        2
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Floor Tile 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-floor-tile-2m-f92b8556",
+    "category": "tiles",
+    "file": "tiles/cozy-home-interiors-floor-tile-2m-f92b8556.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-floor-tile-2m-f92b8556",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-floor-tile-2m-f92b8556",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.065,
+      2
+    ],
+    "triangles": 460,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        -2.5177397788667816E-05,
+        -1
+      ],
+      "max": [
+        1,
+        0.06504913469781684,
+        1
+      ],
+      "center": [
+        0,
+        0.03251197865001409,
+        0
+      ],
+      "size": [
+        2,
+        0.0650743120956055,
+        2
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Floor Carpet 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-floor-carpet-2m-772f3eae",
+    "category": "tiles",
+    "file": "tiles/cozy-home-interiors-floor-carpet-2m-772f3eae.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-floor-carpet-2m-772f3eae",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-floor-carpet-2m-772f3eae",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.082,
+      2
+    ],
+    "triangles": 308,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        -2.5177397788667816E-05,
+        -1
+      ],
+      "max": [
+        1,
+        0.08198210925023436,
+        1
+      ],
+      "center": [
+        0,
+        0.04097846592622285,
+        0
+      ],
+      "size": [
+        2,
+        0.08200728664802302,
+        2
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Ceiling Deck 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-ceiling-deck-2m-38748268",
+    "category": "tiles",
+    "file": "tiles/cozy-home-interiors-ceiling-deck-2m-38748268.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-ceiling-deck-2m-38748268",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-ceiling-deck-2m-38748268",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.3,
+      2.002
+    ],
+    "triangles": 288,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        7.64823119614455E-07,
+        -1.0011999607086182
+      ],
+      "max": [
+        1,
+        0.29998871321788867,
+        1.0011999607086182
+      ],
+      "center": [
+        0,
+        0.14999473902050414,
+        0.0
+      ],
+      "size": [
+        2,
+        0.29998794839476906,
+        2.0023999214172363
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Ceiling Deck 2 x 1 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-ceiling-deck-2x1m-9a72c278",
+    "category": "tiles",
+    "file": "tiles/cozy-home-interiors-ceiling-deck-2x1m-9a72c278.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-ceiling-deck-2x1m-9a72c278",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-ceiling-deck-2x1m-9a72c278",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.3,
+      1.002
+    ],
+    "triangles": 288,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        -1.632701022895311E-05,
+        -0.5012237859404578
+      ],
+      "max": [
+        1,
+        0.29998871321788867,
+        0.5012237859404578
+      ],
+      "center": [
+        0,
+        0.14998619310382985,
+        0.0
+      ],
+      "size": [
+        2,
+        0.30000504022811764,
+        1.0024475718809156
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Stair Flight (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-stair-flight-200d2331",
+    "category": "props",
+    "file": "props/cozy-home-interiors-stair-flight-200d2331.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-stair-flight-200d2331",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-stair-flight-200d2331",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      4.02,
+      4.1,
+      1.04
+    ],
+    "triangles": 1404,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -2.009999990463257,
+        -0.0001185310295490627,
+        -0.5199978612371297
+      ],
+      "max": [
+        2.009999990463257,
+        4.099999904632568,
+        0.520060418695225
+      ],
+      "center": [
+        0.0,
+        2.0499406868015098,
+        3.127872904767903E-05
+      ],
+      "size": [
+        4.019999980926514,
+        4.100118435662117,
+        1.0400582799323548
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Stair Landing Rail 1 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-stair-landing-rail-1m-2b3d9a34",
+    "category": "props",
+    "file": "props/cozy-home-interiors-stair-landing-rail-1m-2b3d9a34.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-stair-landing-rail-1m-2b3d9a34",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-stair-landing-rail-1m-2b3d9a34",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.03,
+      1.08,
+      0.1
+    ],
+    "triangles": 768,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5150163478674799,
+        0,
+        -0.04996734718038459
+      ],
+      "max": [
+        0.5150163478674799,
+        1.0800000429153442,
+        0.04996734718038459
+      ],
+      "center": [
+        0.0,
+        0.5400000214576721,
+        0.0
+      ],
+      "size": [
+        1.0300326957349597,
+        1.0800000429153442,
+        0.09993469436076918
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Balcony Rail 1 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-balcony-rail-1m-93583df7",
+    "category": "props",
+    "file": "props/cozy-home-interiors-balcony-rail-1m-93583df7.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-balcony-rail-1m-93583df7",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-balcony-rail-1m-93583df7",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1,
+      1,
+      0.1
+    ],
+    "triangles": 404,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5,
+        2.013148741808468E-05,
+        -0.0499893185216834
+      ],
+      "max": [
+        0.5,
+        0.9999691751133364,
+        0.0499893185216834
+      ],
+      "center": [
+        0.0,
+        0.49999465330037723,
+        0.0
+      ],
+      "size": [
+        1.0,
+        0.9999490436259183,
+        0.0999786370433668
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Attic Slope 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-attic-slope-2m-1d95d7cb",
+    "category": "props",
+    "file": "props/cozy-home-interiors-attic-slope-2m-1d95d7cb.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-attic-slope-2m-1d95d7cb",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-attic-slope-2m-1d95d7cb",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      2.06,
+      2.141
+    ],
+    "triangles": 300,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.9999686774617567,
+        5.296330087145584E-05,
+        -1.0957989692687988
+      ],
+      "max": [
+        0.9999686774617567,
+        2.05994697947867,
+        1.0449999570846558
+      ],
+      "center": [
+        0.0,
+        1.0299999713897705,
+        -0.025399506092071533
+      ],
+      "size": [
+        1.9999373549235133,
+        2.0598940161777985,
+        2.1407989263534546
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Attic Skylight 2 m (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-attic-skylight-2m-31ec6af1",
+    "category": "props",
+    "file": "props/cozy-home-interiors-attic-skylight-2m-31ec6af1.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-attic-skylight-2m-31ec6af1",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-attic-skylight-2m-31ec6af1",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      2.06,
+      2.141
+    ],
+    "triangles": 568,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.9999686774617567,
+        5.296330087145584E-05,
+        -1.0957989692687988
+      ],
+      "max": [
+        0.9999686774617567,
+        2.05994697947867,
+        1.0449999570846558
+      ],
+      "center": [
+        0.0,
+        1.0299999713897705,
+        -0.025399506092071533
+      ],
+      "size": [
+        1.9999373549235133,
+        2.0598940161777985,
+        2.1407989263534546
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Radiator (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-radiator-19fae6cc",
+    "category": "props",
+    "file": "props/cozy-home-interiors-radiator-19fae6cc.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-radiator-19fae6cc",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-radiator-19fae6cc",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.044,
+      0.75,
+      0.09
+    ],
+    "triangles": 1404,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5220000147819519,
+        2.5632203300138268E-05,
+        -0.04497207623396561
+      ],
+      "max": [
+        0.5220000147819519,
+        0.7499847481956152,
+        0.04497207623396561
+      ],
+      "center": [
+        0.0,
+        0.37500519019945766,
+        0.0
+      ],
+      "size": [
+        1.0440000295639038,
+        0.7499591159923151,
+        0.08994415246793122
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Sofa Two Seat (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-sofa-two-seat-cfcf21fd",
+    "category": "props",
+    "file": "props/cozy-home-interiors-sofa-two-seat-cfcf21fd.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-sofa-two-seat-cfcf21fd",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-sofa-two-seat-cfcf21fd",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.65,
+      1.05,
+      0.755
+    ],
+    "triangles": 496,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.824999988079071,
+        -2.0900593251577115E-05,
+        -0.3799903025344675
+      ],
+      "max": [
+        0.824999988079071,
+        1.050019961943382,
+        0.37499030730283905
+      ],
+      "center": [
+        0.0,
+        0.5249995306750652,
+        -0.002499997615814209
+      ],
+      "size": [
+        1.649999976158142,
+        1.0500408625366338,
+        0.7549806098373065
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Sofa Three Seat (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-sofa-three-seat-8d2d33f9",
+    "category": "props",
+    "file": "props/cozy-home-interiors-sofa-three-seat-8d2d33f9.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-sofa-three-seat-8d2d33f9",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-sofa-three-seat-8d2d33f9",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.3,
+      1.05,
+      0.755
+    ],
+    "triangles": 496,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.149999976158142,
+        -4.471177478826416E-05,
+        -0.3800307371871248
+      ],
+      "max": [
+        1.149999976158142,
+        1.0499596853124908,
+        0.3750307419554964
+      ],
+      "center": [
+        0.0,
+        0.5249574867688513,
+        -0.002499997615814209
+      ],
+      "size": [
+        2.299999952316284,
+        1.050004397087279,
+        0.7550614791426212
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Armchair (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-armchair-53de7ce5",
+    "category": "props",
+    "file": "props/cozy-home-interiors-armchair-53de7ce5.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-armchair-53de7ce5",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-armchair-53de7ce5",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.8,
+      1.05,
+      0.755
+    ],
+    "triangles": 496,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3999899035968801,
+        7.328219812058334E-06,
+        -0.38001729299609605
+      ],
+      "max": [
+        0.3999899035968801,
+        1.0499999523162842,
+        0.3750172977644676
+      ],
+      "center": [
+        0.0,
+        0.5250036402680481,
+        -0.002499997615814209
+      ],
+      "size": [
+        0.7999798071937602,
+        1.049992624096472,
+        0.7550345907605637
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Pouffe (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-pouffe-f81376e6",
+    "category": "props",
+    "file": "props/cozy-home-interiors-pouffe-f81376e6.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-pouffe-f81376e6",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-pouffe-f81376e6",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.64,
+      0.36,
+      0.64
+    ],
+    "triangles": 144,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3199999928474426,
+        1.4049689916056929E-05,
+        -0.3199999928474426
+      ],
+      "max": [
+        0.3199999928474426,
+        0.3599859646151987,
+        0.3199999928474426
+      ],
+      "center": [
+        0.0,
+        0.18000000715255737,
+        0.0
+      ],
+      "size": [
+        0.6399999856948853,
+        0.3599719149252827,
+        0.6399999856948853
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Coffee Table (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-coffee-table-bc8215cc",
+    "category": "props",
+    "file": "props/cozy-home-interiors-coffee-table-bc8215cc.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-coffee-table-bc8215cc",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-coffee-table-bc8215cc",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.1,
+      0.45,
+      0.6
+    ],
+    "triangles": 220,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.550000011920929,
+        -6.109013142546749E-06,
+        -0.3000183176084074
+      ],
+      "max": [
+        0.550000011920929,
+        0.45001188975616424,
+        0.3000183176084074
+      ],
+      "center": [
+        0.0,
+        0.22500289037151083,
+        0.0
+      ],
+      "size": [
+        1.100000023841858,
+        0.4500179987693068,
+        0.6000366352168148
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Side Table (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-side-table-d032d230",
+    "category": "props",
+    "file": "props/cozy-home-interiors-side-table-d032d230.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-side-table-d032d230",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-side-table-d032d230",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.45,
+      0.55,
+      0.45
+    ],
+    "triangles": 220,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.22499999403953552,
+        0,
+        -0.22499999403953552
+      ],
+      "max": [
+        0.22499999403953552,
+        0.5499936010472872,
+        0.22499999403953552
+      ],
+      "center": [
+        0.0,
+        0.2749968005236436,
+        0.0
+      ],
+      "size": [
+        0.44999998807907104,
+        0.5499936010472872,
+        0.44999998807907104
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Living Rug (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-living-rug-51629599",
+    "category": "props",
+    "file": "props/cozy-home-interiors-living-rug-51629599.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-living-rug-51629599",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-living-rug-51629599",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.3,
+      0.023,
+      1.5
+    ],
+    "triangles": 184,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.149999976158142,
+        1.5350609106434474E-05,
+        -0.7500076140781731
+      ],
+      "max": [
+        1.149999976158142,
+        0.023051346995099725,
+        0.7500076140781731
+      ],
+      "center": [
+        0.0,
+        0.01153334880210308,
+        0.0
+      ],
+      "size": [
+        2.299999952316284,
+        0.02303599638599329,
+        1.5000152281563461
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Floor Lamp (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-floor-lamp-3c464081",
+    "category": "tiles",
+    "file": "tiles/cozy-home-interiors-floor-lamp-3c464081.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-floor-lamp-3c464081",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-floor-lamp-3c464081",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.6,
+      1.65,
+      0.6
+    ],
+    "triangles": 144,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.30000001192092896,
+        8.010865929060362E-06,
+        -0.30000001192092896
+      ],
+      "max": [
+        0.30000001192092896,
+        1.649999208228321,
+        0.30000001192092896
+      ],
+      "center": [
+        0.0,
+        0.825003609547125,
+        0.0
+      ],
+      "size": [
+        0.6000000238418579,
+        1.649991197362392,
+        0.6000000238418579
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Table Lamp (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-table-lamp-2537ba1f",
+    "category": "props",
+    "file": "props/cozy-home-interiors-table-lamp-2537ba1f.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-table-lamp-2537ba1f",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-table-lamp-2537ba1f",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.4,
+      0.4,
+      0.4
+    ],
+    "triangles": 192,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.20000000298023224,
+        0,
+        -0.20000000298023224
+      ],
+      "max": [
+        0.20000000298023224,
+        0.40001526521542985,
+        0.20000000298023224
+      ],
+      "center": [
+        0.0,
+        0.20000763260771492,
+        0.0
+      ],
+      "size": [
+        0.4000000059604645,
+        0.40001526521542985,
+        0.4000000059604645
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bookcase (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bookcase-ca34c275",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bookcase-ca34c275.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bookcase-ca34c275",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bookcase-ca34c275",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.94,
+      1.7,
+      0.32
+    ],
+    "triangles": 288,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4699942146661819,
+        0,
+        -0.17000244388254312
+      ],
+      "max": [
+        0.4699942146661819,
+        1.7000000476837158,
+        0.15000244805486826
+      ],
+      "center": [
+        0.0,
+        0.8500000238418579,
+        -0.009999997913837433
+      ],
+      "size": [
+        0.9399884293323638,
+        1.7000000476837158,
+        0.3200048919374114
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "TV Unit (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-tv-unit-f9dd536d",
+    "category": "props",
+    "file": "props/cozy-home-interiors-tv-unit-f9dd536d.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-tv-unit-f9dd536d",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-tv-unit-f9dd536d",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.6,
+      0.47,
+      0.418
+    ],
+    "triangles": 244,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.800000011920929,
+        -9.621610730370378E-10,
+        -0.200030521490163
+      ],
+      "max": [
+        0.800000011920929,
+        0.4700053414097901,
+        0.21749839891298184
+      ],
+      "center": [
+        0.0,
+        0.23500267022381452,
+        0.008733938711409414
+      ],
+      "size": [
+        1.600000023841858,
+        0.4700053423719512,
+        0.4175289204031448
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "TV (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-tv-98070018",
+    "category": "props",
+    "file": "props/cozy-home-interiors-tv-98070018.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-tv-98070018",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-tv-98070018",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.2,
+      0.83,
+      0.25
+    ],
+    "triangles": 128,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6000000238418579,
+        3.369811904235798E-05,
+        -0.1249549901637879
+      ],
+      "max": [
+        0.6000000238418579,
+        0.8299662851916572,
+        0.1249549901637879
+      ],
+      "center": [
+        0.0,
+        0.41499999165534973,
+        0.0
+      ],
+      "size": [
+        1.2000000476837158,
+        0.8299325870726149,
+        0.2499099803275758
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Record Player (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-record-player-7c3ae340",
+    "category": "props",
+    "file": "props/cozy-home-interiors-record-player-7c3ae340.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-record-player-7c3ae340",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-record-player-7c3ae340",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.42,
+      0.106,
+      0.32
+    ],
+    "triangles": 176,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.20999999344348907,
+        8.545537176038454E-06,
+        -0.16001067648254622
+      ],
+      "max": [
+        0.20999999344348907,
+        0.1059978190400999,
+        0.16001067648254622
+      ],
+      "center": [
+        0.0,
+        0.05300318228863797,
+        0.0
+      ],
+      "size": [
+        0.41999998688697815,
+        0.10598927350292386,
+        0.32002135296509243
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Plant Large (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-plant-large-f54433e5",
+    "category": "props",
+    "file": "props/cozy-home-interiors-plant-large-f54433e5.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-plant-large-f54433e5",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-plant-large-f54433e5",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.654,
+      0.799,
+      0.6
+    ],
+    "triangles": 432,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.30835267901420593,
+        0,
+        -0.27769347850056986
+      ],
+      "max": [
+        0.3460429608821869,
+        0.7987712818407182,
+        0.3218213600275169
+      ],
+      "center": [
+        0.01884514093399048,
+        0.3993856409203591,
+        0.02206394076347351
+      ],
+      "size": [
+        0.6543956398963928,
+        0.7987712818407182,
+        0.5995148385280867
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Plant Small (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-plant-small-4b5aec77",
+    "category": "props",
+    "file": "props/cozy-home-interiors-plant-small-4b5aec77.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-plant-small-4b5aec77",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-plant-small-4b5aec77",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.203,
+      0.28,
+      0.232
+    ],
+    "triangles": 304,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.10163537730259713,
+        -1.0708087578581438E-06,
+        -0.10819067806005478
+      ],
+      "max": [
+        0.10115729589743432,
+        0.27997683583687344,
+        0.12409189343452454
+      ],
+      "center": [
+        -0.00023904070258140564,
+        0.1399878825140578,
+        0.007950607687234879
+      ],
+      "size": [
+        0.20279267320003144,
+        0.27997790664563127,
+        0.23228257149457932
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Throw Blanket (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-throw-blanket-787c88d6",
+    "category": "props",
+    "file": "props/cozy-home-interiors-throw-blanket-787c88d6.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-throw-blanket-787c88d6",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-throw-blanket-787c88d6",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.8,
+      0.18,
+      0.6
+    ],
+    "triangles": 136,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4000000059604645,
+        7.0214924582645555E-06,
+        -0.299984745215383
+      ],
+      "max": [
+        0.4000000059604645,
+        0.1799929856600991,
+        0.299984745215383
+      ],
+      "center": [
+        0.0,
+        0.09000000357627869,
+        0.0
+      ],
+      "size": [
+        0.800000011920929,
+        0.17998596416764084,
+        0.599969490430766
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Cushion Set (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-cushion-set-8fb0327f",
+    "category": "props",
+    "file": "props/cozy-home-interiors-cushion-set-8fb0327f.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-cushion-set-8fb0327f",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-cushion-set-8fb0327f",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.588,
+      0.18,
+      0.408
+    ],
+    "triangles": 136,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.29499999061226845,
+        5.3423356203355366E-06,
+        -0.17499999701976776
+      ],
+      "max": [
+        0.2928524911403656,
+        0.1799930770040649,
+        0.23285249061882496
+      ],
+      "center": [
+        -0.0010737497359514236,
+        0.08999920966984261,
+        0.0289262467995286
+      ],
+      "size": [
+        0.587852481752634,
+        0.17998773466844456,
+        0.4078524876385927
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Art Frames (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-art-frames-7362db9c",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-art-frames-7362db9c.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-art-frames-7362db9c",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-art-frames-7362db9c",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.975,
+      0.7,
+      0.072
+    ],
+    "triangles": 120,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5500106835536536,
+        0,
+        -0.019995727210033655
+      ],
+      "max": [
+        0.4250106871903223,
+        0.699999988079071,
+        0.05199743789051479
+      ],
+      "center": [
+        -0.06249999818166563,
+        0.3499999940395355,
+        0.016000855340240566
+      ],
+      "size": [
+        0.9750213707439759,
+        0.699999988079071,
+        0.07199316510054844
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Living Mirror (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-living-mirror-59b8b171",
+    "category": "props",
+    "file": "props/cozy-home-interiors-living-mirror-59b8b171.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-living-mirror-59b8b171",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-living-mirror-59b8b171",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.65,
+      1.2,
+      0.061
+    ],
+    "triangles": 136,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.325022138834589,
+        0,
+        -0.02497634914762701
+      ],
+      "max": [
+        0.325022138834589,
+        1.2000000476837158,
+        0.03597552335128462
+      ],
+      "center": [
+        0.0,
+        0.6000000238418579,
+        0.005499587101828806
+      ],
+      "size": [
+        0.650044277669178,
+        1.2000000476837158,
+        0.06095187249891163
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Curtains (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-curtains-29cf6ce1",
+    "category": "props",
+    "file": "props/cozy-home-interiors-curtains-29cf6ce1.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-curtains-29cf6ce1",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-curtains-29cf6ce1",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.62,
+      1.818,
+      0.12
+    ],
+    "triangles": 992,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.8100566118350779,
+        0,
+        -0.060029908139286485
+      ],
+      "max": [
+        0.8100566118350779,
+        1.8179692509635148,
+        0.060029908139286485
+      ],
+      "center": [
+        0.0,
+        0.9089846254817574,
+        0.0
+      ],
+      "size": [
+        1.6201132236701559,
+        1.8179692509635148,
+        0.12005981627857297
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Shelf (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-shelf-cf54b3dc",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-shelf-cf54b3dc.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-shelf-cf54b3dc",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-shelf-cf54b3dc",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1,
+      0.26,
+      0.25
+    ],
+    "triangles": 92,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5,
+        -1.1902017481982274E-05,
+        -0.1250190740684225
+      ],
+      "max": [
+        0.5,
+        0.25996917302717376,
+        0.1250190740684225
+      ],
+      "center": [
+        0.0,
+        0.1299786355048459,
+        0.0
+      ],
+      "size": [
+        1.0,
+        0.25998107504465573,
+        0.250038148136845
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Candle Set (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-candle-set-34fc0fdd",
+    "category": "props",
+    "file": "props/cozy-home-interiors-candle-set-34fc0fdd.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-candle-set-34fc0fdd",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-candle-set-34fc0fdd",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.45,
+      0.283,
+      0.3
+    ],
+    "triangles": 716,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.22499999403953552,
+        2.6708869098387295E-06,
+        -0.15000915157895728
+      ],
+      "max": [
+        0.22499999403953552,
+        0.28299514547790316,
+        0.15000915157895728
+      ],
+      "center": [
+        0.0,
+        0.1414989081824065,
+        0.0
+      ],
+      "size": [
+        0.44999998807907104,
+        0.2829924745909933,
+        0.30001830315791456
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Board Game Stack (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-board-game-stack-a92b9283",
+    "category": "props",
+    "file": "props/cozy-home-interiors-board-game-stack-a92b9283.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-board-game-stack-a92b9283",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-board-game-stack-a92b9283",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.35,
+      0.17,
+      0.276
+    ],
+    "triangles": 252,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.17000000178813934,
+        1.2511602910516423E-05,
+        -0.13785542512481533
+      ],
+      "max": [
+        0.18023230135440826,
+        0.16999563912974142,
+        0.13785542512481533
+      ],
+      "center": [
+        0.0051161497831344604,
+        0.08500407536632597,
+        0.0
+      ],
+      "size": [
+        0.3502323031425476,
+        0.1699831275268309,
+        0.27571085024963066
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Cat Tree (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-cat-tree-8a4d2c84",
+    "category": "props",
+    "file": "props/cozy-home-interiors-cat-tree-8a4d2c84.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-cat-tree-8a4d2c84",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-cat-tree-8a4d2c84",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.695,
+      1.04,
+      0.55
+    ],
+    "triangles": 300,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3449999988079071,
+        7.478467351322571E-06,
+        -0.27501067139098495
+      ],
+      "max": [
+        0.3500053419633187,
+        1.0399925178491873,
+        0.27501067139098495
+      ],
+      "center": [
+        0.002502671577705784,
+        0.5199999981582694,
+        0.0
+      ],
+      "size": [
+        0.6950053407712258,
+        1.039985039381836,
+        0.5500213427819699
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Radiator Cover (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-radiator-cover-c6f90cd5",
+    "category": "props",
+    "file": "props/cozy-home-interiors-radiator-cover-c6f90cd5.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-radiator-cover-c6f90cd5",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-radiator-cover-c6f90cd5",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.3,
+      0.85,
+      0.4
+    ],
+    "triangles": 168,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6499999761581421,
+        -2.8202110393782398E-05,
+        -0.1999771037827763
+      ],
+      "max": [
+        0.6499999761581421,
+        0.8500282259522517,
+        0.1999771037827763
+      ],
+      "center": [
+        0.0,
+        0.42500001192092896,
+        0.0
+      ],
+      "size": [
+        1.2999999523162842,
+        0.8500564280626455,
+        0.3999542075655526
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Base Cabinet (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-base-cabinet-a1f01fe2",
+    "category": "props",
+    "file": "props/cozy-home-interiors-base-cabinet-a1f01fe2.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-base-cabinet-a1f01fe2",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-base-cabinet-a1f01fe2",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.64,
+      0.9,
+      0.682
+    ],
+    "triangles": 128,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.32000105641026244,
+        0,
+        -0.32499998807907104
+      ],
+      "max": [
+        0.32000105641026244,
+        0.899994658344043,
+        0.3574931985674282
+      ],
+      "center": [
+        0.0,
+        0.4499973291720215,
+        0.01624660524417859
+      ],
+      "size": [
+        0.6400021128205249,
+        0.899994658344043,
+        0.6824931866464993
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Drawer Base (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-drawer-base-457ef3b6",
+    "category": "props",
+    "file": "props/cozy-home-interiors-drawer-base-457ef3b6.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-drawer-base-457ef3b6",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-drawer-base-457ef3b6",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.64,
+      0.9,
+      0.677
+    ],
+    "triangles": 176,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.32000105641026244,
+        0,
+        -0.32499998807907104
+      ],
+      "max": [
+        0.32000105641026244,
+        0.899994658344043,
+        0.3524918244360866
+      ],
+      "center": [
+        0.0,
+        0.4499973291720215,
+        0.013745918178507788
+      ],
+      "size": [
+        0.6400021128205249,
+        0.899994658344043,
+        0.6774918125151577
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Cabinet (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wall-cabinet-4d6f57d2",
+    "category": "walls",
+    "file": "walls/cozy-home-interiors-wall-cabinet-4d6f57d2.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wall-cabinet-4d6f57d2",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wall-cabinet-4d6f57d2",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.69,
+      0.7,
+      0.682
+    ],
+    "triangles": 128,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3449999988079071,
+        0,
+        -0.32499511591551467
+      ],
+      "max": [
+        0.3449999988079071,
+        0.70001661461983,
+        0.3574931985674282
+      ],
+      "center": [
+        0.0,
+        0.350008307309915,
+        0.01624904132595678
+      ],
+      "size": [
+        0.6899999976158142,
+        0.70001661461983,
+        0.6824883144829429
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Sink Unit (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-sink-unit-59e9337d",
+    "category": "props",
+    "file": "props/cozy-home-interiors-sink-unit-59e9337d.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-sink-unit-59e9337d",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-sink-unit-59e9337d",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.64,
+      1.06,
+      0.682
+    ],
+    "triangles": 584,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.32000105641026244,
+        0,
+        -0.32499998807907104
+      ],
+      "max": [
+        0.32000105641026244,
+        1.0599881383813319,
+        0.3574931985674282
+      ],
+      "center": [
+        0.0,
+        0.5299940691906659,
+        0.01624660524417859
+      ],
+      "size": [
+        0.6400021128205249,
+        1.0599881383813319,
+        0.6824931866464993
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Oven (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-oven-4e536443",
+    "category": "props",
+    "file": "props/cozy-home-interiors-oven-4e536443.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-oven-4e536443",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-oven-4e536443",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.6,
+      0.85,
+      0.68
+    ],
+    "triangles": 140,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3000045861913232,
+        0,
+        -0.3000045861913232
+      ],
+      "max": [
+        0.3000045861913232,
+        0.8500000238418579,
+        0.3799805116848262
+      ],
+      "center": [
+        0.0,
+        0.42500001192092896,
+        0.03998796274675151
+      ],
+      "size": [
+        0.6000091723826464,
+        0.8500000238418579,
+        0.6799850978761495
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Hob (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-hob-3c6e8228",
+    "category": "props",
+    "file": "props/cozy-home-interiors-hob-3c6e8228.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-hob-3c6e8228",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-hob-3c6e8228",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.58,
+      0.064,
+      0.52
+    ],
+    "triangles": 548,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.28999999165534973,
+        6.562571243966947E-06,
+        -0.2600149465878024
+      ],
+      "max": [
+        0.28999999165534973,
+        0.06449552685360924,
+        0.2600149465878024
+      ],
+      "center": [
+        0.0,
+        0.0322510447124266,
+        0.0
+      ],
+      "size": [
+        0.5799999833106995,
+        0.06448896428236527,
+        0.5200298931756048
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Fridge (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-fridge-c9568818",
+    "category": "props",
+    "file": "props/cozy-home-interiors-fridge-c9568818.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-fridge-c9568818",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-fridge-c9568818",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.7,
+      1.7,
+      0.773
+    ],
+    "triangles": 140,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3500183209234348,
+        0,
+        -0.3500183209234348
+      ],
+      "max": [
+        0.3500183209234348,
+        1.7000000476837158,
+        0.42248970560203575
+      ],
+      "center": [
+        0.0,
+        0.8500000238418579,
+        0.03623569233930046
+      ],
+      "size": [
+        0.7000366418468696,
+        1.7000000476837158,
+        0.7725080265254706
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Kettle (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-kettle-968a5f90",
+    "category": "props",
+    "file": "props/cozy-home-interiors-kettle-968a5f90.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-kettle-968a5f90",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-kettle-968a5f90",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.473,
+      0.28,
+      0.24
+    ],
+    "triangles": 460,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2599999960511923,
+        -8.194668423527895E-06,
+        -0.1200076793263774
+      ],
+      "max": [
+        0.21259677410125732,
+        0.2800000011920929,
+        0.1200076793263774
+      ],
+      "center": [
+        -0.02370161097496748,
+        0.1399959032618347,
+        0.0
+      ],
+      "size": [
+        0.4725967701524496,
+        0.2800081958605164,
+        0.2400153586527548
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Toaster (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-toaster-ba4c8d1d",
+    "category": "props",
+    "file": "props/cozy-home-interiors-toaster-ba4c8d1d.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-toaster-ba4c8d1d",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-toaster-ba4c8d1d",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.3,
+      0.187,
+      0.18
+    ],
+    "triangles": 128,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.14000000059604645,
+        -6.405693911276655E-06,
+        -0.09000640927018996
+      ],
+      "max": [
+        0.15999877816682062,
+        0.18700353173498058,
+        0.09000640927018996
+      ],
+      "center": [
+        0.009999388785387087,
+        0.09349856302053465,
+        0.0
+      ],
+      "size": [
+        0.29999877876286707,
+        0.18700993742889185,
+        0.18001281854037993
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Coffee Machine (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-coffee-machine-0e4c75b6",
+    "category": "props",
+    "file": "props/cozy-home-interiors-coffee-machine-0e4c75b6.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-coffee-machine-0e4c75b6",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-coffee-machine-0e4c75b6",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.26,
+      0.35,
+      0.375
+    ],
+    "triangles": 196,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.12999740592669454,
+        -2.673349811382897E-06,
+        -0.125
+      ],
+      "max": [
+        0.12999740592669454,
+        0.35000266738934693,
+        0.25
+      ],
+      "center": [
+        0.0,
+        0.17499999701976776,
+        0.0625
+      ],
+      "size": [
+        0.2599948118533891,
+        0.35000534073915834,
+        0.375
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Microwave (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-microwave-aea6ee34",
+    "category": "props",
+    "file": "props/cozy-home-interiors-microwave-aea6ee34.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-microwave-aea6ee34",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-microwave-aea6ee34",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.48,
+      0.3,
+      0.35
+    ],
+    "triangles": 128,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.23999999463558197,
+        1.008042112771168E-05,
+        -0.16000976234653536
+      ],
+      "max": [
+        0.23999999463558197,
+        0.29998993149980124,
+        0.19000747957357167
+      ],
+      "center": [
+        0.0,
+        0.15000000596046448,
+        0.014998858613518157
+      ],
+      "size": [
+        0.47999998927116394,
+        0.29997985107867353,
+        0.350017241920107
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Dining Table (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-dining-table-ab8a1c65",
+    "category": "props",
+    "file": "props/cozy-home-interiors-dining-table-ab8a1c65.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-dining-table-ab8a1c65",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-dining-table-ab8a1c65",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.6,
+      0.75,
+      0.85
+    ],
+    "triangles": 220,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.800000011920929,
+        9.868318384675945E-10,
+        -0.42496414708382485
+      ],
+      "max": [
+        0.800000011920929,
+        0.7499813829638842,
+        0.42496414708382485
+      ],
+      "center": [
+        0.0,
+        0.374990691975358,
+        0.0
+      ],
+      "size": [
+        1.600000023841858,
+        0.7499813819770523,
+        0.8499282941676497
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Dining Chair (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-dining-chair-35257d65",
+    "category": "props",
+    "file": "props/cozy-home-interiors-dining-chair-35257d65.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-dining-chair-35257d65",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-dining-chair-35257d65",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.46,
+      0.92,
+      0.46
+    ],
+    "triangles": 264,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.23000000417232513,
+        0,
+        -0.23000000417232513
+      ],
+      "max": [
+        0.23000000417232513,
+        0.9200000166893005,
+        0.23000000417232513
+      ],
+      "center": [
+        0.0,
+        0.46000000834465027,
+        0.0
+      ],
+      "size": [
+        0.46000000834465027,
+        0.9200000166893005,
+        0.46000000834465027
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bar Stool (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bar-stool-7f616d86",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bar-stool-7f616d86.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bar-stool-7f616d86",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bar-stool-7f616d86",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.46,
+      0.79,
+      0.46
+    ],
+    "triangles": 528,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.23000000417232513,
+        0,
+        -0.23000000417232513
+      ],
+      "max": [
+        0.23000000417232513,
+        0.7899840034511043,
+        0.23000000417232513
+      ],
+      "center": [
+        0.0,
+        0.39499200172555216,
+        0.0
+      ],
+      "size": [
+        0.46000000834465027,
+        0.7899840034511043,
+        0.46000000834465027
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Kitchen Island (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-kitchen-island-aa344597",
+    "category": "props",
+    "file": "props/cozy-home-interiors-kitchen-island-aa344597.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-kitchen-island-aa344597",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-kitchen-island-aa344597",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.55,
+      0.97,
+      0.95
+    ],
+    "triangles": 140,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.7749999761581421,
+        -2.8202110393782398E-05,
+        -0.4749763335431321
+      ],
+      "max": [
+        0.7749999761581421,
+        0.9699811029049294,
+        0.4749763335431321
+      ],
+      "center": [
+        0.0,
+        0.48497645039726783,
+        0.0
+      ],
+      "size": [
+        1.5499999523162842,
+        0.9700093050153232,
+        0.9499526670862642
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Pot Rack (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-pot-rack-47d28e51",
+    "category": "props",
+    "file": "props/cozy-home-interiors-pot-rack-47d28e51.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-pot-rack-47d28e51",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-pot-rack-47d28e51",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.8,
+      0.355,
+      0.03
+    ],
+    "triangles": 1104,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4000000059604645,
+        -7.866525681299308E-06,
+        -0.014990692077988537
+      ],
+      "max": [
+        0.4000000059604645,
+        0.35500785579684524,
+        0.014990692077988537
+      ],
+      "center": [
+        0.0,
+        0.17749999463558197,
+        0.0
+      ],
+      "size": [
+        0.800000011920929,
+        0.35501572232252654,
+        0.029981384155977075
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Utensil Pot (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-utensil-pot-10b01b17",
+    "category": "props",
+    "file": "props/cozy-home-interiors-utensil-pot-10b01b17.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-utensil-pot-10b01b17",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-utensil-pot-10b01b17",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.149,
+      0.33,
+      0.13
+    ],
+    "triangles": 252,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.06680590575806214,
+        -1.0672881100987075E-06,
+        -0.06499999761581421
+      ],
+      "max": [
+        0.08250591075293137,
+        0.33000001311302185,
+        0.06499999761581421
+      ],
+      "center": [
+        0.007850002497434616,
+        0.16499947291245587,
+        0.0
+      ],
+      "size": [
+        0.1493118165109935,
+        0.33000108040113196,
+        0.12999999523162842
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Fruit Bowl (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-fruit-bowl-9c96b967",
+    "category": "props",
+    "file": "props/cozy-home-interiors-fruit-bowl-9c96b967.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-fruit-bowl-9c96b967",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-fruit-bowl-9c96b967",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.4,
+      0.175,
+      0.4
+    ],
+    "triangles": 336,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.20000000298023224,
+        -3.3577811504453825E-06,
+        -0.20000000298023224
+      ],
+      "max": [
+        0.20000000298023224,
+        0.1749999993480742,
+        0.20000000298023224
+      ],
+      "center": [
+        0.0,
+        0.08749832078346187,
+        0.0
+      ],
+      "size": [
+        0.4000000059604645,
+        0.17500335712922466,
+        0.4000000059604645
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bread Bin (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bread-bin-7ff5f73f",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bread-bin-7ff5f73f.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bread-bin-7ff5f73f",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bread-bin-7ff5f73f",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.38,
+      0.2,
+      0.28
+    ],
+    "triangles": 104,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.1899999976158142,
+        -1.2179954129859505E-06,
+        -0.1250044236152752
+      ],
+      "max": [
+        0.1899999976158142,
+        0.2000012209756452,
+        0.15499984800349906
+      ],
+      "center": [
+        0.0,
+        0.10000000149011612,
+        0.014997712194111931
+      ],
+      "size": [
+        0.3799999952316284,
+        0.20000243897105818,
+        0.2800042716187743
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Mug Tree (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-mug-tree-506953b7",
+    "category": "props",
+    "file": "props/cozy-home-interiors-mug-tree-506953b7.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-mug-tree-506953b7",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-mug-tree-506953b7",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.31,
+      0.365,
+      0.31
+    ],
+    "triangles": 720,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.1550000011920929,
+        0,
+        -0.1550000011920929
+      ],
+      "max": [
+        0.1550000011920929,
+        0.36500000953674316,
+        0.1550000011920929
+      ],
+      "center": [
+        0.0,
+        0.18250000476837158,
+        0.0
+      ],
+      "size": [
+        0.3100000023841858,
+        0.36500000953674316,
+        0.3100000023841858
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Dish Rack (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-dish-rack-2e362a2c",
+    "category": "props",
+    "file": "props/cozy-home-interiors-dish-rack-2e362a2c.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-dish-rack-2e362a2c",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-dish-rack-2e362a2c",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.4,
+      0.145,
+      0.28
+    ],
+    "triangles": 96,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.20000000298023224,
+        -3.81481374133949E-07,
+        -0.14000671615834734
+      ],
+      "max": [
+        0.20000000298023224,
+        0.14545182803061987,
+        0.14000671615834734
+      ],
+      "center": [
+        0.0,
+        0.07272572327462287,
+        0.0
+      ],
+      "size": [
+        0.4000000059604645,
+        0.145452209511994,
+        0.2800134323166947
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Spice Rack (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-spice-rack-f14f8a07",
+    "category": "props",
+    "file": "props/cozy-home-interiors-spice-rack-f14f8a07.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-spice-rack-f14f8a07",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-spice-rack-f14f8a07",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.5,
+      0.34,
+      0.15
+    ],
+    "triangles": 1944,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.25,
+        8.694496945196861E-06,
+        -0.0749916074098941
+      ],
+      "max": [
+        0.25,
+        0.3400048856538572,
+        0.0749916074098941
+      ],
+      "center": [
+        0.0,
+        0.1700067900754012,
+        0.0
+      ],
+      "size": [
+        0.5,
+        0.33999619115691204,
+        0.1499832148197882
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Kitchen Bin (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-kitchen-bin-b87e012b",
+    "category": "props",
+    "file": "props/cozy-home-interiors-kitchen-bin-b87e012b.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-kitchen-bin-b87e012b",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-kitchen-bin-b87e012b",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.32,
+      0.52,
+      0.355
+    ],
+    "triangles": 204,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.15999327996770094,
+        0,
+        -0.1600109055424803
+      ],
+      "max": [
+        0.15999327996770094,
+        0.5199999809265137,
+        0.1950109019662016
+      ],
+      "center": [
+        0.0,
+        0.25999999046325684,
+        0.017499998211860657
+      ],
+      "size": [
+        0.31998655993540187,
+        0.5199999809265137,
+        0.3550218075086819
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Herb Pots (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-herb-pots-c9f9ebc8",
+    "category": "props",
+    "file": "props/cozy-home-interiors-herb-pots-c9f9ebc8.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-herb-pots-c9f9ebc8",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-herb-pots-c9f9ebc8",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.55,
+      0.24,
+      0.22
+    ],
+    "triangles": 828,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2750000059604645,
+        1.1825838012579498E-05,
+        -0.10998489572166775
+      ],
+      "max": [
+        0.2750000059604645,
+        0.2403555749478259,
+        0.10998489572166775
+      ],
+      "center": [
+        0.0,
+        0.12018370039291923,
+        0.0
+      ],
+      "size": [
+        0.550000011920929,
+        0.24034374910981332,
+        0.2199697914433355
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Double Bed (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-double-bed-5e14597d",
+    "category": "props",
+    "file": "props/cozy-home-interiors-double-bed-5e14597d.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-double-bed-5e14597d",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-double-bed-5e14597d",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.5,
+      1,
+      2.005
+    ],
+    "triangles": 656,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.750001066364149,
+        -3.0003599707506545E-07,
+        -1.0049999952316284
+      ],
+      "max": [
+        0.750001066364149,
+        1.0000009944527557,
+        1
+      ],
+      "center": [
+        0.0,
+        0.5000003472083793,
+        -0.002499997615814209
+      ],
+      "size": [
+        1.500002132728298,
+        1.0000012944887529,
+        2.0049999952316284
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Single Bed (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-single-bed-7cf46abc",
+    "category": "props",
+    "file": "props/cozy-home-interiors-single-bed-7cf46abc.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-single-bed-7cf46abc",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-single-bed-7cf46abc",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.9,
+      1,
+      2.005
+    ],
+    "triangles": 656,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.45001899670189555,
+        -3.0003599707506545E-07,
+        -1.0049999952316284
+      ],
+      "max": [
+        0.45001899670189555,
+        1.0000009944527557,
+        1
+      ],
+      "center": [
+        0.0,
+        0.5000003472083793,
+        -0.002499997615814209
+      ],
+      "size": [
+        0.9000379934037911,
+        1.0000012944887529,
+        2.0049999952316284
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bedside Table (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bedside-table-25cc0fd5",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bedside-table-25cc0fd5.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bedside-table-25cc0fd5",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bedside-table-25cc0fd5",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.45,
+      0.5,
+      0.4
+    ],
+    "triangles": 244,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.22499999403953552,
+        0,
+        -0.2000053354408262
+      ],
+      "max": [
+        0.22499999403953552,
+        0.49999358912635833,
+        0.2000053354408262
+      ],
+      "center": [
+        0.0,
+        0.24999679456317916,
+        0.0
+      ],
+      "size": [
+        0.44999998807907104,
+        0.49999358912635833,
+        0.4000106708816524
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wardrobe (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-wardrobe-50e05964",
+    "category": "props",
+    "file": "props/cozy-home-interiors-wardrobe-50e05964.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-wardrobe-50e05964",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-wardrobe-50e05964",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.1,
+      1.9,
+      0.678
+    ],
+    "triangles": 140,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.549989311620227,
+        0,
+        -0.300044248073681
+      ],
+      "max": [
+        0.549989311620227,
+        1.899999976158142,
+        0.3774932132063013
+      ],
+      "center": [
+        0.0,
+        0.949999988079071,
+        0.03872448256631014
+      ],
+      "size": [
+        1.099978623240454,
+        1.899999976158142,
+        0.6775374612799823
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Dresser (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-dresser-aeda8121",
+    "category": "props",
+    "file": "props/cozy-home-interiors-dresser-aeda8121.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-dresser-aeda8121",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-dresser-aeda8121",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1,
+      0.95,
+      0.508
+    ],
+    "triangles": 292,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5,
+        -1.3350047041282842E-05,
+        -0.2249977111117893
+      ],
+      "max": [
+        0.5,
+        0.9499854984925925,
+        0.28250614434246923
+      ],
+      "center": [
+        0.0,
+        0.4749860742227756,
+        0.028754216615339973
+      ],
+      "size": [
+        1.0,
+        0.9499988485396338,
+        0.5075038554542586
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Dressing Mirror (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-dressing-mirror-3cb85352",
+    "category": "props",
+    "file": "props/cozy-home-interiors-dressing-mirror-3cb85352.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-dressing-mirror-3cb85352",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-dressing-mirror-3cb85352",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.7,
+      1.54,
+      0.3
+    ],
+    "triangles": 148,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3499743557829087,
+        0,
+        -0.1500192229448794
+      ],
+      "max": [
+        0.3499743557829087,
+        1.5399999618530273,
+        0.1500192229448794
+      ],
+      "center": [
+        0.0,
+        0.7699999809265137,
+        0.0
+      ],
+      "size": [
+        0.6999487115658174,
+        1.5399999618530273,
+        0.3000384458897588
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Laundry Basket (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-laundry-basket-f9cfbe76",
+    "category": "props",
+    "file": "props/cozy-home-interiors-laundry-basket-f9cfbe76.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-laundry-basket-f9cfbe76",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-laundry-basket-f9cfbe76",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "triangles": 1376,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.25,
+        0,
+        -0.25
+      ],
+      "max": [
+        0.25,
+        0.5,
+        0.25
+      ],
+      "center": [
+        0.0,
+        0.25,
+        0.0
+      ],
+      "size": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bath (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bath-8ac70b1e",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bath-8ac70b1e.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bath-8ac70b1e",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bath-8ac70b1e",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.6,
+      0.62,
+      0.75
+    ],
+    "triangles": 484,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.800000011920929,
+        1.281404919895035E-05,
+        -0.3750358648371041
+      ],
+      "max": [
+        0.800000011920929,
+        0.620032049203799,
+        0.3750358648371041
+      ],
+      "center": [
+        0.0,
+        0.31002243162649895,
+        0.0
+      ],
+      "size": [
+        1.600000023841858,
+        0.6200192351546,
+        0.7500717296742082
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Shower Cubicle (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-shower-cubicle-28d32d99",
+    "category": "props",
+    "file": "props/cozy-home-interiors-shower-cubicle-28d32d99.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-shower-cubicle-28d32d99",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-shower-cubicle-28d32d99",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.9,
+      2,
+      0.9
+    ],
+    "triangles": 340,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.44999998807907104,
+        1.0683547639354918E-05,
+        -0.44999998807907104
+      ],
+      "max": [
+        0.44999998807907104,
+        2,
+        0.44999998807907104
+      ],
+      "center": [
+        0.0,
+        1.0000053417738197,
+        0.0
+      ],
+      "size": [
+        0.8999999761581421,
+        1.9999893164523606,
+        0.8999999761581421
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Toilet (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-toilet-a3169629",
+    "category": "props",
+    "file": "props/cozy-home-interiors-toilet-a3169629.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-toilet-a3169629",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-toilet-a3169629",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.41,
+      0.77,
+      0.73
+    ],
+    "triangles": 524,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2050123574237717,
+        0,
+        -0.3000166303914951
+      ],
+      "max": [
+        0.2050123574237717,
+        0.7699989176215435,
+        0.43001662562312354
+      ],
+      "center": [
+        0.0,
+        0.38499945881077174,
+        0.06499999761581421
+      ],
+      "size": [
+        0.4100247148475434,
+        0.7699989176215435,
+        0.7300332560146187
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Basin Unit (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-basin-unit-268a46dc",
+    "category": "props",
+    "file": "props/cozy-home-interiors-basin-unit-268a46dc.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-basin-unit-268a46dc",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-basin-unit-268a46dc",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.7,
+      1.01,
+      0.46
+    ],
+    "triangles": 544,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3499999940395355,
+        0,
+        -0.23001495015251192
+      ],
+      "max": [
+        0.3499999940395355,
+        1.0100088479536753,
+        0.23001495015251192
+      ],
+      "center": [
+        0.0,
+        0.5050044239768376,
+        0.0
+      ],
+      "size": [
+        0.699999988079071,
+        1.0100088479536753,
+        0.46002990030502383
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Towel Rail (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-towel-rail-c664907c",
+    "category": "props",
+    "file": "props/cozy-home-interiors-towel-rail-c664907c.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-towel-rail-c664907c",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-towel-rail-c664907c",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.7,
+      0.53,
+      0.103
+    ],
+    "triangles": 68,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3499999940395355,
+        0,
+        -0.07000769045138325
+      ],
+      "max": [
+        0.3499999940395355,
+        0.5299914338707171,
+        0.03251258820529337
+      ],
+      "center": [
+        0.0,
+        0.26499571693535856,
+        -0.01874755112304494
+      ],
+      "size": [
+        0.699999988079071,
+        0.5299914338707171,
+        0.10252027865667662
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bath Mat (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bath-mat-a5af83c6",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bath-mat-a5af83c6.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bath-mat-a5af83c6",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bath-mat-a5af83c6",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.65,
+      0.025,
+      0.42
+    ],
+    "triangles": 116,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.32499998807907104,
+        2.1364388653570543E-06,
+        -0.21001464118125704
+      ],
+      "max": [
+        0.32499998807907104,
+        0.024984206687936997,
+        0.21001464118125704
+      ],
+      "center": [
+        0.0,
+        0.012493171563401177,
+        0.0
+      ],
+      "size": [
+        0.6499999761581421,
+        0.02498207024907164,
+        0.4200292823625141
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bath Plant (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bath-plant-6fc45c9e",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bath-plant-6fc45c9e.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bath-plant-6fc45c9e",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bath-plant-6fc45c9e",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.297,
+      0.413,
+      0.342
+    ],
+    "triangles": 304,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.14808448978619052,
+        0,
+        -0.15870676934719086
+      ],
+      "max": [
+        0.14921371468262148,
+        0.41273032175287483,
+        0.18287499248981476
+      ],
+      "center": [
+        0.0005646124482154846,
+        0.20636516087643741,
+        0.01208411157131195
+      ],
+      "size": [
+        0.297298204468812,
+        0.41273032175287483,
+        0.3415817618370056
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bunk Bed (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bunk-bed-d0198955",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bunk-bed-d0198955.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bunk-bed-d0198955",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bunk-bed-d0198955",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.178,
+      2.25,
+      2.005
+    ],
+    "triangles": 1576,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.479953813216606,
+        -4.7775197408284065E-05,
+        -1.0049987005791614
+      ],
+      "max": [
+        0.6979538377737197,
+        2.25,
+        0.999998705347533
+      ],
+      "center": [
+        0.10900001227855682,
+        1.1249761124012958,
+        -0.002499997615814209
+      ],
+      "size": [
+        1.1779076509903257,
+        2.2500477751974084,
+        2.0049974059266944
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Cot (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-cot-69ac6078",
+    "category": "props",
+    "file": "props/cozy-home-interiors-cot-69ac6078.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-cot-69ac6078",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-cot-69ac6078",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.74,
+      0.9,
+      1.3
+    ],
+    "triangles": 640,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.37003996567442804,
+        2.6250284975867788E-05,
+        -0.6499999761581421
+      ],
+      "max": [
+        0.37003996567442804,
+        0.9000442285683807,
+        0.6499999761581421
+      ],
+      "center": [
+        0.0,
+        0.4500352394266783,
+        0.0
+      ],
+      "size": [
+        0.7400799313488561,
+        0.9000179782834049,
+        1.2999999523162842
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Toy Box (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-toy-box-9af8db52",
+    "category": "props",
+    "file": "props/cozy-home-interiors-toy-box-9af8db52.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-toy-box-9af8db52",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-toy-box-9af8db52",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.8,
+      0.45,
+      0.502
+    ],
+    "triangles": 232,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4000000059604645,
+        -2.5937752822391413E-05,
+        -0.24998321854482838
+      ],
+      "max": [
+        0.4000000059604645,
+        0.45000076035504505,
+        0.2519974390081019
+      ],
+      "center": [
+        0.0,
+        0.22498741130111133,
+        0.001007110231636757
+      ],
+      "size": [
+        0.800000011920929,
+        0.45002669810786744,
+        0.5019806575529303
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bedroom Desk (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bedroom-desk-0888b7f6",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bedroom-desk-0888b7f6.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bedroom-desk-0888b7f6",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bedroom-desk-0888b7f6",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.1,
+      0.73,
+      0.55
+    ],
+    "triangles": 232,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.550000011920929,
+        -2.2724781517491355E-05,
+        -0.2750419689119035
+      ],
+      "max": [
+        0.550000011920929,
+        0.7300119207505795,
+        0.2750419689119035
+      ],
+      "center": [
+        0.0,
+        0.36499459798453104,
+        0.0
+      ],
+      "size": [
+        1.100000023841858,
+        0.730034645532097,
+        0.550083937823807
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Desk Chair (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-desk-chair-03b83468",
+    "category": "props",
+    "file": "props/cozy-home-interiors-desk-chair-03b83468.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-desk-chair-03b83468",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-desk-chair-03b83468",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.45,
+      0.92,
+      0.43
+    ],
+    "triangles": 276,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.22499953719322618,
+        0,
+        -0.2150089981544697
+      ],
+      "max": [
+        0.22499953719322618,
+        0.9200000166893005,
+        0.2150089981544697
+      ],
+      "center": [
+        0.0,
+        0.46000000834465027,
+        0.0
+      ],
+      "size": [
+        0.44999907438645237,
+        0.9200000166893005,
+        0.4300179963089394
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "String Lights Frame (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-string-lights-frame-c20d0a4f",
+    "category": "props",
+    "file": "props/cozy-home-interiors-string-lights-frame-c20d0a4f.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-string-lights-frame-c20d0a4f",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-string-lights-frame-c20d0a4f",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.53,
+      1.2,
+      0.054
+    ],
+    "triangles": 780,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.7649999856948853,
+        1.4226168196684874E-05,
+        -0.02703256307568109
+      ],
+      "max": [
+        0.7649999856948853,
+        1.199985821515519,
+        0.02703256307568109
+      ],
+      "center": [
+        0.0,
+        0.6000000238418579,
+        0.0
+      ],
+      "size": [
+        1.5299999713897705,
+        1.1999715953473222,
+        0.05406512615136218
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bedroom Rug (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bedroom-rug-be81acde",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bedroom-rug-be81acde.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bedroom-rug-be81acde",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bedroom-rug-be81acde",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.3,
+      0.024,
+      1.3
+    ],
+    "triangles": 480,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6499999761581421,
+        2.1364388653570543E-06,
+        -0.6499999761581421
+      ],
+      "max": [
+        0.6499999761581421,
+        0.024014221506206523,
+        0.6499999761581421
+      ],
+      "center": [
+        0.0,
+        0.01200817897253594,
+        0.0
+      ],
+      "size": [
+        1.2999999523162842,
+        0.024012085067341166,
+        1.2999999523162842
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bedroom Curtain (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bedroom-curtain-3c929d22",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bedroom-curtain-3c929d22.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bedroom-curtain-3c929d22",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bedroom-curtain-3c929d22",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.6,
+      1.512,
+      0.07
+    ],
+    "triangles": 136,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.30000001192092896,
+        0,
+        -0.0349803163195659
+      ],
+      "max": [
+        0.30000001192092896,
+        1.5120120858070698,
+        0.0349803163195659
+      ],
+      "center": [
+        0.0,
+        0.7560060429035349,
+        0.0
+      ],
+      "size": [
+        0.6000000238418579,
+        1.5120120858070698,
+        0.0699606326391318
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Slippers (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-slippers-102bf62b",
+    "category": "props",
+    "file": "props/cozy-home-interiors-slippers-102bf62b.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-slippers-102bf62b",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-slippers-102bf62b",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.41,
+      0.14,
+      0.3
+    ],
+    "triangles": 320,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.20499999821186066,
+        4.271846332247475E-06,
+        -0.1499923726076915
+      ],
+      "max": [
+        0.20499999821186066,
+        0.14000030459994894,
+        0.1499923726076915
+      ],
+      "center": [
+        0.0,
+        0.0700022882231406,
+        0.0
+      ],
+      "size": [
+        0.4099999964237213,
+        0.1399960327536167,
+        0.299984745215383
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Reading Nook Chair (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-reading-nook-chair-1a8e7c22",
+    "category": "props",
+    "file": "props/cozy-home-interiors-reading-nook-chair-1a8e7c22.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-reading-nook-chair-1a8e7c22",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-reading-nook-chair-1a8e7c22",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.7,
+      1.05,
+      0.755
+    ],
+    "triangles": 564,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.34998960157375836,
+        -1.2670148989535335E-05,
+        -0.38001729299609605
+      ],
+      "max": [
+        0.34998960157375836,
+        1.0499999523162842,
+        0.3750172977644676
+      ],
+      "center": [
+        0.0,
+        0.5249936410836473,
+        -0.002499997615814209
+      ],
+      "size": [
+        0.6999792031475167,
+        1.0500126224652737,
+        0.7550345907605637
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Easel (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-easel-5542bf08",
+    "category": "props",
+    "file": "props/cozy-home-interiors-easel-5542bf08.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-easel-5542bf08",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-easel-5542bf08",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.75,
+      1.557,
+      0.634
+    ],
+    "triangles": 132,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.374964611750845,
+        0,
+        -0.5188260538101689
+      ],
+      "max": [
+        0.374964611750845,
+        1.5567266941070557,
+        0.11499122656588712
+      ],
+      "center": [
+        0.0,
+        0.7783633470535278,
+        -0.20191741362214088
+      ],
+      "size": [
+        0.74992922350169,
+        1.5567266941070557,
+        0.633817280376056
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Craft Table (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-craft-table-eb316715",
+    "category": "props",
+    "file": "props/cozy-home-interiors-craft-table-eb316715.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-craft-table-eb316715",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-craft-table-eb316715",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.3,
+      0.82,
+      0.75
+    ],
+    "triangles": 244,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6499999761581421,
+        -1.2677250540882312E-05,
+        -0.37503889734323664
+      ],
+      "max": [
+        0.6499999761581421,
+        0.8200016748113511,
+        0.37503889734323664
+      ],
+      "center": [
+        0.0,
+        0.4099944987804051,
+        0.0
+      ],
+      "size": [
+        1.2999999523162842,
+        0.820014352061892,
+        0.7500777946864733
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Sewing Machine (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-sewing-machine-5c73e338",
+    "category": "props",
+    "file": "props/cozy-home-interiors-sewing-machine-5c73e338.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-sewing-machine-5c73e338",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-sewing-machine-5c73e338",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.35,
+      0.4,
+      0.2
+    ],
+    "triangles": 312,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.17499999701976776,
+        -1.0634645913887297E-06,
+        -0.10001067977514484
+      ],
+      "max": [
+        0.17499999701976776,
+        0.4000000059604645,
+        0.10001067977514484
+      ],
+      "center": [
+        0.0,
+        0.19999947124793654,
+        0.0
+      ],
+      "size": [
+        0.3499999940395355,
+        0.40000106942505587,
+        0.20002135955028968
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Yarn Basket (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-yarn-basket-89bd118a",
+    "category": "props",
+    "file": "props/cozy-home-interiors-yarn-basket-89bd118a.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-yarn-basket-89bd118a",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-yarn-basket-89bd118a",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.46,
+      0.422,
+      0.46
+    ],
+    "triangles": 252,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.23000000417232513,
+        1.0681154572075857E-05,
+        -0.23000000417232513
+      ],
+      "max": [
+        0.23000000417232513,
+        0.4217888414859772,
+        0.23000000417232513
+      ],
+      "center": [
+        0.0,
+        0.21089976132027463,
+        0.0
+      ],
+      "size": [
+        0.46000000834465027,
+        0.4217781603314051,
+        0.46000000834465027
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Gaming Desk (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-gaming-desk-e0ad6d72",
+    "category": "props",
+    "file": "props/cozy-home-interiors-gaming-desk-e0ad6d72.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-gaming-desk-e0ad6d72",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-gaming-desk-e0ad6d72",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.4,
+      0.73,
+      0.65
+    ],
+    "triangles": 244,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.699999988079071,
+        0,
+        -0.32499465372621567
+      ],
+      "max": [
+        0.699999988079071,
+        0.7299936084836156,
+        0.32499465372621567
+      ],
+      "center": [
+        0.0,
+        0.3649968042418078,
+        0.0
+      ],
+      "size": [
+        1.399999976158142,
+        0.7299936084836156,
+        0.6499893074524313
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Computer Monitor (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-computer-monitor-3e762133",
+    "category": "props",
+    "file": "props/cozy-home-interiors-computer-monitor-3e762133.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-computer-monitor-3e762133",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-computer-monitor-3e762133",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.65,
+      0.54,
+      0.2
+    ],
+    "triangles": 104,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.32499998807907104,
+        -1.172899334023203E-05,
+        -0.09998855189138815
+      ],
+      "max": [
+        0.32499998807907104,
+        0.5400117504510124,
+        0.09998855189138815
+      ],
+      "center": [
+        0.0,
+        0.27000001072883606,
+        0.0
+      ],
+      "size": [
+        0.6499999761581421,
+        0.5400234794443526,
+        0.1999771037827763
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Console Shelf (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-console-shelf-746f8a91",
+    "category": "props",
+    "file": "props/cozy-home-interiors-console-shelf-746f8a91.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-console-shelf-746f8a91",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-console-shelf-746f8a91",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.69,
+      0.803,
+      0.375
+    ],
+    "triangles": 356,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3450010622724985,
+        0,
+        -0.195024562163016
+      ],
+      "max": [
+        0.3450010622724985,
+        0.8025000095367432,
+        0.18001068357494093
+      ],
+      "center": [
+        0.0,
+        0.4012500047683716,
+        -0.007506939294037535
+      ],
+      "size": [
+        0.690002124544997,
+        0.8025000095367432,
+        0.37503524573795693
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Keyboard Piano (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-keyboard-piano-c6194853",
+    "category": "props",
+    "file": "props/cozy-home-interiors-keyboard-piano-c6194853.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-keyboard-piano-c6194853",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-keyboard-piano-c6194853",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.12,
+      0.855,
+      0.37
+    ],
+    "triangles": 676,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5600000023841858,
+        -9.61126488668862E-06,
+        -0.18500320523114142
+      ],
+      "max": [
+        0.5600000023841858,
+        0.8550016119820149,
+        0.18500320523114142
+      ],
+      "center": [
+        0.0,
+        0.42749600035856405,
+        0.0
+      ],
+      "size": [
+        1.1200000047683716,
+        0.8550112232469016,
+        0.37000641046228283
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Guitar Stand (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-guitar-stand-29de3ff1",
+    "category": "props",
+    "file": "props/cozy-home-interiors-guitar-stand-29de3ff1.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-guitar-stand-29de3ff1",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-guitar-stand-29de3ff1",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.5,
+      1.16,
+      0.4
+    ],
+    "triangles": 252,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.24999085145921157,
+        0,
+        -0.20001602782777322
+      ],
+      "max": [
+        0.24999085145921157,
+        1.159999966621399,
+        0.20001602782777322
+      ],
+      "center": [
+        0.0,
+        0.5799999833106995,
+        0.0
+      ],
+      "size": [
+        0.49998170291842314,
+        1.159999966621399,
+        0.40003205565554645
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Telescope (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-telescope-f8b2c2fe",
+    "category": "props",
+    "file": "props/cozy-home-interiors-telescope-f8b2c2fe.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-telescope-f8b2c2fe",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-telescope-f8b2c2fe",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.732,
+      1.255,
+      0.965
+    ],
+    "triangles": 132,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3661765671701897,
+        0,
+        -0.41150382957700216
+      ],
+      "max": [
+        0.3661765671701897,
+        1.254790592156188,
+        0.5535097718238831
+      ],
+      "center": [
+        0.0,
+        0.627395296078094,
+        0.07100297112344045
+      ],
+      "size": [
+        0.7323531343403794,
+        1.254790592156188,
+        0.9650136014008852
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Aquarium (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-aquarium-60b88695",
+    "category": "props",
+    "file": "props/cozy-home-interiors-aquarium-60b88695.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-aquarium-60b88695",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-aquarium-60b88695",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.7,
+      0.55,
+      0.4
+    ],
+    "triangles": 120,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3499999940395355,
+        5.341537343842018E-06,
+        -0.20002135955028968
+      ],
+      "max": [
+        0.3499999940395355,
+        0.5500106835536536,
+        0.20002135955028968
+      ],
+      "center": [
+        0.0,
+        0.2750080125454987,
+        0.0
+      ],
+      "size": [
+        0.699999988079071,
+        0.5500053420163097,
+        0.40004271910057937
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Terrarium (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-terrarium-3c032ae8",
+    "category": "props",
+    "file": "props/cozy-home-interiors-terrarium-3c032ae8.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-terrarium-3c032ae8",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-terrarium-3c032ae8",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.4,
+      0.39,
+      0.3
+    ],
+    "triangles": 352,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.20000000298023224,
+        4.271846332247475E-06,
+        -0.1499923726076915
+      ],
+      "max": [
+        0.20000000298023224,
+        0.38999923204536274,
+        0.1499923726076915
+      ],
+      "center": [
+        0.0,
+        0.19500175194584748,
+        0.0
+      ],
+      "size": [
+        0.4000000059604645,
+        0.3899949601990305,
+        0.299984745215383
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Small Workbench (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-small-workbench-cc75fdcf",
+    "category": "props",
+    "file": "props/cozy-home-interiors-small-workbench-cc75fdcf.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-small-workbench-cc75fdcf",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-small-workbench-cc75fdcf",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.2,
+      1.35,
+      0.6
+    ],
+    "triangles": 244,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6000000238418579,
+        -2.2730651575431082E-05,
+        -0.300045789686962
+      ],
+      "max": [
+        0.6000000238418579,
+        1.3499585286014288,
+        0.300045789686962
+      ],
+      "center": [
+        0.0,
+        0.6749678989749267,
+        0.0
+      ],
+      "size": [
+        1.2000000476837158,
+        1.3499812592530043,
+        0.600091579373924
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Plant Shelf (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-plant-shelf-657f8c69",
+    "category": "props",
+    "file": "props/cozy-home-interiors-plant-shelf-657f8c69.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-plant-shelf-657f8c69",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-plant-shelf-657f8c69",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.79,
+      1.2,
+      0.32
+    ],
+    "triangles": 912,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.39497056533307523,
+        0,
+        -0.1699841346461081
+      ],
+      "max": [
+        0.39497056533307523,
+        1.2000000476837158,
+        0.14998413881843323
+      ],
+      "center": [
+        0.0,
+        0.6000000238418579,
+        -0.009999997913837433
+      ],
+      "size": [
+        0.7899411306661505,
+        1.2000000476837158,
+        0.3199682734645413
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Puzzle Table (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-puzzle-table-0d845542",
+    "category": "props",
+    "file": "props/cozy-home-interiors-puzzle-table-0d845542.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-puzzle-table-0d845542",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-puzzle-table-0d845542",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.9,
+      0.646,
+      0.65
+    ],
+    "triangles": 244,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.44999998807907104,
+        -3.356668122345141E-06,
+        -0.3250129617566239
+      ],
+      "max": [
+        0.44999998807907104,
+        0.6459983027253847,
+        0.3250129617566239
+      ],
+      "center": [
+        0.0,
+        0.3229974730286312,
+        0.0
+      ],
+      "size": [
+        0.8999999761581421,
+        0.6460016593935071,
+        0.6500259235132478
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Projector (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-projector-214e6e71",
+    "category": "props",
+    "file": "props/cozy-home-interiors-projector-214e6e71.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-projector-214e6e71",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-projector-214e6e71",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.3,
+      0.13,
+      0.275
+    ],
+    "triangles": 152,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.15000000596046448,
+        8.236272595649186E-06,
+        -0.11500748160480816
+      ],
+      "max": [
+        0.15000000596046448,
+        0.1300001489883327,
+        0.15999816500267702
+      ],
+      "center": [
+        0.0,
+        0.06500419263046417,
+        0.022495341698934433
+      ],
+      "size": [
+        0.30000001192092896,
+        0.12999191271573707,
+        0.27500564660748517
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bean Bag (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-bean-bag-c28c5060",
+    "category": "props",
+    "file": "props/cozy-home-interiors-bean-bag-c28c5060.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-bean-bag-c28c5060",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-bean-bag-c28c5060",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.8,
+      0.6,
+      0.88
+    ],
+    "triangles": 72,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.39998412820771684,
+        -1.1583487027955197E-05,
+        -0.4399999976158142
+      ],
+      "max": [
+        0.39998412820771684,
+        0.6000116073288857,
+        0.4399999976158142
+      ],
+      "center": [
+        0.0,
+        0.30000001192092884,
+        0.0
+      ],
+      "size": [
+        0.7999682564154337,
+        0.6000231908159137,
+        0.8799999952316284
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Exercise Mat (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-exercise-mat-73653ff3",
+    "category": "props",
+    "file": "props/cozy-home-interiors-exercise-mat-73653ff3.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-exercise-mat-73653ff3",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-exercise-mat-73653ff3",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.65,
+      0.12,
+      1.785
+    ],
+    "triangles": 140,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3250283106930048,
+        -3.2046658072805434E-05,
+        -0.9100000262260437
+      ],
+      "max": [
+        0.3250283106930048,
+        0.12003204397586378,
+        0.875
+      ],
+      "center": [
+        0.0,
+        0.05999999865889549,
+        -0.01750001311302185
+      ],
+      "size": [
+        0.6500566213860096,
+        0.12006409063393658,
+        1.7850000262260437
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Cat Bed (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-cat-bed-83b78c1d",
+    "category": "props",
+    "file": "props/cozy-home-interiors-cat-bed-83b78c1d.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-cat-bed-83b78c1d",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-cat-bed-83b78c1d",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.66,
+      0.16,
+      0.66
+    ],
+    "triangles": 400,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.33000001311302185,
+        -4.887928763921967E-06,
+        -0.33000001311302185
+      ],
+      "max": [
+        0.33000001311302185,
+        0.16000488435248522,
+        0.33000001311302185
+      ],
+      "center": [
+        0.0,
+        0.07999999821186066,
+        0.0
+      ],
+      "size": [
+        0.6600000262260437,
+        0.16000977228124913,
+        0.6600000262260437
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Rain Window Plane (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-rain-window-plane-da032eaa",
+    "category": "props",
+    "file": "props/cozy-home-interiors-rain-window-plane-da032eaa.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-rain-window-plane-da032eaa",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-rain-window-plane-da032eaa",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1,
+      1.4,
+      0.024
+    ],
+    "triangles": 180,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5000213544413201,
+        0,
+        -0.0059816277554289345
+      ],
+      "max": [
+        0.5000213544413201,
+        1.399999976158142,
+        0.017999144864507946
+      ],
+      "center": [
+        0.0,
+        0.699999988079071,
+        0.006008758554539506
+      ],
+      "size": [
+        1.0000427088826402,
+        1.399999976158142,
+        0.02398077261993688
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Snow Window Plane (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-snow-window-plane-f56c8449",
+    "category": "props",
+    "file": "props/cozy-home-interiors-snow-window-plane-f56c8449.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-snow-window-plane-f56c8449",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-snow-window-plane-f56c8449",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1,
+      1.4,
+      0.046
+    ],
+    "triangles": 1452,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5000213544413201,
+        0,
+        -0.0059816277554289345
+      ],
+      "max": [
+        0.5000213544413201,
+        1.399999976158142,
+        0.03999679516797408
+      ],
+      "center": [
+        0.0,
+        0.699999988079071,
+        0.017007583706272575
+      ],
+      "size": [
+        1.0000427088826402,
+        1.399999976158142,
+        0.04597842292340301
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "String Lights (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-string-lights-8986b4cd",
+    "category": "props",
+    "file": "props/cozy-home-interiors-string-lights-8986b4cd.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-string-lights-8986b4cd",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-string-lights-8986b4cd",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.402,
+      0.233,
+      0.05
+    ],
+    "triangles": 672,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.7010988593101501,
+        2.779620461830501E-05,
+        -0.02500320525027778
+      ],
+      "max": [
+        0.7010988593101501,
+        0.2330122087640249,
+        0.02500320525027778
+      ],
+      "center": [
+        0.0,
+        0.1165200024843216,
+        0.0
+      ],
+      "size": [
+        1.4021977186203003,
+        0.2329844125594066,
+        0.05000641050055556
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Fairy Jar (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-fairy-jar-11315724",
+    "category": "props",
+    "file": "props/cozy-home-interiors-fairy-jar-11315724.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-fairy-jar-11315724",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-fairy-jar-11315724",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.19,
+      0.245,
+      0.197
+    ],
+    "triangles": 336,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.0949999988079071,
+        0,
+        -0.0949999988079071
+      ],
+      "max": [
+        0.0949999988079071,
+        0.2450016038530124,
+        0.1019981700299335
+      ],
+      "center": [
+        0.0,
+        0.1225008019265062,
+        0.0034990856110131974
+      ],
+      "size": [
+        0.1899999976158142,
+        0.2450016038530124,
+        0.1969981688378406
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Fire Glow (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-fire-glow-a2bf71e3",
+    "category": "props",
+    "file": "props/cozy-home-interiors-fire-glow-a2bf71e3.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-fire-glow-a2bf71e3",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-fire-glow-a2bf71e3",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.427,
+      0.42,
+      0.254
+    ],
+    "triangles": 168,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.21341641247272491,
+        0,
+        -0.1268370988034866
+      ],
+      "max": [
+        0.21341641247272491,
+        0.41999998688697815,
+        0.1268370988034866
+      ],
+      "center": [
+        0.0,
+        0.20999999344348907,
+        0.0
+      ],
+      "size": [
+        0.42683282494544983,
+        0.41999998688697815,
+        0.2536741976069732
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Steam Mug (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-steam-mug-2f8b26a0",
+    "category": "props",
+    "file": "props/cozy-home-interiors-steam-mug-2f8b26a0.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-steam-mug-2f8b26a0",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-steam-mug-2f8b26a0",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.197,
+      0.3,
+      0.13
+    ],
+    "triangles": 424,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.06499999761581421,
+        5.725246053203681E-06,
+        -0.06499731334855
+      ],
+      "max": [
+        0.13199999928474426,
+        0.30000001192092896,
+        0.06499731334855
+      ],
+      "center": [
+        0.03350000083446503,
+        0.15000286858349107,
+        0.0
+      ],
+      "size": [
+        0.19699999690055847,
+        0.29999428667487577,
+        0.1299946266971
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Cat On Sill (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-cat-on-sill-3771ea6b",
+    "category": "props",
+    "file": "props/cozy-home-interiors-cat-on-sill-3771ea6b.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-cat-on-sill-3771ea6b",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-cat-on-sill-3771ea6b",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.65,
+      0.395,
+      0.325
+    ],
+    "triangles": 316,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.32499998807907104,
+        6.409316596071163E-06,
+        -0.14997786857947426
+      ],
+      "max": [
+        0.32499998807907104,
+        0.3950057673791081,
+        0.17500589765153776
+      ],
+      "center": [
+        0.0,
+        0.19750608834785208,
+        0.01251401453603175
+      ],
+      "size": [
+        0.6499999761581421,
+        0.394999358062512,
+        0.324983766231012
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Dog On Rug (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-dog-on-rug-ce4d42a9",
+    "category": "props",
+    "file": "props/cozy-home-interiors-dog-on-rug-ce4d42a9.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-dog-on-rug-ce4d42a9",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-dog-on-rug-ce4d42a9",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.8,
+      0.34,
+      0.5
+    ],
+    "triangles": 356,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4000000059604645,
+        1.5350288954529487E-05,
+        -0.24998321854482838
+      ],
+      "max": [
+        0.4000000059604645,
+        0.3399889074497544,
+        0.24998321854482838
+      ],
+      "center": [
+        0.0,
+        0.17000212886935448,
+        0.0
+      ],
+      "size": [
+        0.800000011920929,
+        0.33997355716079986,
+        0.49996643708965677
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Home Connector Cases (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-home-connector-cases-1b43f818-starter-scene",
+    "category": "props",
+    "file": "props/cozy-home-interiors-home-connector-cases-1b43f818-starter-scene.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-home-connector-cases-1b43f818-starter-scene",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-home-connector-cases-1b43f818-starter-scene",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      9.002,
+      2.7,
+      17.855
+    ],
+    "triangles": 6796,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.501200020313263,
+        -6.0427989866981835E-05,
+        -15.854995842486913
+      ],
+      "max": [
+        7.501200020313263,
+        2.7000320682768075,
+        2
+      ],
+      "center": [
+        3.0,
+        1.3499858201434702,
+        -6.927497921243456
+      ],
+      "size": [
+        9.002400040626526,
+        2.7000924962666746,
+        17.854995842486915
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Two-Storey Cutaway Home (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-two-storey-cutaway-home-4a617fd1",
+    "category": "props",
+    "file": "props/cozy-home-interiors-two-storey-cutaway-home-4a617fd1.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-two-storey-cutaway-home-4a617fd1",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-two-storey-cutaway-home-4a617fd1",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      8.002,
+      4.9,
+      8.156
+    ],
+    "triangles": 8684,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -4.0011999905109406,
+        -0.0001185310295490627,
+        -4.154985195058715
+      ],
+      "max": [
+        4.001199960708618,
+        4.899999976158142,
+        4.001199960708618
+      ],
+      "center": [
+        -1.4901161193847656E-08,
+        2.4499407225642966,
+        -0.07689261717504836
+      ],
+      "size": [
+        8.002399951219559,
+        4.900118507187691,
+        8.156185155767332
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Rainy Window Evening (Cozy Home Interiors)",
+    "slug": "cozy-home-interiors-rainy-window-evening-0d572e92",
+    "category": "props",
+    "file": "props/cozy-home-interiors-rainy-window-evening-0d572e92.glb",
+    "sourceUrl": "https://3dassets.dev/assets/cozy-home-interiors-rainy-window-evening-0d572e92",
+    "directDownloadUrl": "https://3dassets.dev/download/cozy-home-interiors-rainy-window-evening-0d572e92",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      4,
+      2.7,
+      2.255
+    ],
+    "triangles": 3708,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -2,
+        -2.5177397788667816E-05,
+        -1.1549851950587149
+      ],
+      "max": [
+        2,
+        2.700000047683716,
+        1.100000011920929
+      ],
+      "center": [
+        0,
+        1.3499874351429635,
+        -0.027492591568892943
+      ],
+      "size": [
+        4,
+        2.7000252250815047,
+        2.2549852069796437
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  }
+]

@@ -1,5 +1,6 @@
 import { database } from "../infra/db.js";
 import { createHash, randomBytes } from "node:crypto";
+import { MAX_OFFICE_PROPS } from "./limits.js";
 import { campusWorldFromConfig, isPositionWalkable, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type OfficePropsSnapshot, type RoomLayout, type RoomLayoutProp } from "@gammyverse/shared";
 
 export const EMPTY_OFFICE_MAP = { version: 1, layout: { version: 1, props: [], zones: [], walls: [], doors: [] } } as const;
@@ -51,7 +52,7 @@ export async function saveOfficeProps(username: string, officeId: string, value:
   if (typeof value !== "object" || value === null) throw new Error("Office props are invalid.");
   const body = value as { props?: unknown; configVersion?: unknown };
   if (!Number.isInteger(body.configVersion) || Number(body.configVersion) < 1) throw new Error("Office props version is invalid.");
-  if (!Array.isArray(body.props) || body.props.length > 1000) throw new Error("Office props limit exceeded.");
+  if (!Array.isArray(body.props) || body.props.length > MAX_OFFICE_PROPS) throw new Error(`Office props limit exceeded (maximum ${MAX_OFFICE_PROPS.toLocaleString()}).`);
   const props = readRoomLayout({ layout: { props: body.props } }).props;
   if (props.length !== body.props.length) throw new Error("Office props contain unsupported or malformed items.");
   const mapConfigResult = await database.query<{ config: unknown }>("SELECT config FROM app_office_map_layouts WHERE office_id = $1", [officeId]);
@@ -238,7 +239,8 @@ export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, 
     if (!dimensions || !Number.isFinite(dimensions.width) || !Number.isFinite(dimensions.depth) || Number(dimensions.width) < 40 || Number(dimensions.depth) < 40 || Number(dimensions.width) > 1000 || Number(dimensions.depth) > 1000) throw new Error("Map dimensions must be between 40 and 1000 m.");
   }
   for (const field of ["props", "zones", "walls", "doors"] as const) {
-    if (raw[field] !== undefined && (!Array.isArray(raw[field]) || raw[field].length > (field === "zones" ? 250 : 1000))) {
+    const limit = field === "zones" ? 250 : field === "props" ? MAX_OFFICE_PROPS : 1000;
+    if (raw[field] !== undefined && (!Array.isArray(raw[field]) || raw[field].length > limit)) {
       throw new Error(`Map ${field} limit exceeded.`);
     }
   }

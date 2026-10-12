@@ -1,7 +1,7 @@
 import { defineRoom, Room, type AuthContext, type Client } from "@colyseus/core";
 import { createHash } from "node:crypto";
 import { INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidMovementInput, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
-import { getSession, markUserActive } from "../auth/service.js";
+import { getAccountNickname, getSession, markUserActive } from "../auth/service.js";
 import { isCustomCharacterId, userOwnsCharacterModel } from "../auth/characterModels.js";
 import { getOfficeRole, markOfficeActive } from "./repository.js";
 import { liveKitIdentity, revokeMeetingParticipant, revokePrivateVoiceParticipant, revokeProximityParticipants } from "../media/service.js";
@@ -25,6 +25,25 @@ type DropDiagnosticClient = Client & {
 type InputState = MovementInput & { sprint: boolean; receivedAt: number };
 type Position = { x: number; z: number };
 type AutoRoute = { points: Position[]; index: number; stalledTicks: number; followTargetSessionId?: string; sitOnArrivalPropId?: string; sitOnArrivalZoneId?: string; destination?: Position; fastWalkFallback?: boolean };
+
+function autoMoveLandingPoint(destination: Position, world: WorldConfig, zone?: RoomLayoutZone) {
+  const isInsideZone = (point: Position) => !zone || (Math.abs(point.x - zone.x) <= zone.width / 2 - world.playerRadius && Math.abs(point.z - zone.z) <= zone.depth / 2 - world.playerRadius);
+  if (isInsideZone(destination) && isPositionWalkable(destination, world)) return destination;
+  for (let radius = 0.25; radius <= 3.25; radius += 0.25) {
+    const candidates = Array.from({ length: 24 }, (_, index) => {
+      const angle = index * Math.PI / 12;
+      return { x: destination.x + Math.cos(angle) * radius, z: destination.z + Math.sin(angle) * radius };
+    }).filter((candidate) => isInsideZone(candidate) && isPositionWalkable(candidate, world));
+    if (candidates.length) return candidates[0]!;
+  }
+  return null;
+}
+
+function ghostCollisionWorld(world: WorldConfig): WorldConfig {
+  // isPositionWalkable still enforces WORLD.width/depth; only internal walls
+  // and prop blockers are ignored while Ghost mode is active.
+  return { ...world, walls: [], obstacles: [], collisionGrid: undefined };
+}
 
 // Normal walking uses one and a half times the base world movement speed.
 const NORMAL_WALK_SPEED_MULTIPLIER = 1.5;
@@ -66,6 +85,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   /** Ignore a driver's own parked vehicle while they walk out to a room seat. */
   private seatApproachWorldsBySessionId = new Map<string, SeatApproachWorld>();
   private autoRoutes = new Map<string, AutoRoute>();
+  private ghostModeBySessionId = new Map<string, boolean>();
   private pendingSitsBySessionId = new Map<string, PendingSit>();
   private activeFollowsBySessionId = new Map<string, ActiveFollow>();
   private lastWaveAtBySessionId = new Map<string, number>();
@@ -160,9 +180,16 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       const player = this.state.players.get(client.sessionId);
       if (!player || typeof payload !== "string") return;
       if (!KENNEY_CHARACTER_IDS.includes(payload as KenneyCharacterId)) {
-        if (!isCustomCharacterId(payload) || !(await userOwnsCharacterModel(player.displayName, payload))) return;
+        if (!isCustomCharacterId(payload) || !(await userOwnsCharacterModel(this.usernamesBySessionId.get(client.sessionId) ?? "", payload))) return;
       }
       player.characterId = payload;
+    });
+    this.onMessage("nickname", async (client: Client) => {
+      const player = this.state.players.get(client.sessionId);
+      const username = this.usernamesBySessionId.get(client.sessionId);
+      if (!player || !username) return;
+      try { player.displayName = (await getAccountNickname(username))?.trim() || username; }
+      catch (error) { logServerError("realtime", "office.nickname.refresh.failed", error, { username, sessionId: client.sessionId }); }
     });
     this.onMessage("pet", (client: Client, payload: unknown) => {
       const player = this.state.players.get(client.sessionId);
@@ -370,7 +397,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) }
         : this.world;
       const seatRoute = shouldWalkToSeat && !drivingToRoomSeat ? walkToSeatRoute : null;
-      let points = seatRoute?.points ?? findAutoRoute(start, destination, routeWorld);
+      const navigationWorld = this.ghostModeBySessionId.get(client.sessionId) ? ghostCollisionWorld(routeWorld) : routeWorld;
+      let points = seatRoute?.points ?? findAutoRoute(start, destination, navigationWorld);
       if (!points && randomVehicle && player.vehicleMode === "auto") {
         // The vehicle cannot reach this destination. Exit cleanly and retry
         // the same route on foot at the explicit fast fallback speed.
@@ -379,6 +407,24 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         points = findAutoRoute(start, destination, this.world);
       }
       if (!points) {
+        const lockedDestination = Boolean(destinationZone && this.lockedZoneIds.has(destinationZone.id) && sourceZone?.id !== destinationZone.id);
+        const landing = !lockedDestination && randomVehicle ? autoMoveLandingPoint(destination, this.world, destinationZone) : null;
+        if (landing) {
+          if (player.vehicleId) this.exitVehicle(client.sessionId, player);
+          player.x = landing.x;
+          player.z = landing.z;
+          player.sittingPropId = "";
+          player.dancing = false;
+          this.autoRoutes.delete(client.sessionId);
+          this.pendingSitsBySessionId.delete(client.sessionId);
+          this.seatApproachWorldsBySessionId.delete(client.sessionId);
+          this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
+          this.updateMeetingMembership();
+          this.updatePrivateMembership();
+          this.updateProximity();
+          client.send("auto-move-status", { status: "arrived", teleported: true });
+          return;
+        }
         player.vehicleId = previousVehicle;
         player.vehicleMode = previousVehicleMode;
         player.vehiclePropId = previousVehiclePropId;
@@ -407,6 +453,19 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         if (username) void recordOfficeActivity(this.officeId, username, "vehicle.enter", player.vehicleId);
       }
       client.send("auto-move-status", { status: "started", randomVehicle: randomVehicle && Boolean(player.vehicleId), vehicleId: player.vehicleId, fastWalkFallback });
+    });
+    this.onMessage("ghost-mode", (client: Client, payload: unknown) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || typeof payload !== "object" || payload === null || !("enabled" in payload) || typeof payload.enabled !== "boolean") return;
+      const enabled = payload.enabled;
+      if (enabled && (player.status === "do-not-disturb" || player.status === "in-meeting")) return;
+      this.ghostModeBySessionId.set(client.sessionId, enabled);
+      if (enabled && this.autoRoutes.delete(client.sessionId)) {
+        this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
+        if (player.vehicleMode === "auto") this.exitVehicle(client.sessionId, player);
+        client.send("auto-move-status", { status: "cancelled" });
+      }
+      this.broadcastGhostMode(client.sessionId, enabled);
     });
     this.onMessage("follow-player", (client: Client, payload: unknown) => {
       const player = this.state.players.get(client.sessionId);
@@ -528,7 +587,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     // stale tab/session; reconnects keep the same Colyseus session id.
     const existingSessionIds = new Set([
       ...[...this.activeClientByUsername.entries()].filter(([username]) => username === session.username).map(([, sessionId]) => sessionId),
-      ...[...this.state.players.entries()].filter(([sessionId, player]) => sessionId !== client.sessionId && player.displayName === session.username).map(([sessionId]) => sessionId),
+      ...[...this.state.players.entries()].filter(([sessionId, player]) => sessionId !== client.sessionId && player.username === session.username).map(([sessionId]) => sessionId),
     ]);
     this.activeClientByUsername.set(session.username, client.sessionId);
     for (const existingSessionId of existingSessionIds) {
@@ -543,12 +602,14 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.pendingReconnectionsBySessionId.get(existingSessionId)?.reject(new Error(REPLACED_SESSION_REASON));
     logServerEvent("realtime", "office.session.replaced", { roomId: this.roomId, officeId: this.officeId, username, replacedSessionId: existingSessionId, replacementSessionId: client.sessionId });
     this.clients.find((existing) => existing.sessionId === existingSessionId)?.leave(REPLACED_SESSION_CLOSE_CODE, REPLACED_SESSION_REASON);
+    this.broadcastGhostMode(existingSessionId, false);
     this.state.players.delete(existingSessionId);
     this.vehicleWorldsBySessionId.delete(existingSessionId);
     this.refreshVehicleCollisionWorlds();
     this.usernamesBySessionId.delete(existingSessionId);
     this.officeRolesBySessionId.delete(existingSessionId);
     this.movementInputs.delete(existingSessionId);
+    this.ghostModeBySessionId.delete(existingSessionId);
     this.autoRoutes.delete(existingSessionId);
     this.pendingSitsBySessionId.delete(existingSessionId);
     this.proximityBySessionId.delete(existingSessionId);
@@ -559,7 +620,12 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.mediaIdentityBySessionId.delete(existingSessionId);
   }
 
-  onJoin(client: Client, _options: unknown, auth: { username: string; mediaIdentity: string; characterId: string | null; officeRole: string }) {
+  private broadcastGhostMode(sessionId: string, enabled: boolean) {
+    const payload = { sessionId, enabled };
+    for (const client of this.clients) client.send("ghost-mode-status", payload);
+  }
+
+  onJoin(client: Client, _options: unknown, auth: { username: string; nickname?: string | null; mediaIdentity: string; characterId: string | null; officeRole: string }) {
     const spawn = findSafeSpawn(
       [...this.state.players.values()].map((player) => ({ x: player.x, z: player.z })),
       this.world,
@@ -569,7 +635,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     player.z = spawn.z;
     player.rotation = 0;
     player.worldVersion = this.worldVersion;
-    player.displayName = auth.username;
+    player.username = auth.username;
+    player.displayName = auth.nickname?.trim() || auth.username;
     player.characterId = auth.characterId ?? DEFAULT_CHARACTER_ID;
     player.petId = "";
     player.vehicleId = "";
@@ -590,10 +657,12 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.activeClientByUsername.set(auth.username, client.sessionId);
     this.mediaIdentityBySessionId.set(client.sessionId, auth.mediaIdentity);
     this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
+    this.ghostModeBySessionId.set(client.sessionId, false);
     this.autoRoutes.delete(client.sessionId);
     this.pendingSitsBySessionId.delete(client.sessionId);
     client.send("office-map", { config: this.mapConfig });
     client.send("map-edit-lock", { editorUsername: this.mapEditorUsername });
+    client.send("ghost-mode-status", { sessionId: client.sessionId, enabled: false });
     void recordOfficeActivity(this.officeId, auth.username, "office.join");
     this.updateMeetingMembership();
     this.updatePrivateMembership();
@@ -663,6 +732,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.autoRoutes.delete(client.sessionId);
     this.pendingSitsBySessionId.delete(client.sessionId);
     this.lastPacketAt.delete(client.sessionId);
+    this.ghostModeBySessionId.delete(client.sessionId);
+    this.broadcastGhostMode(client.sessionId, false);
     client.send("proximity", { sessionIds: [] });
     this.updateMeetingMembership();
     this.updatePrivateMembership();
@@ -674,6 +745,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     const username = this.usernamesBySessionId.get(client.sessionId);
     logServerEvent("realtime", "office.client.left", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username, code, clientCount: this.clients.length });
     this.releaseMapEditLock(client.sessionId);
+    this.broadcastGhostMode(client.sessionId, false);
     const player = this.state.players.get(client.sessionId);
     if (player) player.presence = "away";
     this.stopFollowing(client.sessionId, "stopped");
@@ -694,6 +766,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.pendingSitsBySessionId.delete(client.sessionId);
     this.lastPacketAt.delete(client.sessionId);
     this.activityRefreshAtBySessionId.delete(client.sessionId);
+    this.ghostModeBySessionId.delete(client.sessionId);
     this.lastBlasterShotAtBySessionId.delete(client.sessionId);
     this.lastWaveAtBySessionId.delete(client.sessionId);
     if (this.meetingMembersBySessionId.has(client.sessionId)) {
@@ -1133,7 +1206,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         return Math.abs(player.x - seatVehicle.x) <= halfWidth && Math.abs(player.z - seatVehicle.z) <= halfDepth;
       })();
       if (seatApproach && !route?.sitOnArrivalPropId && !stillInsideVehicle) this.seatApproachWorldsBySessionId.delete(sessionId);
-      const movementWorld = player.vehicleId
+      let movementWorld = player.vehicleId
         ? { ...(this.vehicleWorldsBySessionId.get(sessionId) ?? this.world), playerRadius: Math.max(this.world.playerRadius, 0.48), movementSpeed: this.world.movementSpeed * (intent.sprint ? 10 : 5) }
         : route?.sitOnArrivalPropId && seatApproach
           ? { ...seatApproach.world, movementSpeed: this.world.movementSpeed * NORMAL_WALK_SPEED_MULTIPLIER * (intent.sprint ? 2 : 1) }
@@ -1142,6 +1215,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         : route?.fastWalkFallback
           ? { ...this.world, movementSpeed: this.world.movementSpeed * AUTO_MOVE_WALK_FALLBACK_MULTIPLIER }
           : { ...this.world, movementSpeed: this.world.movementSpeed * NORMAL_WALK_SPEED_MULTIPLIER * (intent.sprint ? 2 : 1) };
+      if (this.ghostModeBySessionId.get(sessionId)) movementWorld = ghostCollisionWorld(movementWorld);
       let movementSeconds = deltaSeconds;
       if (route && intent.x === 0 && intent.z === 0) {
         const target = route.points[route.index];
@@ -1210,6 +1284,27 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
                 fastWalkFallback: true,
               });
               this.clients.find((client) => client.sessionId === sessionId)?.send("auto-move-status", { status: "started", randomVehicle: false, fastWalkFallback: true });
+              continue;
+            }
+          }
+          if (!route.followTargetSessionId && route.destination) {
+            const destinationZone = this.mapLayout.zones
+              .filter((zone) => Math.abs(route.destination!.x - zone.x) <= zone.width / 2 && Math.abs(route.destination!.z - zone.z) <= zone.depth / 2)
+              .sort((first, second) => first.width * first.depth - second.width * second.depth)[0];
+            const sourceZone = roomLayoutZoneAt({ x: player.x, z: player.z }, this.mapConfig);
+            const lockedDestination = Boolean(destinationZone && this.lockedZoneIds.has(destinationZone.id) && sourceZone?.id !== destinationZone.id);
+            const landing = !lockedDestination ? autoMoveLandingPoint(route.destination, this.world, destinationZone) : null;
+            if (landing) {
+              if (player.vehicleId) this.exitVehicle(sessionId, player);
+              player.x = landing.x;
+              player.z = landing.z;
+              player.sittingPropId = "";
+              player.dancing = false;
+              this.autoRoutes.delete(sessionId);
+              this.pendingSitsBySessionId.delete(sessionId);
+              this.seatApproachWorldsBySessionId.delete(sessionId);
+              this.movementInputs.set(sessionId, { x: 0, z: 0, sprint: false, receivedAt: now });
+              this.clients.find((client) => client.sessionId === sessionId)?.send("auto-move-status", { status: "arrived", teleported: true });
               continue;
             }
           }

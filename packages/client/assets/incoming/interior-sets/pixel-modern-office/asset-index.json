@@ -1,0 +1,3733 @@
+[
+  {
+    "title": "Plain Wall Bay (Pixel Modern Office)",
+    "slug": "pixel-modern-office-wall-bay-plain-0439b504",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-wall-bay-plain-0439b504.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-wall-bay-plain-0439b504",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-wall-bay-plain-0439b504",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.001,
+      2.8,
+      0.14
+    ],
+    "triangles": 24,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011999607086182,
+        -5.035330396050558E-05,
+        -0.06994842163436009
+      ],
+      "max": [
+        1.0000427088826402,
+        2.799999952316284,
+        0.06994842163436009
+      ],
+      "center": [
+        -0.0005786259129889615,
+        1.3999747995061618,
+        0.0
+      ],
+      "size": [
+        2.0012426695912584,
+        2.800050305620245,
+        0.13989684326872018
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Window Wall Bay (Pixel Modern Office)",
+    "slug": "pixel-modern-office-wall-bay-window-84074f90",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-wall-bay-window-84074f90.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-wall-bay-window-84074f90",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-wall-bay-window-84074f90",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.001,
+      2.8,
+      0.22
+    ],
+    "triangles": 132,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011516285787754,
+        0,
+        -0.11006195069989239
+      ],
+      "max": [
+        1.0000427088826402,
+        2.799999952316284,
+        0.11006195069989239
+      ],
+      "center": [
+        -0.0005544598480675678,
+        1.399999976158142,
+        0.0
+      ],
+      "size": [
+        2.0011943374614156,
+        2.799999952316284,
+        0.22012390139978477
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Door Wall Bay (Pixel Modern Office)",
+    "slug": "pixel-modern-office-wall-bay-door-9c6ea187",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-wall-bay-door-9c6ea187.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-wall-bay-door-9c6ea187",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-wall-bay-door-9c6ea187",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      2.8,
+      0.14
+    ],
+    "triangles": 120,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0000427088826402,
+        0,
+        -0.07003748555511859
+      ],
+      "max": [
+        1.0000427088826402,
+        2.799999952316284,
+        0.07003748555511859
+      ],
+      "center": [
+        0.0,
+        1.399999976158142,
+        0.0
+      ],
+      "size": [
+        2.0000854177652805,
+        2.799999952316284,
+        0.14007497111023717
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Glass Partition Bay (Pixel Modern Office)",
+    "slug": "pixel-modern-office-glass-partition-bay-9eb53e0c",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-glass-partition-bay-9eb53e0c.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-glass-partition-bay-9eb53e0c",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-glass-partition-bay-9eb53e0c",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      2.6,
+      0.09
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0000640521877675,
+        0,
+        -0.04506973314100463
+      ],
+      "max": [
+        1.0000640521877675,
+        2.5999999046325684,
+        0.04506973314100463
+      ],
+      "center": [
+        0.0,
+        1.2999999523162842,
+        0.0
+      ],
+      "size": [
+        2.000128104375535,
+        2.5999999046325684,
+        0.09013946628200926
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Glass Partition Door (Pixel Modern Office)",
+    "slug": "pixel-modern-office-glass-partition-door-6c263bf4",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-glass-partition-door-6c263bf4.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-glass-partition-door-6c263bf4",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-glass-partition-door-6c263bf4",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      2.6,
+      0.1
+    ],
+    "triangles": 108,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0000640521877675,
+        0,
+        -0.04997711434921597
+      ],
+      "max": [
+        1.0000640521877675,
+        2.5999999046325684,
+        0.04997711434921597
+      ],
+      "center": [
+        0.0,
+        1.2999999523162842,
+        0.0
+      ],
+      "size": [
+        2.000128104375535,
+        2.5999999046325684,
+        0.09995422869843194
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Corner Post (Pixel Modern Office)",
+    "slug": "pixel-modern-office-corner-post-b21cb637",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-corner-post-b21cb637.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-corner-post-b21cb637",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-corner-post-b21cb637",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.18,
+      2.8,
+      0.18
+    ],
+    "triangles": 24,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.09000000357627869,
+        -5.799758794285126E-06,
+        -0.09000000357627869
+      ],
+      "max": [
+        0.09000000357627869,
+        2.799999952316284,
+        0.09000000357627869
+      ],
+      "center": [
+        0.0,
+        1.399997076278745,
+        0.0
+      ],
+      "size": [
+        0.18000000715255737,
+        2.8000057520750783,
+        0.18000000715255737
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Carpet Floor Tile (Pixel Modern Office)",
+    "slug": "pixel-modern-office-floor-tile-carpet-01352f6c",
+    "category": "tiles",
+    "file": "tiles/pixel-modern-office-floor-tile-carpet-01352f6c.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-floor-tile-carpet-01352f6c",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-floor-tile-carpet-01352f6c",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.06,
+      2
+    ],
+    "triangles": 12,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        -3.0213994933490917E-05,
+        -1
+      ],
+      "max": [
+        1,
+        0.060030212653828983,
+        1
+      ],
+      "center": [
+        0,
+        0.029999999329447746,
+        0
+      ],
+      "size": [
+        2,
+        0.060060426648762474,
+        2
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wood Floor Tile (Pixel Modern Office)",
+    "slug": "pixel-modern-office-floor-tile-wood-3da92692",
+    "category": "tiles",
+    "file": "tiles/pixel-modern-office-floor-tile-wood-3da92692.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-floor-tile-wood-3da92692",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-floor-tile-wood-3da92692",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.06,
+      2
+    ],
+    "triangles": 12,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        -3.0213994933490917E-05,
+        -1
+      ],
+      "max": [
+        1,
+        0.060030212653828983,
+        1
+      ],
+      "center": [
+        0,
+        0.029999999329447746,
+        0
+      ],
+      "size": [
+        2,
+        0.060060426648762474,
+        2
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Ceramic Floor Tile (Pixel Modern Office)",
+    "slug": "pixel-modern-office-floor-tile-ceramic-54043dd0",
+    "category": "tiles",
+    "file": "tiles/pixel-modern-office-floor-tile-ceramic-54043dd0.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-floor-tile-ceramic-54043dd0",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-floor-tile-ceramic-54043dd0",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.07,
+      2
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        -2.0142663288993945E-05,
+        -1
+      ],
+      "max": [
+        1,
+        0.06995406963626259,
+        1
+      ],
+      "center": [
+        0,
+        0.0349669634864868,
+        0
+      ],
+      "size": [
+        2,
+        0.06997421229955159,
+        2
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Ceiling Light Panel (Pixel Modern Office)",
+    "slug": "pixel-modern-office-ceiling-tile-light-deb9a0a6",
+    "category": "tiles",
+    "file": "tiles/pixel-modern-office-ceiling-tile-light-deb9a0a6.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-ceiling-tile-light-deb9a0a6",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-ceiling-tile-light-deb9a0a6",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.08,
+      2
+    ],
+    "triangles": 24,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        2.1364388653570543E-06,
+        -1
+      ],
+      "max": [
+        1,
+        0.08003021220679415,
+        1
+      ],
+      "center": [
+        0,
+        0.04001617432282976,
+        0
+      ],
+      "size": [
+        2,
+        0.0800280757679288,
+        2
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Plain Ceiling Tile (Pixel Modern Office)",
+    "slug": "pixel-modern-office-ceiling-tile-plain-a65e8937",
+    "category": "tiles",
+    "file": "tiles/pixel-modern-office-ceiling-tile-plain-a65e8937.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-ceiling-tile-plain-a65e8937",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-ceiling-tile-plain-a65e8937",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.08,
+      2
+    ],
+    "triangles": 12,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        -4.028532657798789E-05,
+        -1
+      ],
+      "max": [
+        1,
+        0.08004028353843864,
+        1
+      ],
+      "center": [
+        0,
+        0.03999999910593033,
+        0
+      ],
+      "size": [
+        2,
+        0.08008056886501663,
+        2
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Skirting Corner (Pixel Modern Office)",
+    "slug": "pixel-modern-office-skirting-corner-ae7e6b42",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-skirting-corner-ae7e6b42.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-skirting-corner-ae7e6b42",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-skirting-corner-ae7e6b42",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.5,
+      0.1,
+      0.5
+    ],
+    "triangles": 24,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.25,
+        1.0682223374657018E-05,
+        -0.25
+      ],
+      "max": [
+        0.25,
+        0.09998931926674146,
+        0.25
+      ],
+      "center": [
+        0.0,
+        0.05000000074505806,
+        0.0
+      ],
+      "size": [
+        0.5,
+        0.09997863704336679,
+        0.5
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Low Partition Screen (Pixel Modern Office)",
+    "slug": "pixel-modern-office-low-partition-screen-b859d784",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-low-partition-screen-b859d784.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-low-partition-screen-b859d784",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-low-partition-screen-b859d784",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.6,
+      1.32,
+      0.4
+    ],
+    "triangles": 48,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.800000011920929,
+        -5.430655639937498E-05,
+        -0.200030521490163
+      ],
+      "max": [
+        0.800000011920929,
+        1.3200543590084868,
+        0.200030521490163
+      ],
+      "center": [
+        0.0,
+        0.6600000262260437,
+        0.0
+      ],
+      "size": [
+        1.600000023841858,
+        1.3201086655648862,
+        0.400061042980326
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Reception Logo Wall (Pixel Modern Office)",
+    "slug": "pixel-modern-office-reception-desk-wall-ddd60aec",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-reception-desk-wall-ddd60aec.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-reception-desk-wall-ddd60aec",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-reception-desk-wall-ddd60aec",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.001,
+      2.8,
+      0.82
+    ],
+    "triangles": 152,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0011999607086182,
+        -5.035330396050558E-05,
+        -0.06994842163436009
+      ],
+      "max": [
+        1.0000427088826402,
+        2.799999952316284,
+        0.7500843774507074
+      ],
+      "center": [
+        -0.0005786259129889615,
+        1.3999747995061618,
+        0.34006797790817367
+      ],
+      "size": [
+        2.0012426695912584,
+        2.800050305620245,
+        0.8200327990850675
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Lift Doors Bay (Pixel Modern Office)",
+    "slug": "pixel-modern-office-lift-doors-bay-cd3605e1",
+    "category": "props",
+    "file": "props/pixel-modern-office-lift-doors-bay-cd3605e1.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-lift-doors-bay-cd3605e1",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-lift-doors-bay-cd3605e1",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.001,
+      2.8,
+      0.195
+    ],
+    "triangles": 120,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.0012299221019363,
+        0,
+        -0.06999725497565329
+      ],
+      "max": [
+        1.0000427088826402,
+        2.799999952316284,
+        0.12499466075095782
+      ],
+      "center": [
+        -0.000593606609648023,
+        1.399999976158142,
+        0.027498702887652264
+      ],
+      "size": [
+        2.0012726309845768,
+        2.799999952316284,
+        0.19499191572661112
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Stair Flight (Pixel Modern Office)",
+    "slug": "pixel-modern-office-stair-flight-3f35e1e4",
+    "category": "props",
+    "file": "props/pixel-modern-office-stair-flight-3f35e1e4.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-stair-flight-3f35e1e4",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-stair-flight-3f35e1e4",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.43,
+      2.604,
+      1.905
+    ],
+    "triangles": 180,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.714940854809626,
+        -4.489430503140657E-05,
+        -1.722458356005772
+      ],
+      "max": [
+        0.714940854809626,
+        2.604429006576538,
+        0.18245839415274479
+      ],
+      "center": [
+        0.0,
+        1.3021920561357534,
+        -0.7699999809265137
+      ],
+      "size": [
+        1.429881709619252,
+        2.6044739008815694,
+        1.9049167501585167
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Straight Desk (Pixel Modern Office)",
+    "slug": "pixel-modern-office-desk-straight-ce8ce07c",
+    "category": "props",
+    "file": "props/pixel-modern-office-desk-straight-ce8ce07c.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-desk-straight-ce8ce07c",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-desk-straight-ce8ce07c",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.6,
+      0.73,
+      0.8
+    ],
+    "triangles": 72,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.800000011920929,
+        2.3003505584262562E-06,
+        -0.400061042980326
+      ],
+      "max": [
+        0.800000011920929,
+        0.7300201508592278,
+        0.400061042980326
+      ],
+      "center": [
+        0.0,
+        0.3650112256048931,
+        0.0
+      ],
+      "size": [
+        1.600000023841858,
+        0.7300178505086694,
+        0.800122085960652
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "L Shaped Desk (Pixel Modern Office)",
+    "slug": "pixel-modern-office-desk-l-shaped-e63b68bc",
+    "category": "props",
+    "file": "props/pixel-modern-office-desk-l-shaped-e63b68bc.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-desk-l-shaped-e63b68bc",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-desk-l-shaped-e63b68bc",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.6,
+      0.73,
+      2
+    ],
+    "triangles": 108,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.800042737834832,
+        -7.025459795195754E-06,
+        -1.600000023841858
+      ],
+      "max": [
+        0.800042737834832,
+        0.7300201508592278,
+        0.4000000059604645
+      ],
+      "center": [
+        0.0,
+        0.3650065626997163,
+        -0.6000000089406967
+      ],
+      "size": [
+        1.600085475669664,
+        0.7300271763190229,
+        2.0000000298023224
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Standing Desk (Pixel Modern Office)",
+    "slug": "pixel-modern-office-desk-standing-7c9d8847",
+    "category": "props",
+    "file": "props/pixel-modern-office-desk-standing-7c9d8847.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-desk-standing-7c9d8847",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-desk-standing-7c9d8847",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.6,
+      0.72,
+      0.701
+    ],
+    "triangles": 96,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.800000011920929,
+        4.428536701239771E-06,
+        -0.35005340143020897
+      ],
+      "max": [
+        0.800000011920929,
+        0.7200374082170529,
+        0.35120305502780697
+      ],
+      "center": [
+        0.0,
+        0.36002091837687705,
+        0.0005748267987989997
+      ],
+      "size": [
+        1.600000023841858,
+        0.7200329796803516,
+        0.7012564564580159
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Two Person Bench Desk (Pixel Modern Office)",
+    "slug": "pixel-modern-office-desk-bench-two-11f679cb",
+    "category": "props",
+    "file": "props/pixel-modern-office-desk-bench-two-11f679cb.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-desk-bench-two-11f679cb",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-desk-bench-two-11f679cb",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.8,
+      0.73,
+      1.5
+    ],
+    "triangles": 84,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.399999976158142,
+        -6.0886819503724876E-05,
+        -0.7499942040936017
+      ],
+      "max": [
+        1.399999976158142,
+        0.7299957354127984,
+        0.7499942040936017
+      ],
+      "center": [
+        0.0,
+        0.3649674242966473,
+        0.0
+      ],
+      "size": [
+        2.799999952316284,
+        0.7300566222323022,
+        1.4999884081872035
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Task Chair (Pixel Modern Office)",
+    "slug": "pixel-modern-office-task-chair-37b92029",
+    "category": "props",
+    "file": "props/pixel-modern-office-task-chair-37b92029.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-task-chair-37b92029",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-task-chair-37b92029",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.63,
+      1,
+      0.63
+    ],
+    "triangles": 156,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.31498611813756905,
+        0,
+        -0.31498611813756905
+      ],
+      "max": [
+        0.31498611813756905,
+        1,
+        0.31498611813756905
+      ],
+      "center": [
+        0.0,
+        0.5,
+        0.0
+      ],
+      "size": [
+        0.6299722362751381,
+        1,
+        0.6299722362751381
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Mesh Chair (Pixel Modern Office)",
+    "slug": "pixel-modern-office-mesh-chair-f2c96b66",
+    "category": "props",
+    "file": "props/pixel-modern-office-mesh-chair-f2c96b66.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-mesh-chair-f2c96b66",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-mesh-chair-f2c96b66",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.63,
+      1.06,
+      0.63
+    ],
+    "triangles": 156,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.31498823337029297,
+        0,
+        -0.31498823337029297
+      ],
+      "max": [
+        0.31498823337029297,
+        1.059999942779541,
+        0.31498823337029297
+      ],
+      "center": [
+        0.0,
+        0.5299999713897705,
+        0.0
+      ],
+      "size": [
+        0.6299764667405859,
+        1.059999942779541,
+        0.6299764667405859
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Stool (Pixel Modern Office)",
+    "slug": "pixel-modern-office-stool-1af32ced",
+    "category": "props",
+    "file": "props/pixel-modern-office-stool-1af32ced.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-stool-1af32ced",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-stool-1af32ced",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.38,
+      0.69,
+      0.361
+    ],
+    "triangles": 136,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.1899999976158142,
+        0,
+        -0.18069917678461922
+      ],
+      "max": [
+        0.1899999976158142,
+        0.6899998481603553,
+        0.18069917678461922
+      ],
+      "center": [
+        0.0,
+        0.34499992408017766,
+        0.0
+      ],
+      "size": [
+        0.3799999952316284,
+        0.6899998481603553,
+        0.36139835356923844
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Monitor On Arm (Pixel Modern Office)",
+    "slug": "pixel-modern-office-monitor-arm-54a8d67b",
+    "category": "props",
+    "file": "props/pixel-modern-office-monitor-arm-54a8d67b.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-monitor-arm-54a8d67b",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-monitor-arm-54a8d67b",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.64,
+      0.55,
+      0.12
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.05999999865889549,
+        1.387040791889227E-06,
+        -0.0600018294201665
+      ],
+      "max": [
+        0.5799999833106995,
+        0.5499986248801371,
+        0.0600018294201665
+      ],
+      "center": [
+        0.259999992325902,
+        0.2750000059604645,
+        0.0
+      ],
+      "size": [
+        0.639999981969595,
+        0.5499972378393452,
+        0.120003658840333
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Dual Monitors (Pixel Modern Office)",
+    "slug": "pixel-modern-office-dual-monitors-ba90c55b",
+    "category": "props",
+    "file": "props/pixel-modern-office-dual-monitors-ba90c55b.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-dual-monitors-ba90c55b",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-dual-monitors-ba90c55b",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.18,
+      0.53,
+      0.2
+    ],
+    "triangles": 84,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5899999737739563,
+        6.8641387063195225E-06,
+        -0.09996886667662605
+      ],
+      "max": [
+        0.5899999737739563,
+        0.5299931072510642,
+        0.09996886667662605
+      ],
+      "center": [
+        0.0,
+        0.26499998569488525,
+        0.0
+      ],
+      "size": [
+        1.1799999475479126,
+        0.5299862431123579,
+        0.1999377333532521
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Open Laptop (Pixel Modern Office)",
+    "slug": "pixel-modern-office-laptop-open-5a454819",
+    "category": "props",
+    "file": "props/pixel-modern-office-laptop-open-5a454819.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-laptop-open-5a454819",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-laptop-open-5a454819",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.36,
+      0.253,
+      0.319
+    ],
+    "triangles": 48,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.18000000715255737,
+        5.358497038587817E-06,
+        -0.19354579491092794
+      ],
+      "max": [
+        0.18000000715255737,
+        0.2527206003271191,
+        0.12501252335979574
+      ],
+      "center": [
+        0.0,
+        0.12636297941207886,
+        -0.0342666357755661
+      ],
+      "size": [
+        0.36000001430511475,
+        0.25271524183008054,
+        0.3185583182707237
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Desktop Tower (Pixel Modern Office)",
+    "slug": "pixel-modern-office-desktop-tower-98bcbcd0",
+    "category": "props",
+    "file": "props/pixel-modern-office-desktop-tower-98bcbcd0.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-desktop-tower-98bcbcd0",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-desktop-tower-98bcbcd0",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.2,
+      0.45,
+      0.45
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.09998550105928761,
+        0,
+        -0.22000106231979363
+      ],
+      "max": [
+        0.09998550105928761,
+        0.44999998807907104,
+        0.23000060957548518
+      ],
+      "center": [
+        0.0,
+        0.22499999403953552,
+        0.004999773627845774
+      ],
+      "size": [
+        0.19997100211857521,
+        0.44999998807907104,
+        0.45000167189527884
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Keyboard And Mouse (Pixel Modern Office)",
+    "slug": "pixel-modern-office-keyboard-and-mouse-fb746f0a",
+    "category": "props",
+    "file": "props/pixel-modern-office-keyboard-and-mouse-fb746f0a.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-keyboard-and-mouse-fb746f0a",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-keyboard-and-mouse-fb746f0a",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.555,
+      0.04,
+      0.15
+    ],
+    "triangles": 84,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3100000023841858,
+        -6.867193309082961E-06,
+        -0.07500892763069857
+      ],
+      "max": [
+        0.24500000476837158,
+        0.03999786286352182,
+        0.07500892763069857
+      ],
+      "center": [
+        -0.032499998807907104,
+        0.019995497835106367,
+        0.0
+      ],
+      "size": [
+        0.5550000071525574,
+        0.0400047300568309,
+        0.15001785526139713
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Desk Lamp (Pixel Modern Office)",
+    "slug": "pixel-modern-office-desk-lamp-1213bc09",
+    "category": "props",
+    "file": "props/pixel-modern-office-desk-lamp-1213bc09.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-desk-lamp-1213bc09",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-desk-lamp-1213bc09",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.16,
+      0.63,
+      0.37
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.08002103280278221,
+        0,
+        -0.080010425026663
+      ],
+      "max": [
+        0.08002103280278221,
+        0.6300021198192456,
+        0.28999999910593033
+      ],
+      "center": [
+        0.0,
+        0.3150010599096228,
+        0.10499478703963366
+      ],
+      "size": [
+        0.16004206560556442,
+        0.6300021198192456,
+        0.37001042413259333
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Pedestal Drawers (Pixel Modern Office)",
+    "slug": "pixel-modern-office-pedestal-drawers-a0e53013",
+    "category": "props",
+    "file": "props/pixel-modern-office-pedestal-drawers-a0e53013.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-pedestal-drawers-a0e53013",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-pedestal-drawers-a0e53013",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.42,
+      0.64,
+      0.59
+    ],
+    "triangles": 168,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2100100664140362,
+        4.2726739976836625E-06,
+        -0.27498702348703363
+      ],
+      "max": [
+        0.2100100664140362,
+        0.6399999856948853,
+        0.3150031955399795
+      ],
+      "center": [
+        0.0,
+        0.3200021291844415,
+        0.020008086026472943
+      ],
+      "size": [
+        0.4200201328280724,
+        0.6399957130208875,
+        0.5899902190270132
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Monitor Riser With Plant (Pixel Modern Office)",
+    "slug": "pixel-modern-office-monitor-riser-plant-8eb0f792",
+    "category": "props",
+    "file": "props/pixel-modern-office-monitor-riser-plant-8eb0f792.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-monitor-riser-plant-8eb0f792",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-monitor-riser-plant-8eb0f792",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.6,
+      0.4,
+      0.28
+    ],
+    "triangles": 84,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.30000001192092896,
+        5.1895190211898035E-06,
+        -0.13997925297583186
+      ],
+      "max": [
+        0.30000001192092896,
+        0.40000335889886257,
+        0.13997925297583186
+      ],
+      "center": [
+        0.0,
+        0.20000427420894187,
+        0.0
+      ],
+      "size": [
+        0.6000000238418579,
+        0.3999981693798414,
+        0.2799585059516637
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Desk Divider (Pixel Modern Office)",
+    "slug": "pixel-modern-office-desk-divider-042bf304",
+    "category": "props",
+    "file": "props/pixel-modern-office-desk-divider-042bf304.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-desk-divider-042bf304",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-desk-divider-042bf304",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.5,
+      0.48,
+      0.14
+    ],
+    "triangles": 36,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.75,
+        1.0682601735999275E-05,
+        -0.06998504540065088
+      ],
+      "max": [
+        0.75,
+        0.4799597095325214,
+        0.06998504540065088
+      ],
+      "center": [
+        0.0,
+        0.23998519606712868,
+        0.0
+      ],
+      "size": [
+        1.5,
+        0.4799490269307854,
+        0.13997009080130177
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Cable Tray (Pixel Modern Office)",
+    "slug": "pixel-modern-office-cable-tray-ba92f87f",
+    "category": "props",
+    "file": "props/pixel-modern-office-cable-tray-ba92f87f.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-cable-tray-ba92f87f",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-cable-tray-ba92f87f",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.2,
+      0.15,
+      0.16
+    ],
+    "triangles": 108,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6000000238418579,
+        -2.5941975848826904E-05,
+        -0.07998291281292873
+      ],
+      "max": [
+        0.6000000238418579,
+        0.150025181495608,
+        0.07998291281292873
+      ],
+      "center": [
+        0.0,
+        0.0749996197598796,
+        0.0
+      ],
+      "size": [
+        1.2000000476837158,
+        0.15005112347145683,
+        0.15996582562585746
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Headset On Stand (Pixel Modern Office)",
+    "slug": "pixel-modern-office-headset-stand-41fd9bb2",
+    "category": "props",
+    "file": "props/pixel-modern-office-headset-stand-41fd9bb2.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-headset-stand-41fd9bb2",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-headset-stand-41fd9bb2",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.251,
+      0.32,
+      0.18
+    ],
+    "triangles": 72,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.125,
+        0,
+        -0.0700064097172248
+      ],
+      "max": [
+        0.12620724501702701,
+        0.32000320235733243,
+        0.11000640882315513
+      ],
+      "center": [
+        0.0006036225085135072,
+        0.16000160117866621,
+        0.019999999552965164
+      ],
+      "size": [
+        0.251207245017027,
+        0.32000320235733243,
+        0.18001281854037993
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Desk Phone (Pixel Modern Office)",
+    "slug": "pixel-modern-office-desk-phone-d6d9c15b",
+    "category": "props",
+    "file": "props/pixel-modern-office-desk-phone-d6d9c15b.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-desk-phone-d6d9c15b",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-desk-phone-d6d9c15b",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.25,
+      0.1,
+      0.22
+    ],
+    "triangles": 144,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.10999999940395355,
+        -1.8316185527722517E-06,
+        -0.10999999940395355
+      ],
+      "max": [
+        0.13999839769698214,
+        0.10000320542559961,
+        0.10999999940395355
+      ],
+      "center": [
+        0.014999199146514292,
+        0.05000068690352342,
+        0.0
+      ],
+      "size": [
+        0.2499983971009357,
+        0.10000503704415238,
+        0.2199999988079071
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Mug And Notebook Set (Pixel Modern Office)",
+    "slug": "pixel-modern-office-mug-and-notebook-7ac38bf9",
+    "category": "props",
+    "file": "props/pixel-modern-office-mug-and-notebook-7ac38bf9.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-mug-and-notebook-7ac38bf9",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-mug-and-notebook-7ac38bf9",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.325,
+      0.1,
+      0.15
+    ],
+    "triangles": 88,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.13500000536441803,
+        -5.362026838443001E-07,
+        -0.07499618420847654
+      ],
+      "max": [
+        0.1899999976158142,
+        0.10000053769279996,
+        0.07499618420847654
+      ],
+      "center": [
+        0.02749999612569809,
+        0.05000000074505806,
+        0.0
+      ],
+      "size": [
+        0.32500000298023224,
+        0.1000010738954838,
+        0.14999236841695307
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Boardroom Table (Pixel Modern Office)",
+    "slug": "pixel-modern-office-boardroom-table-b4813b70",
+    "category": "props",
+    "file": "props/pixel-modern-office-boardroom-table-b4813b70.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-boardroom-table-b4813b70",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-boardroom-table-b4813b70",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      3,
+      0.77,
+      1.2
+    ],
+    "triangles": 84,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.5,
+        -4.808155549590465E-05,
+        -0.5999176000244149
+      ],
+      "max": [
+        1.5,
+        0.7699905296711845,
+        0.5999176000244149
+      ],
+      "center": [
+        0.0,
+        0.38497122405784434,
+        0.0
+      ],
+      "size": [
+        3.0,
+        0.7700386112266804,
+        1.1998352000488297
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Meeting Chair (Pixel Modern Office)",
+    "slug": "pixel-modern-office-meeting-chair-849fa9be",
+    "category": "props",
+    "file": "props/pixel-modern-office-meeting-chair-849fa9be.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-meeting-chair-849fa9be",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-meeting-chair-849fa9be",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.48,
+      0.95,
+      0.46
+    ],
+    "triangles": 96,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.239993744245359,
+        -3.2054368208356276E-06,
+        -0.22999771162910748
+      ],
+      "max": [
+        0.239993744245359,
+        0.949999988079071,
+        0.22999771162910748
+      ],
+      "center": [
+        0.0,
+        0.4749983913211251,
+        0.0
+      ],
+      "size": [
+        0.479987488490718,
+        0.9500031935158919,
+        0.45999542325821496
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Mobile Whiteboard (Pixel Modern Office)",
+    "slug": "pixel-modern-office-whiteboard-mobile-56f60630",
+    "category": "props",
+    "file": "props/pixel-modern-office-whiteboard-mobile-56f60630.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-whiteboard-mobile-56f60630",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-whiteboard-mobile-56f60630",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.74,
+      1.92,
+      0.6
+    ],
+    "triangles": 144,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.8699972338881932,
+        0,
+        -0.30003844661555773
+      ],
+      "max": [
+        0.8699972338881932,
+        1.9199999570846558,
+        0.30003844661555773
+      ],
+      "center": [
+        0.0,
+        0.9599999785423279,
+        0.0
+      ],
+      "size": [
+        1.7399944677763863,
+        1.9199999570846558,
+        0.6000768932311155
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "TV On Stand (Pixel Modern Office)",
+    "slug": "pixel-modern-office-tv-on-stand-35ddfc1d",
+    "category": "props",
+    "file": "props/pixel-modern-office-tv-on-stand-35ddfc1d.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-tv-on-stand-35ddfc1d",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-tv-on-stand-35ddfc1d",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.4,
+      1.57,
+      0.4
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.7000004811639384,
+        0,
+        -0.20001724964022455
+      ],
+      "max": [
+        0.7000004811639384,
+        1.5700000524520874,
+        0.20001724964022455
+      ],
+      "center": [
+        0.0,
+        0.7850000262260437,
+        0.0
+      ],
+      "size": [
+        1.4000009623278769,
+        1.5700000524520874,
+        0.4000344992804491
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Projector Screen (Pixel Modern Office)",
+    "slug": "pixel-modern-office-projector-screen-5098efd5",
+    "category": "props",
+    "file": "props/pixel-modern-office-projector-screen-5098efd5.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-projector-screen-5098efd5",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-projector-screen-5098efd5",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.8,
+      1.62,
+      1.3
+    ],
+    "triangles": 72,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.8999999761581421,
+        -1.920281860257056E-05,
+        -0.6500259235132478
+      ],
+      "max": [
+        0.8999999761581421,
+        1.6200192075869742,
+        0.6500259235132478
+      ],
+      "center": [
+        0.0,
+        0.8100000023841858,
+        0.0
+      ],
+      "size": [
+        1.7999999523162842,
+        1.6200384104055767,
+        1.3000518470264957
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Phone Booth Pod (Pixel Modern Office)",
+    "slug": "pixel-modern-office-phone-booth-pod-bf52e9a0",
+    "category": "props",
+    "file": "props/pixel-modern-office-phone-booth-pod-bf52e9a0.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-phone-booth-pod-bf52e9a0",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-phone-booth-pod-bf52e9a0",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.2,
+      2.22,
+      1.205
+    ],
+    "triangles": 108,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6000714210455885,
+        0,
+        -0.6000714210455885
+      ],
+      "max": [
+        0.6000714210455885,
+        2.2200000286102295,
+        0.6049964914147008
+      ],
+      "center": [
+        0.0,
+        1.1100000143051147,
+        0.002462535184556136
+      ],
+      "size": [
+        1.200142842091177,
+        2.2200000286102295,
+        1.2050679124602892
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Two Seat Sofa (Pixel Modern Office)",
+    "slug": "pixel-modern-office-sofa-two-seat-8a0ab410",
+    "category": "props",
+    "file": "props/pixel-modern-office-sofa-two-seat-8a0ab410.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-sofa-two-seat-8a0ab410",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-sofa-two-seat-8a0ab410",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.74,
+      0.92,
+      0.8
+    ],
+    "triangles": 120,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.8700000047683716,
+        -1.9533357709156096E-05,
+        -0.3999923725649439
+      ],
+      "max": [
+        0.8700000047683716,
+        0.9200259493724448,
+        0.3999923725649439
+      ],
+      "center": [
+        0.0,
+        0.4600032080073678,
+        0.0
+      ],
+      "size": [
+        1.7400000095367432,
+        0.9200454827301539,
+        0.7999847451298878
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Armchair (Pixel Modern Office)",
+    "slug": "pixel-modern-office-armchair-86e0acaa",
+    "category": "props",
+    "file": "props/pixel-modern-office-armchair-86e0acaa.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-armchair-86e0acaa",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-armchair-86e0acaa",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.8,
+      0.9,
+      0.76
+    ],
+    "triangles": 96,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4000000059604645,
+        -5.493331923969724E-06,
+        -0.37997986344588697
+      ],
+      "max": [
+        0.4000000059604645,
+        0.9000085422025483,
+        0.37997986344588697
+      ],
+      "center": [
+        0.0,
+        0.45000152443531216,
+        0.0
+      ],
+      "size": [
+        0.800000011920929,
+        0.9000140355344723,
+        0.7599597268917739
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Coffee Table (Pixel Modern Office)",
+    "slug": "pixel-modern-office-coffee-table-d5bece9c",
+    "category": "props",
+    "file": "props/pixel-modern-office-coffee-table-d5bece9c.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-coffee-table-d5bece9c",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-coffee-table-d5bece9c",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.9,
+      0.43,
+      0.55
+    ],
+    "triangles": 84,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.44999998807907104,
+        1.1442987181836672E-05,
+        -0.2750236445592052
+      ],
+      "max": [
+        0.44999998807907104,
+        0.4300004639988667,
+        0.2750236445592052
+      ],
+      "center": [
+        0.0,
+        0.21500595349302426,
+        0.0
+      ],
+      "size": [
+        0.8999999761581421,
+        0.4299890210116849,
+        0.5500472891184104
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bean Bag (Pixel Modern Office)",
+    "slug": "pixel-modern-office-bean-bag-d3c1aa76",
+    "category": "props",
+    "file": "props/pixel-modern-office-bean-bag-d3c1aa76.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-bean-bag-d3c1aa76",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-bean-bag-d3c1aa76",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.94,
+      0.8,
+      0.89
+    ],
+    "triangles": 48,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4699999988079071,
+        -2.7396908342525172E-06,
+        -0.42998458642802356
+      ],
+      "max": [
+        0.4699999988079071,
+        0.8000027516117632,
+        0.45998458762011646
+      ],
+      "center": [
+        0.0,
+        0.4000000059604645,
+        0.015000000596046448
+      ],
+      "size": [
+        0.9399999976158142,
+        0.8000054913025973,
+        0.88996917404814
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "High Table With Stools (Pixel Modern Office)",
+    "slug": "pixel-modern-office-high-table-stools-94558dee",
+    "category": "props",
+    "file": "props/pixel-modern-office-high-table-stools-94558dee.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-high-table-stools-94558dee",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-high-table-stools-94558dee",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.4,
+      1.1,
+      1.34
+    ],
+    "triangles": 244,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.699999988079071,
+        -1.7100582954565624E-05,
+        -0.40004271910057937
+      ],
+      "max": [
+        0.699999988079071,
+        1.0999935834496648,
+        0.9402562467496811
+      ],
+      "center": [
+        0.0,
+        0.5499882414333551,
+        0.2701067638245509
+      ],
+      "size": [
+        1.399999976158142,
+        1.1000106840326194,
+        1.3402989658502604
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Acoustic Wall Panel (Pixel Modern Office)",
+    "slug": "pixel-modern-office-acoustic-wall-panel-eb4f7f1f",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-acoustic-wall-panel-eb4f7f1f.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-acoustic-wall-panel-eb4f7f1f",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-acoustic-wall-panel-eb4f7f1f",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.2,
+      0.6,
+      0.055
+    ],
+    "triangles": 24,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6000000238418579,
+        -4.57777660330394E-05,
+        -0.019995728203232182
+      ],
+      "max": [
+        0.6000000238418579,
+        0.6000458016078909,
+        0.03499343804342893
+      ],
+      "center": [
+        0.0,
+        0.30000001192092896,
+        0.0074988549200983735
+      ],
+      "size": [
+        1.2000000476837158,
+        0.6000915793739239,
+        0.054989166246661114
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Kitchenette Run (Pixel Modern Office)",
+    "slug": "pixel-modern-office-kitchenette-run-5979180f",
+    "category": "props",
+    "file": "props/pixel-modern-office-kitchenette-run-5979180f.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-kitchenette-run-5979180f",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-kitchenette-run-5979180f",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2.44,
+      2.3,
+      0.67
+    ],
+    "triangles": 192,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1.2200000286102295,
+        -1.4027586701215178E-05,
+        -0.3199713988438311
+      ],
+      "max": [
+        1.2200000286102295,
+        2.30005586824607,
+        0.3500759836372597
+      ],
+      "center": [
+        0.0,
+        1.1500209203296845,
+        0.015052292396714323
+      ],
+      "size": [
+        2.440000057220459,
+        2.300069895832771,
+        0.6700473824810909
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Fridge (Pixel Modern Office)",
+    "slug": "pixel-modern-office-fridge-996bad37",
+    "category": "props",
+    "file": "props/pixel-modern-office-fridge-996bad37.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-fridge-996bad37",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-fridge-996bad37",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.72,
+      1.8,
+      0.755
+    ],
+    "triangles": 48,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.36000001430511475,
+        -5.646545359123956E-06,
+        -0.3499801768758028
+      ],
+      "max": [
+        0.36000001430511475,
+        1.7999999523162842,
+        0.40498427760507544
+      ],
+      "center": [
+        0.0,
+        0.8999971528854626,
+        0.02750205036463632
+      ],
+      "size": [
+        0.7200000286102295,
+        1.8000055988616432,
+        0.7549644544808782
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Coffee Machine (Pixel Modern Office)",
+    "slug": "pixel-modern-office-coffee-machine-32118e40",
+    "category": "props",
+    "file": "props/pixel-modern-office-coffee-machine-32118e40.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-coffee-machine-32118e40",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-coffee-machine-32118e40",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.42,
+      0.68,
+      0.4
+    ],
+    "triangles": 208,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.21001067377517071,
+        0,
+        -0.19000701228776354
+      ],
+      "max": [
+        0.21001067377517071,
+        0.6800000071525574,
+        0.21001739323318366
+      ],
+      "center": [
+        0.0,
+        0.3400000035762787,
+        0.010005190472710063
+      ],
+      "size": [
+        0.42002134755034143,
+        0.6800000071525574,
+        0.4000244055209472
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Microwave (Pixel Modern Office)",
+    "slug": "pixel-modern-office-microwave-3334c628",
+    "category": "props",
+    "file": "props/pixel-modern-office-microwave-3334c628.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-microwave-3334c628",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-microwave-3334c628",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.52,
+      0.301,
+      0.44
+    ],
+    "triangles": 72,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.25999999046325684,
+        -1.5552976830174314E-05,
+        -0.20001281043755348
+      ],
+      "max": [
+        0.25999999046325684,
+        0.3012000024318695,
+        0.23999785989835298
+      ],
+      "center": [
+        0.0,
+        0.15059222472751965,
+        0.019992524730399752
+      ],
+      "size": [
+        0.5199999809265137,
+        0.3012155554086997,
+        0.44001067033590646
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Water Cooler (Pixel Modern Office)",
+    "slug": "pixel-modern-office-water-cooler-33f143d4",
+    "category": "props",
+    "file": "props/pixel-modern-office-water-cooler-33f143d4.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-water-cooler-33f143d4",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-water-cooler-33f143d4",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.36,
+      1.4,
+      0.38
+    ],
+    "triangles": 120,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.18001342814416943,
+        0,
+        -0.1800235013384591
+      ],
+      "max": [
+        0.18001342814416943,
+        1.399999976158142,
+        0.20002349716613396
+      ],
+      "center": [
+        0.0,
+        0.699999988079071,
+        0.009999997913837433
+      ],
+      "size": [
+        0.36002685628833886,
+        1.399999976158142,
+        0.38004699850459306
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Vending Machine (Pixel Modern Office)",
+    "slug": "pixel-modern-office-vending-machine-5dd57276",
+    "category": "props",
+    "file": "props/pixel-modern-office-vending-machine-5dd57276.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-vending-machine-5dd57276",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-vending-machine-5dd57276",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.92,
+      1.9,
+      0.805
+    ],
+    "triangles": 434,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4599673394230312,
+        0,
+        -0.3900372276872385
+      ],
+      "max": [
+        0.4599673394230312,
+        1.899999976158142,
+        0.4150022768177926
+      ],
+      "center": [
+        0.0,
+        0.949999988079071,
+        0.01248252456527707
+      ],
+      "size": [
+        0.9199346788460624,
+        1.899999976158142,
+        0.8050395045050311
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Snack Shelf (Pixel Modern Office)",
+    "slug": "pixel-modern-office-snack-shelf-aee54379",
+    "category": "props",
+    "file": "props/pixel-modern-office-snack-shelf-aee54379.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-snack-shelf-aee54379",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-snack-shelf-aee54379",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.92,
+      1.2,
+      0.32
+    ],
+    "triangles": 192,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4600299264192326,
+        0,
+        -0.15998413673227066
+      ],
+      "max": [
+        0.4600299264192326,
+        1.2000000476837158,
+        0.15998413673227066
+      ],
+      "center": [
+        0.0,
+        0.6000000238418579,
+        0.0
+      ],
+      "size": [
+        0.9200598528384653,
+        1.2000000476837158,
+        0.3199682734645413
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bin Trio (Pixel Modern Office)",
+    "slug": "pixel-modern-office-bin-trio-2e9b8e33",
+    "category": "props",
+    "file": "props/pixel-modern-office-bin-trio-2e9b8e33.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-bin-trio-2e9b8e33",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-bin-trio-2e9b8e33",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1,
+      0.66,
+      0.32
+    ],
+    "triangles": 108,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.5,
+        -8.539100713023107E-06,
+        -0.1599999964237213
+      ],
+      "max": [
+        0.5,
+        0.6600009399186624,
+        0.1599999964237213
+      ],
+      "center": [
+        0.0,
+        0.3299962004089747,
+        0.0
+      ],
+      "size": [
+        1.0,
+        0.6600094790193753,
+        0.3199999928474426
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Printer Copier (Pixel Modern Office)",
+    "slug": "pixel-modern-office-printer-copier-61748219",
+    "category": "props",
+    "file": "props/pixel-modern-office-printer-copier-61748219.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-printer-copier-61748219",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-printer-copier-61748219",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.64,
+      0.94,
+      0.64
+    ],
+    "triangles": 72,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.32001709513393284,
+        0,
+        -0.31000702387664403
+      ],
+      "max": [
+        0.32001709513393284,
+        0.9400054894574856,
+        0.3299902388453393
+      ],
+      "center": [
+        0.0,
+        0.4700027447287428,
+        0.009991607484347631
+      ],
+      "size": [
+        0.6400341902678657,
+        0.9400054894574856,
+        0.6399972627219833
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Shredder (Pixel Modern Office)",
+    "slug": "pixel-modern-office-shredder-e1ce86c1",
+    "category": "props",
+    "file": "props/pixel-modern-office-shredder-e1ce86c1.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-shredder-e1ce86c1",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-shredder-e1ce86c1",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.46,
+      0.68,
+      0.49
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.23000000417232513,
+        0,
+        -0.1899902375234939
+      ],
+      "max": [
+        0.23000000417232513,
+        0.6800000071525574,
+        0.30002129494641777
+      ],
+      "center": [
+        0.0,
+        0.3400000035762787,
+        0.05501552871146194
+      ],
+      "size": [
+        0.46000000834465027,
+        0.6800000071525574,
+        0.4900115324699117
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Lockers Bank (Pixel Modern Office)",
+    "slug": "pixel-modern-office-lockers-bank-e9da71eb",
+    "category": "props",
+    "file": "props/pixel-modern-office-lockers-bank-e9da71eb.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-lockers-bank-e9da71eb",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-lockers-bank-e9da71eb",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.26,
+      1.86,
+      0.555
+    ],
+    "triangles": 228,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6300283870593117,
+        0,
+        -0.26000946273765
+      ],
+      "max": [
+        0.6300283870593117,
+        1.8600000143051147,
+        0.29501662865632633
+      ],
+      "center": [
+        0.0,
+        0.9300000071525574,
+        0.017503582959338154
+      ],
+      "size": [
+        1.2600567741186235,
+        1.8600000143051147,
+        0.5550260913939764
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "First Aid Cabinet (Pixel Modern Office)",
+    "slug": "pixel-modern-office-first-aid-cabinet-8ce034a1",
+    "category": "props",
+    "file": "props/pixel-modern-office-first-aid-cabinet-8ce034a1.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-first-aid-cabinet-8ce034a1",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-first-aid-cabinet-8ce034a1",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.4,
+      0.5,
+      0.17
+    ],
+    "triangles": 48,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2000106814783166,
+        0,
+        -0.06998657185583056
+      ],
+      "max": [
+        0.2000106814783166,
+        0.5,
+        0.09999786340628163
+      ],
+      "center": [
+        0.0,
+        0.25,
+        0.015005645775225535
+      ],
+      "size": [
+        0.4000213629566332,
+        0.5,
+        0.16998443526211218
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Fire Extinguisher (Pixel Modern Office)",
+    "slug": "pixel-modern-office-fire-extinguisher-d66bafd8",
+    "category": "props",
+    "file": "props/pixel-modern-office-fire-extinguisher-d66bafd8.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-fire-extinguisher-d66bafd8",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-fire-extinguisher-d66bafd8",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.205,
+      0.7,
+      0.21
+    ],
+    "triangles": 148,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.10501014327447757,
+        0,
+        -0.11500290097207697
+      ],
+      "max": [
+        0.10001014804284915,
+        0.699999988079071,
+        0.09511856278945474
+      ],
+      "center": [
+        -0.002499997615814209,
+        0.3499999940395355,
+        -0.009942169091311112
+      ],
+      "size": [
+        0.2050202913173267,
+        0.699999988079071,
+        0.2101214637615317
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Wall Clock (Pixel Modern Office)",
+    "slug": "pixel-modern-office-wall-clock-3f563fbb",
+    "category": "walls",
+    "file": "walls/pixel-modern-office-wall-clock-3f563fbb.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-wall-clock-3f563fbb",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-wall-clock-3f563fbb",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.34,
+      0.34,
+      0.084
+    ],
+    "triangles": 168,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.17000000178813934,
+        0,
+        -0.024999923911903497
+      ],
+      "max": [
+        0.17000000178813934,
+        0.3400000035762787,
+        0.05870114316928543
+      ],
+      "center": [
+        0.0,
+        0.17000000178813934,
+        0.016850609628690966
+      ],
+      "size": [
+        0.3400000035762787,
+        0.3400000035762787,
+        0.08370106708118893
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Server Rack (Pixel Modern Office)",
+    "slug": "pixel-modern-office-server-rack-477c84f8",
+    "category": "props",
+    "file": "props/pixel-modern-office-server-rack-477c84f8.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-server-rack-477c84f8",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-server-rack-477c84f8",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.62,
+      2,
+      0.955
+    ],
+    "triangles": 600,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3099765007477035,
+        0,
+        -0.4600054933317057
+      ],
+      "max": [
+        0.3099765007477035,
+        2,
+        0.4949925318062369
+      ],
+      "center": [
+        0.0,
+        1,
+        0.01749351923726561
+      ],
+      "size": [
+        0.619953001495407,
+        2,
+        0.9549980251379426
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Network Cabinet (Pixel Modern Office)",
+    "slug": "pixel-modern-office-network-cabinet-743ee964",
+    "category": "props",
+    "file": "props/pixel-modern-office-network-cabinet-743ee964.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-network-cabinet-743ee964",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-network-cabinet-743ee964",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.6,
+      0.66,
+      0.445
+    ],
+    "triangles": 348,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2999881097017604,
+        0,
+        -0.1999920731345069
+      ],
+      "max": [
+        0.2999881097017604,
+        0.6600000262260437,
+        0.24499542180885456
+      ],
+      "center": [
+        0.0,
+        0.33000001311302185,
+        0.02250167433717383
+      ],
+      "size": [
+        0.5999762194035207,
+        0.6600000262260437,
+        0.44498749494336143
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Uninterruptible Power Supply (Pixel Modern Office)",
+    "slug": "pixel-modern-office-ups-unit-0400b8e8",
+    "category": "props",
+    "file": "props/pixel-modern-office-ups-unit-0400b8e8.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-ups-unit-0400b8e8",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-ups-unit-0400b8e8",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.52,
+      0.62,
+      0.58
+    ],
+    "triangles": 108,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2600149465878024,
+        -1.5557759554002404E-05,
+        -0.28999999165534973
+      ],
+      "max": [
+        0.2600149465878024,
+        0.6200000047683716,
+        0.28999999165534973
+      ],
+      "center": [
+        0.0,
+        0.3099922235044088,
+        0.0
+      ],
+      "size": [
+        0.5200298931756048,
+        0.6200155625279256,
+        0.5799999833106995
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Filing Cabinet (Pixel Modern Office)",
+    "slug": "pixel-modern-office-filing-cabinet-681d09a6",
+    "category": "props",
+    "file": "props/pixel-modern-office-filing-cabinet-681d09a6.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-filing-cabinet-681d09a6",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-filing-cabinet-681d09a6",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.52,
+      1.32,
+      0.674
+    ],
+    "triangles": 168,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2599981630780195,
+        -9.155552638147324E-07,
+        -0.3199999928474426
+      ],
+      "max": [
+        0.2599981630780195,
+        1.3200000524520874,
+        0.3537973997197611
+      ],
+      "center": [
+        0.0,
+        0.6599995684484118,
+        0.016898703436159235
+      ],
+      "size": [
+        0.519996326156039,
+        1.3200009680073512,
+        0.6737973925672037
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Bookshelf With Binders (Pixel Modern Office)",
+    "slug": "pixel-modern-office-bookshelf-binders-33ed7a74",
+    "category": "props",
+    "file": "props/pixel-modern-office-bookshelf-binders-33ed7a74.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-bookshelf-binders-33ed7a74",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-bookshelf-binders-33ed7a74",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.92,
+      1.8,
+      0.35
+    ],
+    "triangles": 420,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.46006651816305677,
+        0,
+        -0.18001754618877602
+      ],
+      "max": [
+        0.46006651816305677,
+        1.7999999523162842,
+        0.170017540824358
+      ],
+      "center": [
+        0.0,
+        0.8999999761581421,
+        -0.005000002682209015
+      ],
+      "size": [
+        0.9201330363261135,
+        1.7999999523162842,
+        0.350035087013134
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Storage Cupboard (Pixel Modern Office)",
+    "slug": "pixel-modern-office-storage-cupboard-2b8a3f60",
+    "category": "props",
+    "file": "props/pixel-modern-office-storage-cupboard-2b8a3f60.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-storage-cupboard-2b8a3f60",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-storage-cupboard-2b8a3f60",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.94,
+      1.92,
+      0.565
+    ],
+    "triangles": 72,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4700422681356243,
+        0,
+        -0.2599678709241262
+      ],
+      "max": [
+        0.4700422681356243,
+        1.9199999570846558,
+        0.30496788761342675
+      ],
+      "center": [
+        0.0,
+        0.9599999785423279,
+        0.02250000834465027
+      ],
+      "size": [
+        0.9400845362712485,
+        1.9199999570846558,
+        0.564935758537553
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Cable Spool (Pixel Modern Office)",
+    "slug": "pixel-modern-office-cable-spool-b02ad094",
+    "category": "props",
+    "file": "props/pixel-modern-office-cable-spool-b02ad094.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-cable-spool-b02ad094",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-cable-spool-b02ad094",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.37,
+      0.64,
+      0.64
+    ],
+    "triangles": 336,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.18498610994342657,
+        0,
+        -0.3199999928474426
+      ],
+      "max": [
+        0.18498610994342657,
+        0.6399999856948853,
+        0.3199999928474426
+      ],
+      "center": [
+        0.0,
+        0.3199999928474426,
+        0.0
+      ],
+      "size": [
+        0.36997221988685314,
+        0.6399999856948853,
+        0.6399999856948853
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Tool Crate (Pixel Modern Office)",
+    "slug": "pixel-modern-office-tool-crate-3972f5b1",
+    "category": "props",
+    "file": "props/pixel-modern-office-tool-crate-3972f5b1.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-tool-crate-3972f5b1",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-tool-crate-3972f5b1",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.74,
+      0.52,
+      0.48
+    ],
+    "triangles": 96,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3700000047683716,
+        -2.3199035177140503E-05,
+        -0.23999695124201084
+      ],
+      "max": [
+        0.3700000047683716,
+        0.5200060975159784,
+        0.23999695124201084
+      ],
+      "center": [
+        0.0,
+        0.25999144924040063,
+        0.0
+      ],
+      "size": [
+        0.7400000095367432,
+        0.5200292965511555,
+        0.4799939024840217
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Potted Monstera (Pixel Modern Office)",
+    "slug": "pixel-modern-office-potted-monstera-ccc70f97",
+    "category": "props",
+    "file": "props/pixel-modern-office-potted-monstera-ccc70f97.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-potted-monstera-ccc70f97",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-potted-monstera-ccc70f97",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.79,
+      1.04,
+      0.57
+    ],
+    "triangles": 180,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.38999998569488525,
+        0,
+        -0.31999984082076377
+      ],
+      "max": [
+        0.4000000059604645,
+        1.0400114234585887,
+        0.24999984797332114
+      ],
+      "center": [
+        0.005000010132789612,
+        0.5200057117292943,
+        -0.034999996423721313
+      ],
+      "size": [
+        0.7899999916553497,
+        1.0400114234585887,
+        0.5699996887940849
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Fiddle Leaf Fig (Pixel Modern Office)",
+    "slug": "pixel-modern-office-fiddle-leaf-fig-81705409",
+    "category": "props",
+    "file": "props/pixel-modern-office-fiddle-leaf-fig-81705409.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-fiddle-leaf-fig-81705409",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-fiddle-leaf-fig-81705409",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.76,
+      1.64,
+      0.44
+    ],
+    "triangles": 96,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.3900037869275804,
+        0,
+        -0.2300189146128824
+      ],
+      "max": [
+        0.37000380600106675,
+        1.6399999856948853,
+        0.20999999344348907
+      ],
+      "center": [
+        -0.009999990463256836,
+        0.8199999928474426,
+        -0.010009460584696664
+      ],
+      "size": [
+        0.7600075929286472,
+        1.6399999856948853,
+        0.44001890805637145
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Succulent Set (Pixel Modern Office)",
+    "slug": "pixel-modern-office-succulent-set-f6c58983",
+    "category": "props",
+    "file": "props/pixel-modern-office-succulent-set-f6c58983.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-succulent-set-f6c58983",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-succulent-set-f6c58983",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.44,
+      0.23,
+      0.16
+    ],
+    "triangles": 120,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2199999988079071,
+        1.4190852832374895E-05,
+        -0.08001159660004971
+      ],
+      "max": [
+        0.2199999988079071,
+        0.23000473329971843,
+        0.08001159660004971
+      ],
+      "center": [
+        0.0,
+        0.11500946207627541,
+        0.0
+      ],
+      "size": [
+        0.4399999976158142,
+        0.22999054244688605,
+        0.16002319320009942
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Framed Poster Blue (Pixel Modern Office)",
+    "slug": "pixel-modern-office-framed-poster-blue-1061b395",
+    "category": "props",
+    "file": "props/pixel-modern-office-framed-poster-blue-1061b395.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-framed-poster-blue-1061b395",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-framed-poster-blue-1061b395",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.62,
+      0.86,
+      0.05
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.30999054441839996,
+        0,
+        -0.014986114251659934
+      ],
+      "max": [
+        0.30999054441839996,
+        0.8600000143051147,
+        0.03500015291618389
+      ],
+      "center": [
+        0.0,
+        0.4300000071525574,
+        0.010007019332261979
+      ],
+      "size": [
+        0.6199810888367999,
+        0.8600000143051147,
+        0.04998626716784382
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Framed Poster Coral (Pixel Modern Office)",
+    "slug": "pixel-modern-office-framed-poster-coral-f97a1801",
+    "category": "props",
+    "file": "props/pixel-modern-office-framed-poster-coral-f97a1801.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-framed-poster-coral-f97a1801",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-framed-poster-coral-f97a1801",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.62,
+      0.86,
+      0.05
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.30999054441839996,
+        0,
+        -0.014986114251659934
+      ],
+      "max": [
+        0.30999054441839996,
+        0.8600000143051147,
+        0.03500015291618389
+      ],
+      "center": [
+        0.0,
+        0.4300000071525574,
+        0.010007019332261979
+      ],
+      "size": [
+        0.6199810888367999,
+        0.8600000143051147,
+        0.04998626716784382
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Framed Poster Mustard (Pixel Modern Office)",
+    "slug": "pixel-modern-office-framed-poster-mustard-a3e340a2",
+    "category": "props",
+    "file": "props/pixel-modern-office-framed-poster-mustard-a3e340a2.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-framed-poster-mustard-a3e340a2",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-framed-poster-mustard-a3e340a2",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.62,
+      0.86,
+      0.05
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.30999054441839996,
+        0,
+        -0.014986114251659934
+      ],
+      "max": [
+        0.30999054441839996,
+        0.8600000143051147,
+        0.03500015291618389
+      ],
+      "center": [
+        0.0,
+        0.4300000071525574,
+        0.010007019332261979
+      ],
+      "size": [
+        0.6199810888367999,
+        0.8600000143051147,
+        0.04998626716784382
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Noticeboard (Pixel Modern Office)",
+    "slug": "pixel-modern-office-noticeboard-ee17d271",
+    "category": "props",
+    "file": "props/pixel-modern-office-noticeboard-ee17d271.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-noticeboard-ee17d271",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-noticeboard-ee17d271",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      1.2,
+      0.8,
+      0.07
+    ],
+    "triangles": 72,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.6000000238418579,
+        -2.442474265845762E-05,
+        -0.019995728203232182
+      ],
+      "max": [
+        0.6000000238418579,
+        0.8000244366635874,
+        0.04999526952945803
+      ],
+      "center": [
+        0.0,
+        0.4000000059604645,
+        0.014999770663112923
+      ],
+      "size": [
+        1.2000000476837158,
+        0.8000488614062458,
+        0.06999099773269021
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Floor Lamp (Pixel Modern Office)",
+    "slug": "pixel-modern-office-floor-lamp-34798ca7",
+    "category": "tiles",
+    "file": "tiles/pixel-modern-office-floor-lamp-34798ca7.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-floor-lamp-34798ca7",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-floor-lamp-34798ca7",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.32,
+      1.82,
+      0.32
+    ],
+    "triangles": 76,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.1599999964237213,
+        0,
+        -0.1599999964237213
+      ],
+      "max": [
+        0.1599999964237213,
+        1.8199993936531376,
+        0.1599999964237213
+      ],
+      "center": [
+        0.0,
+        0.9099996968265688,
+        0.0
+      ],
+      "size": [
+        0.3199999928474426,
+        1.8199993936531376,
+        0.3199999928474426
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Pendant Lamp (Pixel Modern Office)",
+    "slug": "pixel-modern-office-pendant-lamp-916e0630",
+    "category": "props",
+    "file": "props/pixel-modern-office-pendant-lamp-916e0630.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-pendant-lamp-916e0630",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-pendant-lamp-916e0630",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.44,
+      0.8,
+      0.44
+    ],
+    "triangles": 48,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2199999988079071,
+        -1.0071480806179978E-05,
+        -0.2199999988079071
+      ],
+      "max": [
+        0.2199999988079071,
+        0.800000011920929,
+        0.2199999988079071
+      ],
+      "center": [
+        0.0,
+        0.39999497022006136,
+        0.0
+      ],
+      "size": [
+        0.4399999976158142,
+        0.8000100834017352,
+        0.4399999976158142
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Rug (Pixel Modern Office)",
+    "slug": "pixel-modern-office-rug-d61e881e",
+    "category": "props",
+    "file": "props/pixel-modern-office-rug-d61e881e.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-rug-d61e881e",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-rug-d61e881e",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      2,
+      0.022,
+      1.3
+    ],
+    "triangles": 60,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -1,
+        2.1363369988418313E-06,
+        -0.6499832148197882
+      ],
+      "max": [
+        1,
+        0.021986663351754344,
+        0.6499832148197882
+      ],
+      "center": [
+        0,
+        0.010994399844376593,
+        0.0
+      ],
+      "size": [
+        2,
+        0.021984527014755503,
+        1.2999664296395763
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Welcome Sign Board (Pixel Modern Office)",
+    "slug": "pixel-modern-office-welcome-sign-board-b9694d88",
+    "category": "props",
+    "file": "props/pixel-modern-office-welcome-sign-board-b9694d88.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-welcome-sign-board-b9694d88",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-welcome-sign-board-b9694d88",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.8,
+      1.56,
+      0.4
+    ],
+    "triangles": 180,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.4000000059604645,
+        0,
+        -0.19996520314526725
+      ],
+      "max": [
+        0.4000000059604645,
+        1.5599831613243693,
+        0.19996520314526725
+      ],
+      "center": [
+        0.0,
+        0.7799915806621847,
+        0.0
+      ],
+      "size": [
+        0.800000011920929,
+        1.5599831613243693,
+        0.3999304062905345
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Coat Stand With Coats (Pixel Modern Office)",
+    "slug": "pixel-modern-office-coat-stand-0d85099b",
+    "category": "props",
+    "file": "props/pixel-modern-office-coat-stand-0d85099b.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-coat-stand-0d85099b",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-coat-stand-0d85099b",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.62,
+      1.75,
+      0.6
+    ],
+    "triangles": 124,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.30998811450679364,
+        0,
+        -0.2999626148258919
+      ],
+      "max": [
+        0.30997862279897515,
+        1.75,
+        0.2999626148258919
+      ],
+      "center": [
+        -4.745853909249309E-06,
+        0.875,
+        0.0
+      ],
+      "size": [
+        0.6199667373057688,
+        1.75,
+        0.5999252296517839
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Umbrella Stand (Pixel Modern Office)",
+    "slug": "pixel-modern-office-umbrella-stand-3b983439",
+    "category": "props",
+    "file": "props/pixel-modern-office-umbrella-stand-3b983439.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-umbrella-stand-3b983439",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-umbrella-stand-3b983439",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.28,
+      1.07,
+      0.28
+    ],
+    "triangles": 96,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.13997482909133802,
+        0,
+        -0.13997482909133802
+      ],
+      "max": [
+        0.13997482909133802,
+        1.0700000524520874,
+        0.13997482909133802
+      ],
+      "center": [
+        0.0,
+        0.5350000262260437,
+        0.0
+      ],
+      "size": [
+        0.27994965818267603,
+        1.0700000524520874,
+        0.27994965818267603
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Dog Bed With Office Dog (Pixel Modern Office)",
+    "slug": "pixel-modern-office-dog-bed-with-dog-00a25675",
+    "category": "props",
+    "file": "props/pixel-modern-office-dog-bed-with-dog-00a25675.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-dog-bed-with-dog-00a25675",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-dog-bed-with-dog-00a25675",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.9,
+      0.54,
+      0.7
+    ],
+    "triangles": 96,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.44999998807907104,
+        1.2818021993044049E-05,
+        -0.35002135368423365
+      ],
+      "max": [
+        0.44999998807907104,
+        0.5400000214576721,
+        0.35002135368423365
+      ],
+      "center": [
+        0.0,
+        0.2700064197398326,
+        0.0
+      ],
+      "size": [
+        0.8999999761581421,
+        0.5399872034356791,
+        0.7000427073684673
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Worker Seated Typing (Pixel Modern Office)",
+    "slug": "pixel-modern-office-worker-seated-typing-46e14e56",
+    "category": "props",
+    "file": "props/pixel-modern-office-worker-seated-typing-46e14e56.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-worker-seated-typing-46e14e56",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-worker-seated-typing-46e14e56",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.56,
+      1.25,
+      0.57
+    ],
+    "triangles": 156,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2800000011920929,
+        0,
+        -0.11000213676399462
+      ],
+      "max": [
+        0.2800000011920929,
+        1.25,
+        0.45998566077089464
+      ],
+      "center": [
+        0.0,
+        0.625,
+        0.17499176200345
+      ],
+      "size": [
+        0.5600000023841858,
+        1.25,
+        0.5699877975348893
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Worker With Coffee (Pixel Modern Office)",
+    "slug": "pixel-modern-office-worker-standing-coffee-54af3b84",
+    "category": "props",
+    "file": "props/pixel-modern-office-worker-standing-coffee-54af3b84.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-worker-standing-coffee-54af3b84",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-worker-standing-coffee-54af3b84",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.56,
+      1.75,
+      0.455
+    ],
+    "triangles": 152,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2800000011920929,
+        0,
+        -0.11000213676399462
+      ],
+      "max": [
+        0.2800000011920929,
+        1.75,
+        0.3450027495380702
+      ],
+      "center": [
+        0.0,
+        0.875,
+        0.11750030638703779
+      ],
+      "size": [
+        0.5600000023841858,
+        1.75,
+        0.4550048863020648
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Worker Presenting (Pixel Modern Office)",
+    "slug": "pixel-modern-office-worker-presenting-d49581b8",
+    "category": "props",
+    "file": "props/pixel-modern-office-worker-presenting-d49581b8.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-worker-presenting-d49581b8",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-worker-presenting-d49581b8",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.631,
+      1.86,
+      0.27
+    ],
+    "triangles": 144,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.28000750206928177,
+        0,
+        -0.11001388741192769
+      ],
+      "max": [
+        0.35120001435279846,
+        1.8600000143051147,
+        0.16001388443169545
+      ],
+      "center": [
+        0.03559625614175835,
+        0.9300000071525574,
+        0.02499999850988388
+      ],
+      "size": [
+        0.6312075164220803,
+        1.8600000143051147,
+        0.27002777184362314
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Worker On The Phone (Pixel Modern Office)",
+    "slug": "pixel-modern-office-worker-on-phone-ce805d25",
+    "category": "props",
+    "file": "props/pixel-modern-office-worker-on-phone-ce805d25.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-worker-on-phone-ce805d25",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-worker-on-phone-ce805d25",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.56,
+      1.75,
+      0.27
+    ],
+    "triangles": 132,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2800000011920929,
+        0,
+        -0.11000213676399462
+      ],
+      "max": [
+        0.2800000011920929,
+        1.7499998203991014,
+        0.16002319496161704
+      ],
+      "center": [
+        0.0,
+        0.8749999101995507,
+        0.025010529098811213
+      ],
+      "size": [
+        0.5600000023841858,
+        1.7499998203991014,
+        0.27002533172561166
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Worker Carrying A Box (Pixel Modern Office)",
+    "slug": "pixel-modern-office-worker-carrying-box-1aabdf40",
+    "category": "props",
+    "file": "props/pixel-modern-office-worker-carrying-box-1aabdf40.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-worker-carrying-box-1aabdf40",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-worker-carrying-box-1aabdf40",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.56,
+      1.75,
+      0.59
+    ],
+    "triangles": 156,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2800000011920929,
+        0,
+        -0.11004913986665116
+      ],
+      "max": [
+        0.2800000011920929,
+        1.75,
+        0.48004912973386155
+      ],
+      "center": [
+        0.0,
+        0.875,
+        0.1849999949336052
+      ],
+      "size": [
+        0.5600000023841858,
+        1.75,
+        0.5900982696005127
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Worker Seated In Meeting (Pixel Modern Office)",
+    "slug": "pixel-modern-office-worker-seated-meeting-8d3ab227",
+    "category": "props",
+    "file": "props/pixel-modern-office-worker-seated-meeting-8d3ab227.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-worker-seated-meeting-8d3ab227",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-worker-seated-meeting-8d3ab227",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      0.56,
+      1.25,
+      0.57
+    ],
+    "triangles": 156,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -0.2800000011920929,
+        0,
+        -0.11000762713201229
+      ],
+      "max": [
+        0.2800000011920929,
+        1.25,
+        0.4599851929698989
+      ],
+      "center": [
+        0.0,
+        0.625,
+        0.17498878291894332
+      ],
+      "size": [
+        0.5600000023841858,
+        1.25,
+        0.5699928201019112
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  },
+  {
+    "title": "Open Plan Office Floor (Pixel Modern Office)",
+    "slug": "pixel-modern-office-open-plan-floor-49d1ec8d-starter-scene",
+    "category": "tiles",
+    "file": "tiles/pixel-modern-office-open-plan-floor-49d1ec8d-starter-scene.glb",
+    "sourceUrl": "https://3dassets.dev/assets/pixel-modern-office-open-plan-floor-49d1ec8d-starter-scene",
+    "directDownloadUrl": "https://3dassets.dev/download/pixel-modern-office-open-plan-floor-49d1ec8d-starter-scene",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attributionRequired": false,
+    "dimensionsMeters": [
+      18.34,
+      2.86,
+      10.2
+    ],
+    "triangles": 12106,
+    "suggestedCollision": {
+      "type": "axis-aligned box from mesh bounds",
+      "min": [
+        -9.170000003576279,
+        -0.06003021399493349,
+        -6.1500259235132475
+      ],
+      "max": [
+        9.170000003576279,
+        2.800040283538439,
+        4.050021353684234
+      ],
+      "center": [
+        0.0,
+        1.3700050347717527,
+        -1.0500022849145068
+      ],
+      "size": [
+        18.340000007152558,
+        2.8600704975333726,
+        10.20004727719748
+      ]
+    },
+    "collisionNote": "Suggested bounds only; source pack does not include authored collision/navigation data. Review/adjust in scene before enabling gameplay collision."
+  }
+]

@@ -1,11 +1,12 @@
 import express from "express";
 import { createServer } from "node:http";
 import { readRoomLayout } from "@gammyverse/shared";
-import { changeAccountPassword, completePasswordReset, createPasswordResetLink, getSession, listAccountsForMaintainer, loginAccount, pruneInactiveAccounts, registerAccount, revokeSession, updateAccountCharacter } from "../auth/service.js";
+import { changeAccountPassword, completePasswordReset, createPasswordResetLink, getSession, listAccountsForMaintainer, loginAccount, pruneInactiveAccounts, registerAccount, revokeSession, updateAccountCharacter, updateAccountNickname } from "../auth/service.js";
 import { deleteUserCharacterModel, getCharacterModel, listUserCharacterModels, uploadUserCharacterModel } from "../auth/characterModels.js";
 import { databaseIsReady, initializeDatabase } from "../infra/db.js";
 import { logServerError, logServerEvent } from "../infra/logger.js";
 import { listOfficeActivity, startOfficeActivityCleanup } from "../offices/activity.js";
+import { MAX_OFFICE_MAP_REQUEST_BYTES, MAX_OFFICE_PROPS_REQUEST_BYTES } from "../offices/limits.js";
 import { acceptOfficeInvite, claimOfficeDeskZone, createOffice, createOfficeInvite, deleteOffice, getOfficeMapLayout, getOfficeMembers, getOfficeProps, getOfficeRole, listInvites, listOffices, OfficeMapVersionConflict, OfficePropsVersionConflict, pruneInactiveOffices, removeOfficeMember, saveOfficeMapLayout, saveOfficeProps, setOfficeMemberRole, unclaimOfficeDeskZone, updateOfficeName } from "../offices/repository.js";
 import { errorMessage, jsonBodyParser, originGuard, requestSession, sessionFromCookie, type HttpRequest as AuthRequest, type HttpResponse as AuthResponse, type Next } from "../http/middleware.js";
 
@@ -49,7 +50,7 @@ function configureApi() {
       app.use(originGuard(clientOrigins, ["/auth", "/offices", "/office-invites", "/maintainer", "/media"], ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]));
       app.use((request: AuthRequest, response: AuthResponse, next: Next) => {
         const isCharacterUpload = isCharacterModelUpload(request);
-        const requestLimit = request.path.endsWith("/map") || request.path.endsWith("/props") ? 512 * 1024 : 8_192;
+        const requestLimit = request.path.endsWith("/props") ? MAX_OFFICE_PROPS_REQUEST_BYTES : request.path.endsWith("/map") ? MAX_OFFICE_MAP_REQUEST_BYTES : 8_192;
         if (!isCharacterUpload && ["/auth", "/offices", "/office-invites", "/maintainer", "/media"].some((path) => request.path.startsWith(path)) && Number(request.headers["content-length"] ?? 0) > requestLimit) {
           response.status(413).json({ error: "Request is too large." });
           return;
@@ -58,7 +59,7 @@ function configureApi() {
       });
       app.use(["/auth", "/offices", "/office-invites", "/maintainer", "/media"], jsonBodyParser({
         methods: ["POST", "PATCH", "PUT"],
-        maxBytes: (request) => request.path.endsWith("/map") || request.path.endsWith("/props") ? 512 * 1024 : 8_192,
+        maxBytes: (request) => request.path.endsWith("/props") ? MAX_OFFICE_PROPS_REQUEST_BYTES : request.path.endsWith("/map") ? MAX_OFFICE_MAP_REQUEST_BYTES : 8_192,
         // Express trims the mounted `/auth` prefix from `request.path` inside this middleware.
         skip: (request) => request.method === "POST" && ["/models", "/auth/models"].includes(request.path.replace(/\/+$/, "")),
       }));
@@ -126,6 +127,18 @@ function configureApi() {
         } catch (error) {
           console.error("Could not save account character.", error);
           response.status(500).json({ error: "Could not save your character." });
+        }
+      });
+      app.patch("/auth/nickname", async (request: AuthRequest, response: AuthResponse) => {
+        const session = await requestSession(request);
+        if (!session) { response.status(401).json({ error: "Authentication required." }); return; }
+        try {
+          const result = await updateAccountNickname(session.username, request.body?.nickname);
+          if ("error" in result) response.status(400).json(result);
+          else response.json(result);
+        } catch (error) {
+          console.error("Could not save account nickname.", error);
+          response.status(500).json({ error: "Could not save your nickname." });
         }
       });
       app.get("/auth/models", async (request: AuthRequest, response: AuthResponse) => {
