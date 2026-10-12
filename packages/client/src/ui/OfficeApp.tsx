@@ -1,14 +1,6 @@
 import { Client, type Room } from "@colyseus/sdk";
-import { CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, screenMovementToWorld, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
+import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, screenMovementToWorld, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
 
-const ROOM_WALL_OPTIONS = ROOM_WALL_MODEL_ASSETS.map((asset) => ROOM_PROP_CATALOG.find((item) => item.asset === asset)).filter((item): item is (typeof ROOM_PROP_CATALOG)[number] => item !== undefined);
-const ROOM_WALL_OPTION_GROUPS = ROOM_WALL_OPTIONS.reduce<Array<{ label: string; items: typeof ROOM_WALL_OPTIONS }>>((groups, item) => {
-  const label = item.group ?? "Other walls";
-  const group = groups.find((candidate) => candidate.label === label);
-  if (group) group.items.push(item);
-  else groups.push({ label, items: [item] });
-  return groups;
-}, []);
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance } from "livekit-client";
@@ -20,6 +12,16 @@ import { ModifyPropsEditor } from "./ModifyPropsEditor";
 import { PageTutorial } from "./PageTutorial";
 import { playSocialNotificationSound, unlockSocialNotificationAudio } from "../audio/notificationSounds";
 import { setNoiseReduction, type NoiseReductionResult } from "../audio/noiseReduction";
+import { DROP_EVENT_LABEL, LEAVE_EVENT_LABEL, CONSENTED_CLOSE_CODE, FRESH_JOIN_DELAY_MS, FRESH_JOIN_MAX_DELAY_MS, FRESH_JOIN_MAX_RETRIES_COUNT, RECONNECT_INITIAL_DELAY_MS, REMOVED_CLOSE_CODE, RETRY_BACKOFF_MULTIPLIER, installOfficeReconnection, shouldFreshJoin } from "./connection/officeReconnection";
+
+const ROOM_WALL_OPTIONS = ROOM_WALL_MODEL_ASSETS.map((asset) => ROOM_PROP_CATALOG.find((item) => item.asset === asset)).filter((item): item is (typeof ROOM_PROP_CATALOG)[number] => item !== undefined);
+const ROOM_WALL_OPTION_GROUPS = ROOM_WALL_OPTIONS.reduce<Array<{ label: string; items: typeof ROOM_WALL_OPTIONS }>>((groups, item) => {
+  const label = item.group ?? "Other walls";
+  const group = groups.find((candidate) => candidate.label === label);
+  if (group) group.items.push(item);
+  else groups.push({ label, items: [item] });
+  return groups;
+}, []);
 
 type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 type CharacterSelectionId = KenneyCharacterId | `custom-${string}`;
@@ -271,6 +273,7 @@ export function OfficeApp() {
   const blasterEventsRef = useRef<BlasterShotEvent[]>([]);
   const localSessionIdRef = useRef<string | null>(null);
   const cameraYawRef = useRef(DEFAULT_CAMERA_YAW);
+  const firstPersonViewRef = useRef(false);
   const peopleSignatureRef = useRef("");
   const nearbySessionIdsRef = useRef(new Set<string>());
   const proximityGroupIdRef = useRef<string | null>(null);
@@ -288,6 +291,17 @@ export function OfficeApp() {
   const [officeListVerified, setOfficeListVerified] = useState(false);
   const [invites, setInvites] = useState<OfficeInvite[]>([]);
   const [activeOffice, setActiveOffice] = useState<Office | null>(null);
+  const activeOfficeRef = useRef(activeOffice);
+  activeOfficeRef.current = activeOffice;
+  const connectionUsername = authUser?.username;
+  const connectionOfficeId = activeOffice?.id;
+  const inputSendGateRef = useRef(new InputSendGate());
+  const sendMovementInput = (input: MovementInput) => {
+    const room = roomRef.current;
+    if (!room?.connection.isOpen || reconnectingRef.current) return;
+    const next = inputSendGateRef.current.take(input, performance.now());
+    if (next) room.send("input", next);
+  };
   const [blasterHitNotice, setBlasterHitNotice] = useState<number | null>(null);
   const blasterHitSequenceRef = useRef(0);
   const [officeName, setOfficeName] = useState("");
@@ -1109,7 +1123,7 @@ const toggleMeetingMute = async () => {
       window.history.pushState({ officeId: office.id }, "", `/office/${office.id}`);
     }
     setRoutePath(window.location.pathname);
-    setActiveOffice(office);
+    setActiveOffice((current) => current?.id === office.id ? current : office);
   };
 
   const closeMapEditMode = () => {
@@ -1272,7 +1286,7 @@ const toggleMeetingMute = async () => {
   useEffect(() => {
     if (!appPaused) return;
     heldKeysRef.current.clear();
-    roomRef.current?.send("input", { x: 0, z: 0, sprint: false });
+    sendMovementInput({ x: 0, z: 0, sprint: false });
     roomRef.current?.send("auto-move-cancel", {});
     roomRef.current?.send("follow-stop", {});
     setVideoPopupOpen(false);
@@ -1318,7 +1332,7 @@ const toggleMeetingMute = async () => {
   };
 
   useEffect(() => {
-    if (!authReady || !authUser) return;
+    if (!authReady || !connectionUsername) return;
     let disposed = false;
     const load = async () => {
       setLobbyBusy(true);
@@ -1381,7 +1395,7 @@ const toggleMeetingMute = async () => {
     };
     void load();
     return () => { disposed = true; };
-  }, [authReady, authUser]);
+  }, [authReady, connectionUsername]);
 
   useEffect(() => {
     if (!authUser || authUser.role !== "maintainer") return;
@@ -1551,7 +1565,7 @@ const toggleMeetingMute = async () => {
       setMapConflictLatest(null);
       setMapEditMode(true);
       heldKeysRef.current.clear();
-      roomRef.current?.send("input", { x: 0, z: 0, sprint: false });
+      sendMovementInput({ x: 0, z: 0, sprint: false });
       setWorkspacePanelOpen(false);
       setCharacterPanelOpen(false);
     } catch (cause) {
@@ -2025,18 +2039,19 @@ const toggleMeetingMute = async () => {
   };
 
   useEffect(() => {
-    if (!authReady || !authUser || !activeOffice) return;
+    if (!authReady || !connectionUsername || !connectionOfficeId) return;
     let disposed = false;
     let inputTimer: number | undefined;
     let rejoinTimer: number | undefined;
+    let disposeReconnection: (() => void) | undefined;
     const sendHeldMovement = () => {
       const room = roomRef.current;
       if (!room) return;
-      if (appPausedRef.current || mapEditModeRef.current || modifyPropsOpenRef.current) { room.send("input", { x: 0, z: 0, sprint: false }); return; }
+      if (appPausedRef.current || mapEditModeRef.current || modifyPropsOpenRef.current) { sendMovementInput({ x: 0, z: 0, sprint: false }); return; }
       const heldKeys = heldKeysRef.current;
       const right = Number(heldKeys.has("KeyD") || heldKeys.has("ArrowRight")) - Number(heldKeys.has("KeyA") || heldKeys.has("ArrowLeft"));
       const forward = Number(heldKeys.has("KeyW") || heldKeys.has("ArrowUp")) - Number(heldKeys.has("KeyS") || heldKeys.has("ArrowDown"));
-      room.send("input", { ...screenMovementToWorld({ x: right, z: forward }, cameraYawRef.current), sprint: heldKeys.has("ShiftLeft") || heldKeys.has("ShiftRight") });
+      sendMovementInput({ ...screenMovementToWorld({ x: right, z: forward }, cameraYawRef.current), sprint: heldKeys.has("ShiftLeft") || heldKeys.has("ShiftRight"), facingYaw: firstPersonViewRef.current ? cameraYawRef.current + Math.PI : undefined });
     };
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
@@ -2050,7 +2065,7 @@ const toggleMeetingMute = async () => {
       if (movementKeys.includes(event.code)) {
         heldKeysRef.current.add(event.code);
         event.preventDefault();
-        // Send once immediately, then let the 50 ms heartbeat carry held input.
+        // Coalesce immediate changes with the heartbeat through the same send gate.
         // Browser key-repeat events are not useful movement updates and can
         // exceed Colyseus' inbound message limit while a key is held.
         if (!event.repeat) sendHeldMovement();
@@ -2060,7 +2075,7 @@ const toggleMeetingMute = async () => {
       if (!heldKeysRef.current.delete(event.code)) return;
       sendHeldMovement();
     };
-    const onBlur = () => { heldKeysRef.current.clear(); };
+    const onBlur = () => { heldKeysRef.current.clear(); sendHeldMovement(); };
     // Capture movement keys before buttons or other UI elements can consume
     // them, so WASD continues to drive while the world or HUD has focus.
     window.addEventListener("keydown", onKeyDown, true);
@@ -2070,26 +2085,23 @@ const toggleMeetingMute = async () => {
     const connect = async () => {
       try {
         intentionalLeaveRef.current = false;
-        const room = await client.joinOrCreate<OfficeStateType>("office", { officeId: activeOffice.id }, OfficeState);
+        const room = await client.joinOrCreate<OfficeStateType>("office", { officeId: connectionOfficeId }, OfficeState);
         if (disposed) {
           await room.leave();
           return;
         }
         roomRef.current = room;
+        reconnectingRef.current = false;
+        inputSendGateRef.current = new InputSendGate();
+        disposeReconnection = installOfficeReconnection(room);
         localSessionIdRef.current = room.sessionId;
         blasterEventsRef.current.length = 0;
         room.send("weapon-equip", "");
-        const storedPet = window.localStorage.getItem(`gammyverse.pet.${authUser?.username ?? ""}`) ?? "";
+        const storedPet = window.localStorage.getItem(`gammyverse.pet.${connectionUsername}`) ?? "";
         room.send("pet", KENNEY_PET_IDS.includes(storedPet as KenneyPetId) ? storedPet : "");
-        window.localStorage.removeItem(`gammyverse.vehicle.${authUser?.username ?? ""}`);
+        window.localStorage.removeItem(`gammyverse.vehicle.${connectionUsername}`);
         autoRejoiningRef.current = false;
         autoRejoinAttemptsRef.current = 0;
-        room.reconnection.enabled = true;
-        room.reconnection.maxRetries = 6;
-        room.reconnection.delay = 250;
-        room.reconnection.minDelay = 250;
-        room.reconnection.maxDelay = 3_000;
-        room.reconnection.minUptime = 0;
         setStatus("connected");
         setError(null);
 
@@ -2236,7 +2248,7 @@ const toggleMeetingMute = async () => {
           setMapEditLockRequestPending(false);
           if (typeof payload !== "object" || payload === null || !("granted" in payload)) return;
           if (payload.granted === true) {
-            if (activeOffice) void loadMapForEditing(activeOffice);
+            if (activeOfficeRef.current) void loadMapForEditing(activeOfficeRef.current);
             else room.send("map-edit-lock", { active: false });
             return;
           }
@@ -2300,8 +2312,8 @@ const toggleMeetingMute = async () => {
           if (typeof payload !== "object" || payload === null || !("status" in payload) || typeof payload.status !== "string") return;
           if (userStatusRef.current === "toilet" && (payload.status === "unreachable" || payload.status === "blocked")) setStatusTravelError("Could not reach the restroom. Check that its entrance is open and the route is walkable.");
           if (payload.status === "cancelled") { setAutoMoveNotice(null); return; }
-          if (payload.status === "arrived" && authUser?.username) {
-            window.localStorage.removeItem(`gammyverse.vehicle.${authUser.username}`);
+          if (payload.status === "arrived" && connectionUsername) {
+            window.localStorage.removeItem(`gammyverse.vehicle.${connectionUsername}`);
           }
           let message = payload.status === "started" ? "Moving automatically" : payload.status === "arrived" ? "Arrived" : "Can't reach that spot";
           if (payload.status === "started" && "randomVehicle" in payload && payload.randomVehicle === true && "vehicleId" in payload && typeof payload.vehicleId === "string" && KENNEY_VEHICLE_IDS.includes(payload.vehicleId as KenneyVehicleId)) {
@@ -2312,13 +2324,15 @@ const toggleMeetingMute = async () => {
           autoMoveNoticeTimerRef.current = window.setTimeout(() => setAutoMoveNotice(null), payload.status === "started" ? 2600 : 1800);
         });
         room.onMessage("vehicle-exited", () => {
-          if (authUser?.username) window.localStorage.removeItem(`gammyverse.vehicle.${authUser.username}`);
+          if (connectionUsername) window.localStorage.removeItem(`gammyverse.vehicle.${connectionUsername}`);
         });
         room.onStateChange(applyState);
         if (room.state) applyState(room.state);
         room.send("request-spatial-state");
 
-        room.onDrop(() => {
+        room.onDrop((code, reason) => {
+          console.info(DROP_EVENT_LABEL, { roomId: room.roomId, sessionId: room.sessionId, code, reason });
+          if (disposed) return;
           reconnectingRef.current = true;
           meetingZoneActiveRef.current = false;
           privateZoneIdRef.current = null;
@@ -2329,36 +2343,35 @@ const toggleMeetingMute = async () => {
           setMeetingZoneActive(false);
           proximityGroupIdRef.current = null;
           setProximityGroupId(null);
-          if (!disposed) {
-            setStatus("reconnecting");
-            setError(null);
-          }
+          setStatus("reconnecting");
+          setError(null);
         });
         room.onReconnect(() => {
+          if (disposed) return;
           reconnectingRef.current = false;
-          if (!disposed) {
-            setStatus("connected");
-            setError(null);
-          }
+          inputSendGateRef.current = new InputSendGate();
+          room.send("request-spatial-state");
+          setStatus("connected");
+          setError(null);
         });
         room.onLeave((code, reason) => {
-          const shouldRejoin = reconnectingRef.current && !intentionalLeaveRef.current && !disposed;
+          console.info(LEAVE_EVENT_LABEL, { roomId: room.roomId, sessionId: room.sessionId, code, reason });
+          if (disposed) return;
+          const shouldRejoin = shouldFreshJoin(code, reconnectingRef.current) && !intentionalLeaveRef.current;
           reconnectingRef.current = false;
           meetingZoneActiveRef.current = false;
           privateZoneIdRef.current = null;
           setPrivateZoneId(null);
           autoRejoiningRef.current = shouldRejoin;
           autoRejoinAttemptsRef.current = 0;
-          if (code === 4004) clearSelectedOffice();
-          if (!disposed) {
-            setStatus(code === 4004 ? "connected" : shouldRejoin ? "reconnecting" : "disconnected");
-            setError(code === 4004 ? null : reason ?? null);
-            setPeople([]);
-            setPlayerCount(0);
-            setFollowingSessionId(null);
-            setFollowAlerts([]);
-            setWaveAlerts([]);
-          }
+          if (code === REMOVED_CLOSE_CODE) clearSelectedOffice();
+          setStatus(code === REMOVED_CLOSE_CODE ? "connected" : shouldRejoin ? "reconnecting" : "disconnected");
+          setError(code === REMOVED_CLOSE_CODE ? null : reason ?? null);
+          setPeople([]);
+          setPlayerCount(0);
+          setFollowingSessionId(null);
+          setFollowAlerts([]);
+          setWaveAlerts([]);
           playersRef.current.clear();
           nearbySessionIdsRef.current.clear();
           setMeetingZoneActive(false);
@@ -2371,7 +2384,7 @@ const toggleMeetingMute = async () => {
           if (shouldRejoin) {
             rejoinTimer = window.setTimeout(() => {
               if (!disposed) setConnectionAttempt((attempt) => attempt + 1);
-            }, 1_000);
+            }, FRESH_JOIN_DELAY_MS);
           }
         });
         room.onError((_code, message) => {
@@ -2380,15 +2393,15 @@ const toggleMeetingMute = async () => {
               returnToSignIn();
               return;
             }
-            setStatus("error");
-            setError(message || "Realtime connection failed.");
+            setStatus(reconnectingRef.current ? "reconnecting" : "error");
+            setError(reconnectingRef.current ? null : message || "Realtime connection failed.");
           }
         });
 
         inputTimer = window.setInterval(() => {
           if (roomRef.current !== room) return;
           sendHeldMovement();
-        }, 50);
+        }, INPUT_HEARTBEAT_INTERVAL_MS);
       } catch (cause) {
         if (!disposed) {
           const reason = cause instanceof Error ? cause.message : String(cause);
@@ -2396,11 +2409,11 @@ const toggleMeetingMute = async () => {
             returnToSignIn();
             return;
           }
-          if (autoRejoiningRef.current && autoRejoinAttemptsRef.current < 5) {
+          if (autoRejoiningRef.current && autoRejoinAttemptsRef.current < FRESH_JOIN_MAX_RETRIES_COUNT) {
             autoRejoinAttemptsRef.current += 1;
             setStatus("reconnecting");
             setError(null);
-            const delay = Math.min(4_000, 250 * 2 ** (autoRejoinAttemptsRef.current - 1));
+            const delay = Math.min(FRESH_JOIN_MAX_DELAY_MS, RECONNECT_INITIAL_DELAY_MS * RETRY_BACKOFF_MULTIPLIER ** (autoRejoinAttemptsRef.current - 1));
             rejoinTimer = window.setTimeout(() => {
               if (!disposed) setConnectionAttempt((attempt) => attempt + 1);
             }, delay);
@@ -2416,6 +2429,7 @@ const toggleMeetingMute = async () => {
     void connect();
     return () => {
       disposed = true;
+      disposeReconnection?.();
       if (inputTimer !== undefined) window.clearInterval(inputTimer);
       if (rejoinTimer !== undefined) window.clearTimeout(rejoinTimer);
       window.removeEventListener("keydown", onKeyDown, true);
@@ -2423,9 +2437,11 @@ const toggleMeetingMute = async () => {
       window.removeEventListener("blur", onBlur);
       const room = roomRef.current;
       roomRef.current = null;
-      if (room) void room.leave();
+      if (room?.connection.isOpen) void room.leave();
+      else room?.onLeave.invoke(CONSENTED_CLOSE_CODE);
+      reconnectingRef.current = false;
     };
-  }, [client, connectionAttempt, authReady, authUser, activeOffice]);
+  }, [client, connectionAttempt, authReady, connectionUsername, connectionOfficeId]);
 
   if (!authReady) {
     return <FullScreenLoading label="Loading your account…" />;
@@ -2621,7 +2637,7 @@ const toggleMeetingMute = async () => {
   return (
     <main className={`app-shell${characterPanelOpen ? " character-panel-open" : ""}`}>
       <PageTutorial page={meetingEntry ? "meeting" : "office"} username={authUser.username} />
-      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused} idleAnimationsEnabled={idleAnimationsEnabled} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} />
+      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} firstPersonViewRef={firstPersonViewRef} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused} idleAnimationsEnabled={idleAnimationsEnabled} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} />
       {blasterHitNotice !== null && <div className="blaster-hit-feedback" key={blasterHitNotice} aria-hidden="true" />}
       <header className="topbar">
         <div className="topbar-side topbar-side-left">

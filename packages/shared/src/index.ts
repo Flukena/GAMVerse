@@ -1,14 +1,22 @@
+import { roomBoundaryWalls, roomWallSolidSegments } from "./roomWallSegments.js";
+import type { MovementInput } from "./inputDelivery.js";
 import { schema, t } from "@colyseus/schema";
 import { CAMPUS_LAYOUT, campusPropPlacements } from "./campusLayout.js";
 import { readRoomLayout, roomPropCollisionClearanceRadius, roomPropCollisionFootprint } from "./roomLayout.js";
 import type { RoomLayout } from "./roomLayout.js";
 
+export { roomBoundaryWalls, roomWallSolidSegments } from "./roomWallSegments.js";
 export { CAMPUS_COUNTS, CAMPUS_LAYOUT, campusPropPlacements, legacyPortalToCampus } from "./campusLayout.js";
 export type { CampusPropPlacement, CampusRoom, CampusRoomKind } from "./campusLayout.js";
 export { ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, parseRoomPropSeatReference, readRoomLayout, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropPlacementSupport, roomPropSeatAnchors, roomPropSeatReference, type RoomLayoutRoadway, type RoomPropSeatAnchor } from "./roomLayout.js";
 export { generateCampusMap, type CampusMapGeneratorInputs, type GeneratedCampusMap } from "./campusMapGenerator.js";
 export type { RoomPropDefinition } from "./roomLayout.js";
 export type { OfficePropsSnapshot, RoomLayout, RoomLayoutDoor, RoomLayoutProp, RoomLayoutWall, RoomLayoutZone } from "./roomLayout.js";
+
+export { INPUT_MIN_INTERVAL_MS, INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, RECONNECTION_SEAT_TIMEOUT_SECONDS } from "./inputDelivery.js";
+export type { MovementInput } from "./inputDelivery.js";
+export { FULL_TURN_RAD, shortestAngleDelta, lerpAngle } from "./angles.js";
+export { resolvePlayerFacing } from "./playerFacing.js";
 
 export const KENNEY_CHARACTER_IDS = [
   "character-female-a", "character-female-b", "character-female-c", "character-female-d", "character-female-e", "character-female-f",
@@ -121,12 +129,7 @@ const roomWalls: Blocker[] = CAMPUS_LAYOUT.rooms.flatMap((room) => {
     ] : []),
   ];
 });
-const outerWalls: Blocker[] = [
-  { x: 0, z: -CAMPUS_FLOOR.depth / 2, width: CAMPUS_FLOOR.width, depth: 0.3 },
-  { x: 0, z: CAMPUS_FLOOR.depth / 2, width: CAMPUS_FLOOR.width, depth: 0.3 },
-  { x: -CAMPUS_FLOOR.width / 2, z: 0, width: 0.3, depth: CAMPUS_FLOOR.depth },
-  { x: CAMPUS_FLOOR.width / 2, z: 0, width: 0.3, depth: CAMPUS_FLOOR.depth },
-];
+const outerWalls: Blocker[] = roomBoundaryWalls(CAMPUS_FLOOR.width, CAMPUS_FLOOR.depth);
 const campusFurnitureBlockers: Blocker[] = [];
 for (const room of CAMPUS_LAYOUT.rooms) {
   if (room.kind === "townhall") {
@@ -234,27 +237,12 @@ export function campusWorldFromConfig(
     };
   });
   const mapWalls: Blocker[] = layout.walls.flatMap((wall) => {
-    const gaps = layout.doors.filter((door) => door.wallId === wall.id)
-      .map((door) => ({ start: Math.max(-wall.length / 2, door.offset - door.width / 2), end: Math.min(wall.length / 2, door.offset + door.width / 2) }))
-      .filter((gap) => gap.end > gap.start)
-      .sort((a, b) => a.start - b.start);
-    const segments: Array<{ start: number; end: number }> = [];
-    let cursor = -wall.length / 2;
-    for (const gap of gaps) {
-      if (gap.start > cursor) segments.push({ start: cursor, end: gap.start });
-      cursor = Math.max(cursor, gap.end);
-    }
-    if (cursor < wall.length / 2) segments.push({ start: cursor, end: wall.length / 2 });
+    const segments = roomWallSolidSegments(wall, layout.doors);
     return segments.map(({ start, end }) => wall.axis === "horizontal"
       ? { x: wall.x + (start + end) / 2, z: wall.z, width: end - start, depth: wall.thickness }
       : { x: wall.x, z: wall.z + (start + end) / 2, width: wall.thickness, depth: end - start });
   });
-  const boundaryWalls: Blocker[] = [
-    { x: 0, z: -depth / 2, width, depth: 0.3 },
-    { x: 0, z: depth / 2, width, depth: 0.3 },
-    { x: -width / 2, z: 0, width: 0.3, depth },
-    { x: width / 2, z: 0, width: 0.3, depth },
-  ];
+  const boundaryWalls: Blocker[] = roomBoundaryWalls(width, depth);
   // An office's saved map is the source of truth for its furniture collision.
   // CAMPUS_WORLD.obstacles belong to the legacy built-in campus scene; carrying
   // those blockers into a custom office map creates invisible furniture around
@@ -327,12 +315,6 @@ export const OfficeState = schema(
 
 export type PlayerState = InstanceType<typeof PlayerState>;
 export type OfficeState = InstanceType<typeof OfficeState>;
-
-export interface MovementInput {
-  x: number;
-  z: number;
-  sprint?: boolean;
-}
 
 /** Converts screen-relative input (right and forward) into world-relative movement. */
 export function screenMovementToWorld(input: MovementInput, cameraYaw: number): MovementInput {
@@ -511,7 +493,8 @@ export function isValidMovementInput(value: unknown): value is MovementInput {
     Number.isFinite(input.z) &&
     Math.abs(input.x) <= 1 &&
     Math.abs(input.z) <= 1 &&
-    (input.sprint === undefined || typeof input.sprint === "boolean")
+    (input.sprint === undefined || typeof input.sprint === "boolean") &&
+    (input.facingYaw === undefined || (typeof input.facingYaw === "number" && Number.isFinite(input.facingYaw)))
   );
 }
 

@@ -1,6 +1,6 @@
 import { defineRoom, Room, type AuthContext, type Client } from "@colyseus/core";
 import { createHash } from "node:crypto";
-import { CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidMovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
+import { INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidMovementInput, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
 import { getSession, markUserActive } from "../auth/service.js";
 import { isCustomCharacterId, userOwnsCharacterModel } from "../auth/characterModels.js";
 import { getOfficeRole, markOfficeActive } from "./repository.js";
@@ -9,7 +9,20 @@ import { recordOfficeActivity } from "./activity.js";
 import { database } from "../infra/db.js";
 import { logServerError, logServerEvent } from "../infra/logger.js";
 
-type InputState = { x: number; z: number; sprint: boolean; receivedAt: number };
+// At most ceil(1000 / 30) = 34 input messages/s. Allow a three-second
+// buffered movement burst (102) plus 26 control/handshake messages.
+const OFFICE_MAX_MESSAGES_PER_SECOND_COUNT = 128;
+const INITIAL_MESSAGE_COUNT = 0;
+const REPLACED_SESSION_CLOSE_CODE = 4001;
+const REPLACED_SESSION_REASON = "This account connected from another session.";
+
+type DropDiagnosticClient = Client & {
+  _numMessagesLastSecond?: number;
+  _messageCountResetsAt?: number;
+  _lastMessageTime?: number;
+};
+
+type InputState = MovementInput & { sprint: boolean; receivedAt: number };
 type Position = { x: number; z: number };
 type AutoRoute = { points: Position[]; index: number; stalledTicks: number; followTargetSessionId?: string; sitOnArrivalPropId?: string; sitOnArrivalZoneId?: string; destination?: Position; fastWalkFallback?: boolean };
 
@@ -70,6 +83,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   private mediaIdentityBySessionId = new Map<string, string>();
   private activeClientByUsername = new Map<string, string>();
   private officeRolesBySessionId = new Map<string, string>();
+  private pendingReconnectionsBySessionId = new Map<string, ReturnType<OfficeRoom["allowReconnection"]>>();
   private mapEditorSessionId: string | null = null;
   private mapEditorUsername: string | null = null;
 
@@ -101,7 +115,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     if (!Number.isInteger(maxClients) || maxClients < 1) throw new Error("ROOM_MAX_CLIENTS must be a positive integer.");
     this.maxClients = maxClients;
     this.patchRate = 50;
-    this.maxMessagesPerSecond = 40;
+    this.maxMessagesPerSecond = OFFICE_MAX_MESSAGES_PER_SECOND_COUNT;
     logServerEvent("realtime", "office.room.created", { roomId: this.roomId, officeId: this.officeId, maxClients });
 
     this.onMessage("request-spatial-state", (client: Client) => {
@@ -457,7 +471,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.onMessage("input", (client: Client, payload: unknown) => {
       const now = performance.now();
       const lastPacket = this.lastPacketAt.get(client.sessionId) ?? 0;
-      if (now - lastPacket < 30) return;
+      if (now - lastPacket < INPUT_MIN_INTERVAL_MS) return;
       this.lastPacketAt.set(client.sessionId, now);
 
       if (!isValidMovementInput(payload)) return;
@@ -466,7 +480,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: now });
         return;
       }
-      this.movementInputs.set(client.sessionId, { x: payload.x, z: payload.z, sprint: payload.sprint === true, receivedAt: now });
+      this.movementInputs.set(client.sessionId, { x: payload.x, z: payload.z, sprint: payload.sprint === true, facingYaw: payload.facingYaw, receivedAt: now });
       if (payload.x !== 0 || payload.z !== 0) {
         const player = this.state.players.get(client.sessionId);
         if (player) {
@@ -516,27 +530,33 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       ...[...this.activeClientByUsername.entries()].filter(([username]) => username === session.username).map(([, sessionId]) => sessionId),
       ...[...this.state.players.entries()].filter(([sessionId, player]) => sessionId !== client.sessionId && player.displayName === session.username).map(([sessionId]) => sessionId),
     ]);
-    for (const existingSessionId of existingSessionIds) {
-      if (existingSessionId === client.sessionId) continue;
-      logServerEvent("realtime", "office.session.replaced", { roomId: this.roomId, officeId: options.officeId, username: session.username, replacedSessionId: existingSessionId, replacementSessionId: client.sessionId });
-      this.clients.find((existing) => existing.sessionId === existingSessionId)?.leave(4001, "This account connected from another session.");
-      this.state.players.delete(existingSessionId);
-      this.vehicleWorldsBySessionId.delete(existingSessionId);
-      this.refreshVehicleCollisionWorlds();
-      this.usernamesBySessionId.delete(existingSessionId);
-      this.officeRolesBySessionId.delete(existingSessionId);
-      this.movementInputs.delete(existingSessionId);
-      this.autoRoutes.delete(existingSessionId);
-      this.pendingSitsBySessionId.delete(existingSessionId);
-      this.proximityBySessionId.delete(existingSessionId);
-      this.proximityGroupBySessionId.delete(existingSessionId);
-      this.meetingMembersBySessionId.delete(existingSessionId);
-      this.privateZoneIdBySessionId.delete(existingSessionId);
-      this.mediaZoneBySessionId.delete(existingSessionId);
-      this.mediaIdentityBySessionId.delete(existingSessionId);
-    }
     this.activeClientByUsername.set(session.username, client.sessionId);
+    for (const existingSessionId of existingSessionIds) {
+      if (existingSessionId !== client.sessionId) this.replaceSession(existingSessionId, client, session.username);
+    }
     return { ...session, officeId: options.officeId, roomKey: "lobby", officeRole: role, mediaIdentity: identity };
+  }
+
+  private replaceSession(existingSessionId: string, client: Client, username: string) {
+    // Invalidate the reserved token before removing its player. Core owns the
+    // seat cleanup; a late resume must not resurrect the replaced session.
+    this.pendingReconnectionsBySessionId.get(existingSessionId)?.reject(new Error(REPLACED_SESSION_REASON));
+    logServerEvent("realtime", "office.session.replaced", { roomId: this.roomId, officeId: this.officeId, username, replacedSessionId: existingSessionId, replacementSessionId: client.sessionId });
+    this.clients.find((existing) => existing.sessionId === existingSessionId)?.leave(REPLACED_SESSION_CLOSE_CODE, REPLACED_SESSION_REASON);
+    this.state.players.delete(existingSessionId);
+    this.vehicleWorldsBySessionId.delete(existingSessionId);
+    this.refreshVehicleCollisionWorlds();
+    this.usernamesBySessionId.delete(existingSessionId);
+    this.officeRolesBySessionId.delete(existingSessionId);
+    this.movementInputs.delete(existingSessionId);
+    this.autoRoutes.delete(existingSessionId);
+    this.pendingSitsBySessionId.delete(existingSessionId);
+    this.proximityBySessionId.delete(existingSessionId);
+    this.proximityGroupBySessionId.delete(existingSessionId);
+    this.meetingMembersBySessionId.delete(existingSessionId);
+    this.privateZoneIdBySessionId.delete(existingSessionId);
+    this.mediaZoneBySessionId.delete(existingSessionId);
+    this.mediaIdentityBySessionId.delete(existingSessionId);
   }
 
   onJoin(client: Client, _options: unknown, auth: { username: string; mediaIdentity: string; characterId: string | null; officeRole: string }) {
@@ -581,9 +601,15 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     logServerEvent("realtime", "office.client.joined", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: auth.username, clientCount: this.clients.length });
   }
 
-  onDrop(client: Client, code?: number) {
+  onDrop(client: DropDiagnosticClient, code?: number) {
     const player = this.state.players.get(client.sessionId);
-    logServerEvent("realtime", "office.client.dropped", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: this.usernamesBySessionId.get(client.sessionId), code, clientCount: this.clients.length });
+    logServerEvent("realtime", "office.client.dropped", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: this.usernamesBySessionId.get(client.sessionId), code, clientCount: this.clients.length,
+      messageCount: client._numMessagesLastSecond, messageCountResetsAtMs: client._messageCountResetsAt,
+      lastMessageTimeMs: client._lastMessageTime, roomClockTimeMs: this.clock.currentTime, roomClockDeltaMs: this.clock.deltaTime,
+      messageLimitPerSecond: this.maxMessagesPerSecond,
+      rateLimitExceeded: (client._numMessagesLastSecond ?? INITIAL_MESSAGE_COUNT) > this.maxMessagesPerSecond });
+    const username = this.usernamesBySessionId.get(client.sessionId);
+    if (!username || this.activeClientByUsername.get(username) !== client.sessionId) return;
     if (player) player.presence = "away";
     this.stopFollowing(client.sessionId, "stopped");
     for (const [followerSessionId, follow] of this.activeFollowsBySessionId) {
@@ -599,7 +625,11 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.updatePrivateMembership();
     this.updateProximity();
     try {
-      void this.allowReconnection(client, 20).catch((error) => logServerError("realtime", "office.client.reconnect.failed", error, { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId }));
+      const reconnection = this.allowReconnection(client, RECONNECTION_SEAT_TIMEOUT_SECONDS);
+      this.pendingReconnectionsBySessionId.set(client.sessionId, reconnection);
+      void reconnection.catch((error) => logServerError("realtime", "office.client.reconnect.failed", error, { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId })).finally(() => {
+        if (this.pendingReconnectionsBySessionId.get(client.sessionId) === reconnection) this.pendingReconnectionsBySessionId.delete(client.sessionId);
+      });
     } catch (error) {
       // A room that is already shutting down cannot accept a reconnect. Record
       // the shutdown edge instead of letting an expected disposal throw obscure it.
@@ -608,6 +638,11 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   onReconnect(client: Client) {
+    const username = this.usernamesBySessionId.get(client.sessionId);
+    if (!username || this.activeClientByUsername.get(username) !== client.sessionId) {
+      client.leave(REPLACED_SESSION_CLOSE_CODE, REPLACED_SESSION_REASON);
+      return;
+    }
     const player = this.state.players.get(client.sessionId);
     if (player) {
       if (player.worldVersion !== this.worldVersion) {
@@ -1247,7 +1282,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       // Keep the player seated when a collision blocks a direction. They can
       // steer away with another WASD direction; ejecting on a single blocked
       // simulation tick made manual driving feel like the keys were ignored.
-      if (intent.x !== 0 || intent.z !== 0) player.rotation = Math.atan2(intent.x, intent.z);
+      player.rotation = resolvePlayerFacing({ input: intent, seated: Boolean(player.sittingPropId), inVehicle: Boolean(player.vehicleId), currentRotation: player.rotation });
       if (player.vehicleId && player.vehiclePropId) {
         if (Math.hypot(player.vehiclePropX - player.x, player.vehiclePropZ - player.z) > 0.001
           || Math.abs(player.vehiclePropRotation - player.rotation) > 0.001) vehicleCollisionChanged = true;

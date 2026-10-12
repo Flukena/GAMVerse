@@ -33,6 +33,17 @@ test("accepts only finite bounded movement input", () => {
   assert.equal(isValidMovementInput(null), false);
 });
 
+test("accepts optional finite facing yaw and rejects invalid aim values", () => {
+  const idleInput = { x: 0, z: 0 };
+  for (const facingYaw of [undefined, 0, Math.PI, -Math.PI, Number.MAX_VALUE]) {
+    assert.equal(isValidMovementInput({ ...idleInput, facingYaw }), true);
+  }
+  for (const facingYaw of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, "0", null, false, {}]) {
+    assert.equal(isValidMovementInput({ ...idleInput, facingYaw }), false);
+  }
+  assert.equal(isValidMovementInput({ ...idleInput, x: Number.NaN, facingYaw: Math.PI }), false);
+});
+
 test("uses the configured proximity radius inclusively", () => {
   assert.equal(arePlayersNearby({ x: 0, z: 0 }, { x: WORLD.proximityRadius, z: 0 }), true);
   assert.equal(arePlayersNearby({ x: 0, z: 0 }, { x: WORLD.proximityRadius + 0.01, z: 0 }), false);
