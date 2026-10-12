@@ -11,7 +11,7 @@ const ROOM_WALL_OPTION_GROUPS = ROOM_WALL_OPTIONS.reduce<Array<{ label: string; 
 }, []);
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import type { LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance } from "livekit-client";
+import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance } from "livekit-client";
 import { CharacterPreview3D } from "../world/CharacterPreview3D";
 import { QUATERNIUS_CHARACTERS } from "../assets/characterAssets";
 import { WorldCanvas } from "../world/WorldCanvas";
@@ -19,6 +19,7 @@ import { FullScreenLoading } from "./FullScreenLoading";
 import { ModifyPropsEditor } from "./ModifyPropsEditor";
 import { PageTutorial } from "./PageTutorial";
 import { playSocialNotificationSound, unlockSocialNotificationAudio } from "../audio/notificationSounds";
+import { setNoiseReduction, type NoiseReductionResult } from "../audio/noiseReduction";
 
 type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 type CharacterSelectionId = KenneyCharacterId | `custom-${string}`;
@@ -74,6 +75,7 @@ type VideoTileItem = { key: string; track: LocalVideoTrack | RemoteVideoTrack; l
 type ManagedAccount = { username: string; email: string | null; lastActiveAt: string | null };
 
 const movementKeys = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"];
+const VOICE_AUDIO_CAPTURE_OPTIONS = { autoGainControl: true, echoCancellation: true, noiseSuppression: true, voiceIsolation: true };
 
 function usePanelPresence(isOpen: boolean, exitDuration = 260) {
   const [isMounted, setIsMounted] = useState(isOpen);
@@ -400,6 +402,20 @@ export function OfficeApp() {
     setIdleAnimationsEnabled(enabled);
     try { window.localStorage.setItem("gammyverse.idleAnimationsEnabled", String(enabled)); }
     catch { /* Keep the preference for this session when storage is unavailable. */ }
+  };
+  const [noiseReductionEnabled, setNoiseReductionEnabled] = useState(() => {
+    try { return window.localStorage.getItem("gammyverse.noiseReductionEnabled") !== "false"; }
+    catch { return true; }
+  });
+  const noiseReductionEnabledRef = useRef(noiseReductionEnabled);
+  const [noiseReductionStatus, setNoiseReductionStatus] = useState<"unknown" | "checking" | "enabled" | "fallback" | "disabled">("unknown");
+  const [noiseReductionDetails, setNoiseReductionDetails] = useState("");
+  const updateNoiseReductionPreference = (enabled: boolean) => {
+    noiseReductionEnabledRef.current = enabled;
+    setNoiseReductionEnabled(enabled);
+    try { window.localStorage.setItem("gammyverse.noiseReductionEnabled", String(enabled)); }
+    catch { /* Keep the preference for this session when storage is unavailable. */ }
+    void applyNoiseReductionToActiveTracks(enabled);
   };
   const [browserPermissions, setBrowserPermissions] = useState<{ microphone: BrowserPermissionValue; camera: BrowserPermissionValue }>({ microphone: "unknown", camera: "unknown" });
   const [permissionBusy, setPermissionBusy] = useState<"microphone" | "camera" | "screen" | null>(null);
@@ -797,6 +813,66 @@ export function OfficeApp() {
     rebuildSpeakingUsernames();
   };
 
+  const configureNoiseReductionForTrack = async (track: LocalAudioTrack) => {
+    const requestedEnabled = noiseReductionEnabledRef.current;
+    if (requestedEnabled) { setNoiseReductionStatus("checking"); setNoiseReductionDetails(""); }
+    try {
+      const result = await setNoiseReduction(track, requestedEnabled);
+      if (noiseReductionEnabledRef.current) {
+        setNoiseReductionStatus(result.supported === false ? "fallback" : result.enabled ? "enabled" : "checking");
+        if (result.supported === false) setNoiseReductionDetails(result.reason ?? "RNNoise is unavailable. Built-in browser noise reduction remains active.");
+      }
+      else setNoiseReductionStatus("disabled");
+    } catch (cause) {
+      console.warn("Could not apply microphone noise reduction; keeping browser audio processing enabled.", cause);
+      setNoiseReductionStatus(noiseReductionEnabledRef.current ? "fallback" : "disabled");
+      setNoiseReductionDetails(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
+  const applyNoiseReductionToActiveTracks = async (enabled: boolean) => {
+    const rooms = [liveKitRoomRef.current, privateLiveKitRoomRef.current, proximityLiveKitRoomRef.current];
+    const tracks = new Set<LocalAudioTrack>();
+    for (const room of rooms) {
+      if (!room) continue;
+      for (const publication of room.localParticipant.audioTrackPublications.values()) {
+        if (String(publication.source).toLowerCase() !== "microphone") continue;
+        const track = publication.audioTrack;
+        if (track) tracks.add(track);
+      }
+    }
+    if (tracks.size === 0) {
+      setNoiseReductionStatus(enabled ? "unknown" : "disabled");
+      return;
+    }
+    if (enabled) setNoiseReductionStatus("checking");
+    const results = await Promise.all([...tracks].map(async (track): Promise<NoiseReductionResult & { error?: string }> => {
+      try { return await setNoiseReduction(track, enabled); }
+      catch (cause) {
+        console.warn("Could not update microphone noise reduction.", cause);
+        return { supported: false, enabled: false, error: cause instanceof Error ? cause.message : String(cause) };
+      }
+    }));
+    if (!noiseReductionEnabledRef.current) setNoiseReductionStatus("disabled");
+    else if (results.some((result) => result.supported === false)) {
+      setNoiseReductionStatus("fallback");
+      setNoiseReductionDetails(results.find((result) => "reason" in result)?.reason ?? results.find((result) => "error" in result)?.error ?? "RNNoise is unavailable. Built-in browser noise reduction remains active.");
+    }
+    else if (results.some((result) => result.enabled)) { setNoiseReductionStatus("enabled"); setNoiseReductionDetails(""); }
+    else setNoiseReductionStatus("checking");
+  };
+
+  const resetLocalMediaForVoiceRoom = async (room: LiveKitRoomInstance) => {
+    // Joining a voice room subscribes to other people, but must not request or publish local media.
+    await Promise.all([
+      room.localParticipant.setMicrophoneEnabled(false),
+      room.localParticipant.setCameraEnabled(false),
+      room.localParticipant.setScreenShareEnabled(false),
+    ]);
+    setCameraEnabled(false);
+    setScreenShareEnabled(false);
+  };
+
   const syncLocalVideoTiles = (room: LiveKitRoomInstance) => {
     const activePublications = [...room.localParticipant.videoTrackPublications.values()].filter((publication) => publication.track && !publication.isMuted);
     const localTiles: VideoTileItem[] = activePublications.map((publication) => {
@@ -857,7 +933,10 @@ export function OfficeApp() {
       proximityLiveKitRoomRef.current = room;
       proximityRoomGroupRef.current = groupId;
       room.on(RoomEvent.ActiveSpeakersChanged, () => updateVoiceRoomSpeakers(room!));
-      room.on(RoomEvent.LocalTrackPublished, () => syncLocalVideoTiles(room!));
+      room.on(RoomEvent.LocalTrackPublished, (publication) => {
+        syncLocalVideoTiles(room!);
+        if (String(publication.source).toLowerCase() === "microphone" && publication.track) void configureNoiseReductionForTrack(publication.track as LocalAudioTrack);
+      });
       room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideoTiles(room!));
       room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
         const username = participant.name || participant.identity.replace(/-[a-f0-9]{16}$/i, "");
@@ -888,9 +967,9 @@ export function OfficeApp() {
       await room.connect(result.url, result.token);
       updateVoiceRoomSpeakers(room);
       if (appPausedRef.current || meetingZoneActiveRef.current || proximityGroupIdRef.current !== groupId) { await room.disconnect(); return; }
-      await room.localParticipant.setMicrophoneEnabled(true);
-      if (appPausedRef.current) { await room.localParticipant.setMicrophoneEnabled(false); await room.disconnect(); return; }
-      setProximityVoiceConnected(true); setProximityVoiceMuted(false);
+      await resetLocalMediaForVoiceRoom(room);
+      if (appPausedRef.current) { await room.disconnect(); return; }
+      setProximityVoiceConnected(true); setProximityVoiceMuted(true);
     } catch (cause) {
       room?.disconnect();
       if (proximityLiveKitRoomRef.current === room) leaveProximityVoice();
@@ -906,7 +985,7 @@ export function OfficeApp() {
     const room = proximityLiveKitRoomRef.current;
     if (!room) return;
     const nextMuted = !proximityVoiceMuted;
-    try { await room.localParticipant.setMicrophoneEnabled(!nextMuted); setProximityVoiceMuted(nextMuted); }
+    try { await room.localParticipant.setMicrophoneEnabled(!nextMuted, VOICE_AUDIO_CAPTURE_OPTIONS); setProximityVoiceMuted(nextMuted); }
     catch (cause) { setVoiceError(cause instanceof Error ? cause.message : "Could not change microphone state."); }
   };
 
@@ -924,7 +1003,10 @@ export function OfficeApp() {
       privateLiveKitRoomRef.current = room;
       privateRoomZoneIdRef.current = zoneId;
       room.on(RoomEvent.ActiveSpeakersChanged, () => updateVoiceRoomSpeakers(room!));
-      room.on(RoomEvent.LocalTrackPublished, () => syncLocalVideoTiles(room!));
+      room.on(RoomEvent.LocalTrackPublished, (publication) => {
+        syncLocalVideoTiles(room!);
+        if (String(publication.source).toLowerCase() === "microphone" && publication.track) void configureNoiseReductionForTrack(publication.track as LocalAudioTrack);
+      });
       room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideoTiles(room!));
       room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
         const username = participant.name || participant.identity.replace(/-[a-f0-9]{16}$/i, "");
@@ -944,9 +1026,9 @@ export function OfficeApp() {
       await room.connect(result.url, result.token);
       updateVoiceRoomSpeakers(room);
       if (appPausedRef.current || meetingZoneActiveRef.current || privateZoneIdRef.current !== zoneId) { await room.disconnect(); return; }
-      await room.localParticipant.setMicrophoneEnabled(true);
-      if (appPausedRef.current) { await room.localParticipant.setMicrophoneEnabled(false); await room.disconnect(); return; }
-      setPrivateVoiceConnected(true); setPrivateVoiceMuted(false);
+      await resetLocalMediaForVoiceRoom(room);
+      if (appPausedRef.current) { await room.disconnect(); return; }
+      setPrivateVoiceConnected(true); setPrivateVoiceMuted(true);
     } catch (cause) {
       room?.disconnect();
       if (privateLiveKitRoomRef.current === room) leavePrivateVoice();
@@ -959,7 +1041,7 @@ export function OfficeApp() {
     const room = privateLiveKitRoomRef.current;
     if (!room) return;
     const nextMuted = !privateVoiceMuted;
-    try { await room.localParticipant.setMicrophoneEnabled(!nextMuted); setPrivateVoiceMuted(nextMuted); }
+    try { await room.localParticipant.setMicrophoneEnabled(!nextMuted, VOICE_AUDIO_CAPTURE_OPTIONS); setPrivateVoiceMuted(nextMuted); }
     catch (cause) { setVoiceError(cause instanceof Error ? cause.message : "Could not change microphone state."); }
   };
 
@@ -976,7 +1058,10 @@ export function OfficeApp() {
       room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
       liveKitRoomRef.current = room;
       room.on(RoomEvent.ActiveSpeakersChanged, () => updateVoiceRoomSpeakers(room!));
-      room.on(RoomEvent.LocalTrackPublished, () => syncLocalVideoTiles(room!));
+      room.on(RoomEvent.LocalTrackPublished, (publication) => {
+        syncLocalVideoTiles(room!);
+        if (String(publication.source).toLowerCase() === "microphone" && publication.track) void configureNoiseReductionForTrack(publication.track as LocalAudioTrack);
+      });
       room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideoTiles(room!));
       room.on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind === Track.Kind.Audio) {
@@ -998,9 +1083,9 @@ export function OfficeApp() {
       await room.connect(result.url, result.token);
       updateVoiceRoomSpeakers(room);
       if (appPausedRef.current) { await room.disconnect(); return; }
-      await room.localParticipant.setMicrophoneEnabled(true);
-      if (appPausedRef.current) { await room.localParticipant.setMicrophoneEnabled(false); await room.disconnect(); return; }
-      setVoiceConnected(true); setVoiceMuted(false);
+      await resetLocalMediaForVoiceRoom(room);
+      if (appPausedRef.current) { await room.disconnect(); return; }
+      setVoiceConnected(true); setVoiceMuted(true);
     } catch (cause) {
       room?.disconnect();
       if (liveKitRoomRef.current === room) liveKitRoomRef.current = null;
@@ -1013,7 +1098,7 @@ const toggleMeetingMute = async () => {
     const room = liveKitRoomRef.current;
     if (!room) return;
     const nextMuted = !voiceMuted;
-    try { await room.localParticipant.setMicrophoneEnabled(!nextMuted); setVoiceMuted(nextMuted); }
+    try { await room.localParticipant.setMicrophoneEnabled(!nextMuted, VOICE_AUDIO_CAPTURE_OPTIONS); setVoiceMuted(nextMuted); }
     catch (cause) { setVoiceError(cause instanceof Error ? cause.message : "Could not change microphone state."); }
   };
 
@@ -2623,7 +2708,7 @@ const toggleMeetingMute = async () => {
       {settingsOpen && <div className="profile-dialog-backdrop settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="profile-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
         <header className="profile-dialog-header"><div><span className="eyebrow">USER SETTINGS</span><h2 id="settings-dialog-title">Settings</h2></div><button type="button" className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><FeatherIcon name="close" size={17} /></button></header>
         <div className="settings-dialog-body"><nav className="settings-section-nav" aria-label="Settings topics"><button type="button" className={settingsSection === "general" ? "active" : ""} aria-current={settingsSection === "general" ? "page" : undefined} onClick={() => setSettingsSection("general")}>General</button><button type="button" className={settingsSection === "permissions" ? "active" : ""} aria-current={settingsSection === "permissions" ? "page" : undefined} onClick={() => setSettingsSection("permissions")}>Permission</button><button type="button" className={settingsSection === "security" ? "active" : ""} aria-current={settingsSection === "security" ? "page" : undefined} onClick={() => setSettingsSection("security")}>Security</button></nav>
-          <div className="settings-section-content">{settingsSection === "general" ? <section aria-labelledby="general-settings-title"><span className="eyebrow">PREFERENCES</span><h3 id="general-settings-title">General</h3><p className="settings-intro">Adjust how characters move and animate on this device.</p><div className="permission-row settings-general-row"><div><strong>Idle animations</strong><small>Turn off idle movement for characters and pets</small></div><label className="settings-toggle-control"><span className="sr-only">Idle animations</span><input type="checkbox" role="switch" checked={idleAnimationsEnabled} onChange={(event) => updateIdleAnimationsEnabled(event.target.checked)} /><span aria-hidden="true" /></label></div></section> : settingsSection === "permissions" ? <section aria-labelledby="permissions-title"><span className="eyebrow">DEVICE ACCESS</span><h3 id="permissions-title">Permissions</h3><p className="settings-intro">Allow GAMVerse to use your microphone, camera, or screen when you choose those controls.</p>
+          <div className="settings-section-content">{settingsSection === "general" ? <section aria-labelledby="general-settings-title"><span className="eyebrow">PREFERENCES</span><h3 id="general-settings-title">General</h3><p className="settings-intro">Adjust client-side preferences for this device.</p><div className="permission-row settings-general-row"><div><strong>Idle animations</strong><small>Turn off idle movement for characters and pets</small></div><label className="settings-toggle-control"><span className="sr-only">Idle animations</span><input type="checkbox" role="switch" checked={idleAnimationsEnabled} onChange={(event) => updateIdleAnimationsEnabled(event.target.checked)} /><span aria-hidden="true" /></label></div><div className="permission-row settings-general-row"><div><strong>Noise reduction</strong><small>Reduce background noise locally with RNNoise</small><small className={`noise-reduction-status ${noiseReductionStatus}`} role="status">{noiseReductionStatus === "checking" ? "Loading local noise filter…" : noiseReductionStatus === "enabled" ? "RNNoise noise reduction is active" : noiseReductionStatus === "fallback" ? `RNNoise unavailable: ${noiseReductionDetails || "browser noise reduction remains active"}` : noiseReductionStatus === "disabled" ? "Using browser noise reduction" : "Applies when you join voice"}</small></div><label className="settings-toggle-control"><span className="sr-only">Noise reduction</span><input type="checkbox" role="switch" checked={noiseReductionEnabled} onChange={(event) => updateNoiseReductionPreference(event.target.checked)} /><span aria-hidden="true" /></label></div></section> : settingsSection === "permissions" ? <section aria-labelledby="permissions-title"><span className="eyebrow">DEVICE ACCESS</span><h3 id="permissions-title">Permissions</h3><p className="settings-intro">Allow GAMVerse to use your microphone, camera, or screen when you choose those controls.</p>
             {(["microphone", "camera"] as const).map((kind) => <div className="permission-row" key={kind}><div><strong>{kind === "microphone" ? "Microphone" : "Camera"}</strong><small className={`permission-state ${browserPermissions[kind]}`}>{browserPermissions[kind] === "unknown" ? "Status unavailable" : browserPermissions[kind]}</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission(kind)}>{permissionBusy === kind ? "Checking…" : browserPermissions[kind] === "denied" ? "Check again" : "Allow access"}</button></div>)}
             <div className="permission-row"><div><strong>Screen sharing</strong><small>Browser asks each time you share</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission("screen")}>{permissionBusy === "screen" ? "Checking…" : "Check sharing"}</button></div>
             {permissionMessage && <p className="permission-message" role="status">{permissionMessage}</p>}{screenPermissionResult && <p className="permission-message" role="status">{screenPermissionResult}</p>}
