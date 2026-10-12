@@ -1,0 +1,90 @@
+services:
+  livekit-dev:
+    image: livekit/livekit-server:v1.13.7
+    command: ["--config", "/etc/livekit.yaml"]
+    environment:
+      NODE_IP: ${DEV_IP:-127.0.0.1}
+    volumes:
+      - ./config/livekit.dev.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+    restart: unless-stopped
+
+  postgres-dev:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: gammyverse
+      POSTGRES_USER: gammyverse
+      POSTGRES_PASSWORD: gammyverse-dev-only
+      APP_DB_PASSWORD: gammyverse-app-dev-only
+    volumes:
+      - ./db/init/01-app-user.sh:/docker-entrypoint-initdb.d/01-app-user.sh:ro
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gammyverse -d gammyverse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  office-dev:
+    image: node:24-alpine
+    working_dir: /workspace
+    command: sh -c "corepack enable && corepack prepare pnpm@11.25.0 --activate && pnpm install && pnpm dev"
+    environment:
+      PORT: "2567"
+      API_PORT: "2568"
+      REALTIME_INTERNAL_URL: "http://127.0.0.1:2567"
+      INTERNAL_SERVICE_TOKEN: "gammyverse-dev-internal-token-change-before-production"
+      DEV_HOST: ${DEV_HOST:-localhost}
+      CLIENT_ORIGIN: "https://${DEV_HOST:-localhost}:5173,https://localhost:5173"
+      VITE_REALTIME_URL: "https://${DEV_HOST:-localhost}:2567"
+      LIVEKIT_URL: "wss://${DEV_HOST:-localhost}:7880"
+      LIVEKIT_INTERNAL_URL: "http://livekit-dev:7880"
+      LIVEKIT_API_KEY: "devkey"
+      LIVEKIT_API_SECRET: "gammyverse-livekit-dev-secret-32-chars-minimum"
+      PGHOST: postgres-dev
+      PGPORT: "5432"
+      PGDATABASE: gammyverse
+      PGUSER: gammyverse_app
+      PGPASSWORD: gammyverse-app-dev-only
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+      livekit-dev:
+        condition: service_started
+    volumes:
+      - ./:/workspace
+      - office_node_modules_fresh:/workspace/node_modules
+      - office_client_node_modules:/workspace/packages/client/node_modules
+      - office_server_node_modules:/workspace/packages/server/node_modules
+      - office_shared_node_modules:/workspace/packages/shared/node_modules
+    init: true
+
+  caddy-dev:
+    image: caddy:2.10-alpine
+    environment:
+      DEV_HOST: ${DEV_HOST:-localhost}
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - caddy_dev_data:/data
+      - caddy_dev_config:/config
+    depends_on:
+      - office-dev
+      - livekit-dev
+    ports:
+      - "5173:5173"
+      - "2567:2567"
+      - "7880:7880"
+    restart: unless-stopped
+
+volumes:
+  office_node_modules:
+  office_node_modules_fresh:
+  office_client_node_modules:
+  office_server_node_modules:
+  office_shared_node_modules:
+  postgres_dev_data:
+  caddy_dev_data:
+  caddy_dev_config:

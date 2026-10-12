@@ -1,0 +1,30 @@
+{$LIVEKIT_DOMAIN} {
+	reverse_proxy livekit:7880
+}
+
+{$DOMAIN} {
+	@websocket header Connection *Upgrade*
+	handle @websocket {
+		reverse_proxy realtime:2567
+	}
+
+	@realtime path /matchmake/* /media/*
+	handle @realtime {
+		reverse_proxy realtime:2567
+	}
+
+	handle /internal/* {
+		respond "Not found" 404
+	}
+
+	@api path /auth/* /offices* /office-invites/* /maintainer/* /health/*
+	handle @api {
+		reverse_proxy api:2568
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

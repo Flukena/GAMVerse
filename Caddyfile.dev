@@ -1,0 +1,29 @@
+https://{$DEV_HOST}:5173 {
+	tls internal
+	reverse_proxy office-dev:5173
+}
+
+https://{$DEV_HOST}:2567 {
+	tls internal
+	@websocket header Connection *Upgrade*
+	handle @websocket {
+		reverse_proxy office-dev:2567
+	}
+	@realtime path /matchmake/* /media/*
+	handle @realtime {
+		reverse_proxy office-dev:2567
+	}
+	@api path /auth/* /offices* /office-invites/* /maintainer/* /health/*
+	handle @api {
+		reverse_proxy office-dev:2568
+	}
+	handle /internal/* {
+		respond "Not found" 404
+	}
+	reverse_proxy office-dev:2567
+}
+
+https://{$DEV_HOST}:7880 {
+	tls internal
+	reverse_proxy livekit-dev:7880
+}

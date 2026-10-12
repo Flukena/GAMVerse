@@ -1,0 +1,140 @@
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        log_level: info
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: true
+        keys:
+          ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY in .env.production}: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET in .env.production}
+        turn:
+          enabled: true
+          domain: ${LIVEKIT_DOMAIN:?Set LIVEKIT_DOMAIN in .env.production}
+          udp_port: 3478
+          relay_range_start: 30000
+          relay_range_end: 30500
+    ports:
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+      - "3478:3478/udp"
+      - "30000-30500:30000-30500/udp"
+    restart: unless-stopped
+    networks: [private]
+
+  db:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: gammyverse
+      POSTGRES_USER: gammyverse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env.production}
+    volumes:
+      - ./db/init/01-app-user.sh:/docker-entrypoint-initdb.d/01-app-user.sh:ro
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gammyverse -d gammyverse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    networks: [private]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "dist/api.js"]
+    environment:
+      NODE_ENV: production
+      API_PORT: "2568"
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: gammyverse
+      PGUSER: gammyverse_app
+      PGPASSWORD: ${APP_DB_PASSWORD}
+      DB_POOL_MAX: "10"
+      CLIENT_ORIGIN: https://${DOMAIN}
+      IMPORT_LEGACY_AUTH: ${IMPORT_LEGACY_AUTH:-}
+      REALTIME_INTERNAL_URL: http://realtime:2567
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.production}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:2568/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks: [private]
+
+  realtime:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "dist/index.js"]
+    environment:
+      NODE_ENV: production
+      PORT: "2567"
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: gammyverse
+      PGUSER: gammyverse_app
+      PGPASSWORD: ${APP_DB_PASSWORD}
+      DB_POOL_MAX: "10"
+      CLIENT_ORIGIN: https://${DOMAIN}
+      ROOM_MAX_CLIENTS: "50"
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.production}
+      LIVEKIT_URL: wss://${LIVEKIT_DOMAIN:?Set LIVEKIT_DOMAIN in .env.production}
+      LIVEKIT_INTERNAL_URL: http://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY in .env.production}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET in .env.production}
+    depends_on:
+      db:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:2567/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks: [private]
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/client/Dockerfile
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env.production}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN:?Set LIVEKIT_DOMAIN in .env.production}
+    depends_on:
+      api:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    networks: [private]
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  private:

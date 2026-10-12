@@ -1,0 +1,10 @@
+{
+  "data": {},
+  "hash": {
+    "roomcount": {},
+    "roomhistory": {
+      "925StDKJn": "{\"clientOptions\":{\"officeId\":\"5d8c83c0-7d0f-4ab2-b333-9809f3bab905\"},\"roomName\":\"office\",\"processId\":\"jjhZ64D-_\",\"state\":\"{\\\"players\\\":{\\\"jk8av9dJ6\\\":{\\\"x\\\":-120,\\\"z\\\":14,\\\"rotation\\\":0,\\\"worldVersion\\\":4,\\\"displayName\\\":\\\"prapawity\\\",\\\"characterId\\\":\\\"character-blocky-o\\\",\\\"petId\\\":\\\"animal-pig\\\",\\\"vehicleId\\\":\\\"\\\",\\\"vehicleMode\\\":\\\"\\\",\\\"vehiclePropId\\\":\\\"\\\",\\\"vehiclePropX\\\":-120,\\\"vehiclePropZ\\\":14,\\\"vehiclePropRotation\\\":0,\\\"sittingPropId\\\":\\\"\\\",\\\"weaponId\\\":\\\"\\\",\\\"status\\\":\\\"available\\\",\\\"presence\\\":\\\"online\\\"}}}\",\"nextRefId\":3,\"clients\":[{\"sessionId\":\"jk8av9dJ6\",\"reconnectionToken\":\"CSKef7fFF\"}]}"
+    }
+  },
+  "keys": {}
+}

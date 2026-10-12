@@ -1,0 +1,13 @@
+Charming Kitchen wall models
+
+Models in this folder:
+- Wall Plain Kitchen (original and reQyVpOQW3 variant)
+- Wall Tiles Kitchen
+- Wall Tiles Kitchen W
+
+Creator: Isa Lousberg
+Source: https://poly.pizza/bundle/Charming-Kitchen-set-DsYQKb1K4M
+Individual model pages: https://poly.pizza/m/kmZKEPYWVf (Wall Tiles Kitchen), https://poly.pizza/m/oiDM1mwJxF (Wall Tiles Kitchen W), https://poly.pizza/m/lrfoY2FUMe (Wall Plain Kitchen), https://poly.pizza/m/reQyVpOQW3 (Wall Plain Kitchen variant)
+License: Creative Commons Attribution 3.0 (CC BY 3.0): https://creativecommons.org/licenses/by/3.0/
+
+The model files have been renamed and repackaged from the downloadable GLTF bundle. Attribution to Isa Lousberg is retained here.

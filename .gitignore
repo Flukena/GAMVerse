@@ -1,0 +1,17 @@
+node_modules/
+node_modules.wsl-backup-*/
+.pnpm-store/
+.loadtest/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+!.env.production.example
+.env.production
+.gammyverse-dev-root.crt
+**/data/auth-users.json
+**/data/auth-users.json.tmp
+*.log
+.DS_Store
+Thumbs.db

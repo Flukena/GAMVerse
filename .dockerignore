@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+!.env.production.example
+node_modules
+**/node_modules
+.pnpm-store
+**/.pnpm-store
+dist
+**/dist
+coverage
+data
+**/data
+*.log
