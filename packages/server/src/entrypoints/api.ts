@@ -41,10 +41,14 @@ function summarizeOfficeProps(value: unknown) {
   };
 }
 
+function isCharacterModelUpload(request: AuthRequest) {
+  return request.method === "POST" && request.path.replace(/\/+$/, "") === "/auth/models";
+}
+
 function configureApi() {
       app.use(originGuard(clientOrigins, ["/auth", "/offices", "/office-invites", "/maintainer", "/media"], ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]));
       app.use((request: AuthRequest, response: AuthResponse, next: Next) => {
-        const isCharacterUpload = request.method === "POST" && request.path === "/auth/models";
+        const isCharacterUpload = isCharacterModelUpload(request);
         const requestLimit = request.path.endsWith("/map") || request.path.endsWith("/props") ? 512 * 1024 : 8_192;
         if (!isCharacterUpload && ["/auth", "/offices", "/office-invites", "/maintainer", "/media"].some((path) => request.path.startsWith(path)) && Number(request.headers["content-length"] ?? 0) > requestLimit) {
           response.status(413).json({ error: "Request is too large." });
@@ -55,7 +59,8 @@ function configureApi() {
       app.use(["/auth", "/offices", "/office-invites", "/maintainer", "/media"], jsonBodyParser({
         methods: ["POST", "PATCH", "PUT"],
         maxBytes: (request) => request.path.endsWith("/map") || request.path.endsWith("/props") ? 512 * 1024 : 8_192,
-        skip: (request) => request.method === "POST" && request.path === "/auth/models",
+        // Express trims the mounted `/auth` prefix from `request.path` inside this middleware.
+        skip: (request) => request.method === "POST" && ["/models", "/auth/models"].includes(request.path.replace(/\/+$/, "")),
       }));
       app.post("/auth/register", async (request: AuthRequest, response: AuthResponse) => {
         const result = await registerAccount(request.body?.username, request.body?.password, request.body?.email);

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 
@@ -8,7 +9,10 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 // model and texture bytes instead of starting independent downloads.
 THREE.Cache.enabled = true;
 
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath("/assets/draco/");
 const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(dracoLoader);
 const mtlLoader = new MTLLoader();
 type RoomPropModelPaths =
   | { format: "gltf"; modelUrl: string }
