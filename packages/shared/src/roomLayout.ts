@@ -109,22 +109,24 @@ const CITY_ROAD_PROPS = kenneyRoadAssets("city-kit-roads", [
   ["road-driveway-double", "Road · Double driveway", 1, 1, 0.02, "Roads · Tiles"],
   ["road-split", "Road · Split", 2, 2, 0.02, "Roads · Tiles"],
   ["road-slant", "Road · Slant", 1, 1, 0.02, "Roads · Tiles"],
-  ["light-curved", "Street light · Curved", 1, 1, 0.8, "Roads · Street furniture"],
-  ["light-curved-double", "Street light · Curved double", 1, 1, 1, "Roads · Street furniture"],
-  ["light-curved-cross", "Street light · Cross curved", 1, 1, 1, "Roads · Street furniture"],
-  ["light-square", "Street light · Square", 1, 1, 0.8, "Roads · Street furniture"],
-  ["light-square-double", "Street light · Square double", 1, 1, 1, "Roads · Street furniture"],
-  ["light-square-cross", "Street light · Cross square", 1, 1, 1, "Roads · Street furniture"],
-  ["road-sign-street", "Sign · Street", 1, 1, 1, "Roads · Signs"],
-  ["road-sign-stop", "Sign · Stop", 1, 1, 1, "Roads · Signs"],
-  ["road-sign-warning", "Sign · Warning", 1, 1, 1, "Roads · Signs"],
-  ["road-sign-empty", "Sign · Blank", 1, 1, 1, "Roads · Signs"],
-  ["sign-highway", "Sign · Wayfinding", 1, 1, 1.2, "Roads · Signs"],
-  ["sign-highway-wide", "Sign · Wayfinding wide", 1, 1, 1.2, "Roads · Signs"],
-  ["traffic-light", "Traffic light", 1, 1, 0.8, "Roads · Street furniture"],
+  // Street furniture heights are world meters, calibrated against a roughly
+  // 1.7 m avatar. The old sub-meter heights made these fixtures look toy-sized.
+  ["light-curved", "Street light · Curved", 1, 1, 3.6, "Roads · Street furniture"],
+  ["light-curved-double", "Street light · Curved double", 1, 1, 3.8, "Roads · Street furniture"],
+  ["light-curved-cross", "Street light · Cross curved", 1, 1, 3.8, "Roads · Street furniture"],
+  ["light-square", "Street light · Square", 1, 1, 3.6, "Roads · Street furniture"],
+  ["light-square-double", "Street light · Square double", 1, 1, 3.8, "Roads · Street furniture"],
+  ["light-square-cross", "Street light · Cross square", 1, 1, 3.8, "Roads · Street furniture"],
+  ["road-sign-street", "Sign · Street", 1, 1, 2.2, "Roads · Signs"],
+  ["road-sign-stop", "Sign · Stop", 1, 1, 2.2, "Roads · Signs"],
+  ["road-sign-warning", "Sign · Warning", 1, 1, 2.2, "Roads · Signs"],
+  ["road-sign-empty", "Sign · Blank", 1, 1, 2.2, "Roads · Signs"],
+  ["sign-highway", "Sign · Wayfinding", 1, 1, 2.8, "Roads · Signs"],
+  ["sign-highway-wide", "Sign · Wayfinding wide", 1.4, 1, 2.8, "Roads · Signs"],
+  ["traffic-light", "Traffic light", 1, 1, 3.4, "Roads · Street furniture"],
   ["construction-cone", "Road · Cone", 1, 1, 0.5, "Roads · Street furniture"],
-  ["construction-barrier", "Road · Barrier", 1, 1, 0.6, "Roads · Street furniture"],
-  ["construction-fence", "Road · Temporary fence", 1, 1, 0.8, "Roads · Street furniture"],
+  ["construction-barrier", "Road · Barrier", 1, 1, 0.9, "Roads · Street furniture"],
+  ["construction-fence", "Road · Temporary fence", 1.3, 1, 1.6, "Roads · Street furniture"],
 ]);
 
 const SUBURBAN_PATH_PROPS = kenneyRoadAssets("city-kit-suburban", [
@@ -822,42 +824,67 @@ const isSurfaceProp = (item: RoomPropDefinition) => /desk|table|counter/i.test(`
 // usable top area (including a 1 × 1 m tabletop).
 const isSmallProp = (item: RoomPropDefinition) => /computer.?screen|monitor/i.test(`${item.asset} ${item.label}`) || (item.height <= 0.3 && Math.max(item.width, item.depth) <= 0.55);
 
+// A few environment packs use sub-meter source bounds for structures that
+// should read at human/world scale on our 1 m placement grid. Scale the whole
+// catalog footprint with the model height so placement and collision bounds
+// remain aligned with the rendered asset.
+const ENVIRONMENT_PROP_SCALE: Readonly<Record<string, number>> = {
+  "kit-city-kit-industrial-shipping-container-a": 6,
+  "kit-city-kit-industrial-shipping-container-b": 6,
+  "kit-city-kit-industrial-shipping-container-c": 6,
+  "kit-city-kit-industrial-water-tower": 1.5,
+  "kit-city-kit-industrial-windmill-low": 1.7,
+  "kit-city-kit-industrial-windmill": 1.7,
+  "kit-city-kit-industrial-chimney-basic": 2.5,
+  "kit-city-kit-industrial-chimney-large": 1.5,
+  "kit-city-kit-industrial-chimney-medium": 1.5,
+  "kit-city-kit-industrial-chimney-small": 2,
+  "kenney-city-kit-suburban-tree-large": 1.4,
+};
+
 /** Shared behavioral hints for the prop library. Placement/interaction support can be enabled progressively. */
 export const ROOM_PROP_CATALOG: ReadonlyArray<RoomPropDefinition> = ROOM_PROP_CATALOG_BASE.map((item) => {
-  const shelf = isShelfProp(item);
-  const seat = isSeatProp(item);
-  const surface = isSurfaceProp(item);
-  const small = isSmallProp(item);
-  return {
+  const scale = ENVIRONMENT_PROP_SCALE[item.asset] ?? (/^kit-city-kit-industrial-building-[a-t]$/.test(item.asset) ? 1.5 : 1);
+  const sizedItem = scale === 1 ? item : {
     ...item,
+    width: item.width * scale,
+    depth: item.depth * scale,
+    height: item.height * scale,
+  };
+  const shelf = isShelfProp(sizedItem);
+  const seat = isSeatProp(sizedItem);
+  const surface = isSurfaceProp(sizedItem);
+  const small = isSmallProp(sizedItem);
+  return {
+    ...sizedItem,
     // Keep catalog dimensions authoritative so preview, placement bounds,
     // collision, and legacy layouts all agree on the minimum footprint.
-    width: Math.max(MIN_ROOM_PROP_FOOTPRINT, item.width),
-    depth: Math.max(MIN_ROOM_PROP_FOOTPRINT, item.depth),
+    width: Math.max(MIN_ROOM_PROP_FOOTPRINT, sizedItem.width),
+    depth: Math.max(MIN_ROOM_PROP_FOOTPRINT, sizedItem.depth),
     placementClass: shelf ? "shelf" : seat ? "seat" : surface ? "surface" : small ? "small" : "floor",
     ...(shelf ? { supportsPlacement: "shelf-top" as const, stackable: true } : {}),
     ...(surface ? { supportsPlacement: "tabletop" as const } : {}),
     ...(seat ? {
       interaction: "sit" as const,
-      collisionWidth: item.width,
-      collisionDepth: item.depth,
+      collisionWidth: sizedItem.width,
+      collisionDepth: sizedItem.depth,
       collisionScale: 0.9,
       collisionClearanceRadius: 0.2,
       // Seat surfaces sit well below the top of a chair/sofa model. A fixed
       // fraction of the complete model height was putting avatars above the
       // cushions, especially on low couches and benches.
-      seatHeight: /stoolbar/i.test(item.asset) ? 0.62
-        : /sushi-stool/i.test(item.asset) ? 0.32
+      seatHeight: /stoolbar/i.test(sizedItem.asset) ? 0.62
+        : /sushi-stool/i.test(sizedItem.asset) ? 0.32
           // Kenney Furniture Kit seats are authored low relative to their
           // decorative backrests: e.g. chair.obj's cushion top is at 0.7 of
           // 4.7 model units. The prior generic 40% height placed the avatar
           // well above the seat. These values match the model's seat surface
           // after normalizeProp scales its height to the catalog height.
-          : /kit:(chair|chaircushion|chairrounded|bench|benchcushion|benchcushionlow)$/.test(item.asset) ? Math.min(item.height * 0.15, 0.16)
-            : /kit:chairdesk$/.test(item.asset) ? Math.min(item.height * 0.34, 0.32)
-              : /kit:loungesofa|kit:loungechair$/.test(item.asset) ? Math.min(item.height * 0.5, 0.45)
-                : /kit:loungechairrelax$/.test(item.asset) ? Math.min(item.height * 0.23, 0.22)
-                : Math.min(0.4, Math.max(0.18, item.height * 0.4)),
+          : /kit:(chair|chaircushion|chairrounded|bench|benchcushion|benchcushionlow)$/.test(sizedItem.asset) ? Math.min(sizedItem.height * 0.15, 0.16)
+            : /kit:chairdesk$/.test(sizedItem.asset) ? Math.min(sizedItem.height * 0.34, 0.32)
+              : /kit:loungesofa|kit:loungechair$/.test(sizedItem.asset) ? Math.min(sizedItem.height * 0.5, 0.45)
+                : /kit:loungechairrelax$/.test(sizedItem.asset) ? Math.min(sizedItem.height * 0.23, 0.22)
+                : Math.min(0.4, Math.max(0.18, sizedItem.height * 0.4)),
     } : {}),
   };
 });
