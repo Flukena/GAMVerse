@@ -11,7 +11,7 @@ GAMVerse is a self-hosted virtual office that runs in a browser. Members share a
 - LiveKit audio for meeting rooms, private rooms, and nearby groups, plus camera and screen sharing controls.
 - Per-device idle-animation preference and presence statuses such as Available, Do Not Disturb, and Toilet.
 
-See [PROJECT_DOCS.md](PROJECT_DOCS.md) for architecture, data flow, deployment notes, research, and the preserved project history. [SKILL.md](SKILL.md) is the short development guide for contributors and coding agents.
+See [PROJECT_DOCS.md](PROJECT_DOCS.md) for architecture, data flow, deployment notes, research, and the preserved project history. [AGENTS.md](AGENTS.md) is the development guide for contributors and coding agents.
 
 ## Stack
 
@@ -67,7 +67,7 @@ packages/server/src           HTTP API, realtime room, auth, office, and media m
 packages/server/migrations    PostgreSQL schema migrations
 packages/shared/src           Shared map model, prop catalog, movement, and collision rules
 PROJECT_DOCS.md               Consolidated project documentation and historical notes
-SKILL.md                      Contributor and coding-agent workflow
+AGENTS.md                     Contributor and coding-agent rules (CLAUDE.md imports it)
 ```
 
 ## Production profile
