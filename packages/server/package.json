@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n api,realtime -c cyan,blue \"pnpm dev:api\" \"pnpm dev:realtime\"",
+    "dev": "concurrently -n api,realtime -c cyan,blue \"pnpm dev:api\" \"pnpm dev:realtime\"",
     "dev:api": "tsx watch src/entrypoints/api.ts",
     "dev:realtime": "tsx watch src/entrypoints/realtime.ts",
     "start": "node dist/index.js",
