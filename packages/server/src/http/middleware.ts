@@ -48,7 +48,7 @@ export function originGuard(clientOrigins: ReadonlySet<string>, protectedPaths: 
     if (origin && clientOrigins.has(origin) && protectedPath) {
       response.setHeader("Access-Control-Allow-Origin", origin);
       response.setHeader("Vary", "Origin");
-      response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      response.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Model-Name");
       response.setHeader("Access-Control-Allow-Methods", methods);
       response.setHeader("Access-Control-Allow-Credentials", "true");
     }
