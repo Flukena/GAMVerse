@@ -275,6 +275,13 @@ button:focus-visible { outline: 3px solid #287a59; outline-offset: 3px; }
 .profile-dialog-header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; padding: 15px 18px; border-bottom: 1px solid #e5ece6; }
 .profile-dialog-header h2 { margin: 5px 0 0; color: #27362d; font: 750 18px "Manrope", sans-serif; }
 .profile-dialog-content { min-height: 0; padding: 16px 18px; overflow: auto; }
+.profile-edit-dialog { width: min(440px, 100%); }
+.profile-edit-identity { display: flex; align-items: center; gap: 11px; margin-bottom: 18px; padding: 12px; border: 1px solid var(--glass-edge); border-radius: 12px; background: rgba(255,255,255,.64); }
+.profile-edit-identity .character-account-avatar { width: 42px; height: 42px; font-size: 16px; }
+.profile-edit-identity > div { display: grid; gap: 3px; min-width: 0; }
+.profile-edit-identity strong { color: var(--color-primary); font-size: 13px; }
+.profile-edit-identity small { color: var(--color-muted); font-size: 10px; text-transform: capitalize; }
+.profile-edit-dialog .nickname-settings { margin: 0; }
 .profile-dialog-content > .character-picker { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 0; }
 .profile-dialog-content .character-option img { height: 86px; }
 .character-select-dialog .personal-models-section { margin-top: 16px; }
