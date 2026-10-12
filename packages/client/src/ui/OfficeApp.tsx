@@ -57,7 +57,7 @@ const userStatusOptions: Array<{ value: UserStatus; label: string; icon: string;
   { value: "lunch", label: "Lunch", icon: "♨", color: "#e08b22" },
   { value: "coffee-break", label: "Coffee break", icon: "☕", color: "#8a5a35" },
 ];
-type PlayerSnapshot = { x: number; z: number; rotation: number; displayName: string; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean };
+type PlayerSnapshot = { x: number; z: number; rotation: number; displayName: string; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean };
 
 function voiceParticipantUsername(participant: { name?: string; identity: string }) {
   return (participant.name?.trim() || participant.identity.replace(/-[a-f0-9]{16}$/i, "")).toLocaleLowerCase();
@@ -2041,6 +2041,11 @@ const toggleMeetingMute = async () => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      if (event.code === "KeyZ" && !event.repeat && !appPausedRef.current && !mapEditModeRef.current && !modifyPropsOpenRef.current) {
+        event.preventDefault();
+        roomRef.current?.send("dance", { toggle: true });
+        return;
+      }
       if ((appPausedRef.current || mapEditModeRef.current || modifyPropsOpenRef.current) && movementKeys.includes(event.code)) { heldKeysRef.current.delete(event.code); event.preventDefault(); return; }
       if (movementKeys.includes(event.code)) {
         heldKeysRef.current.add(event.code);
@@ -2110,6 +2115,7 @@ const toggleMeetingMute = async () => {
               vehiclePropZ: entry.vehiclePropZ,
               vehiclePropRotation: entry.vehiclePropRotation,
               sittingPropId: entry.sittingPropId || "",
+              dancing: Boolean(entry.dancing),
               status: entry.status === "do-not-disturb" || entry.status === "in-meeting" || entry.status === "toilet" || entry.status === "lunch" || entry.status === "coffee-break" ? entry.status : "available",
               presence: entry.presence === "away" ? "away" : "online",
               nearby: Boolean(localPlayer && sessionId !== localSessionIdRef.current && entry.presence === "online" && nearbySessionIdsRef.current.has(sessionId)),
