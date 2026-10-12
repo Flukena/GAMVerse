@@ -2118,6 +2118,25 @@ const toggleMeetingMute = async () => {
             }
           }
         });
+        room.onMessage("desk-zone-updated", (payload: unknown) => {
+          if (typeof payload !== "object" || payload === null || !("zoneId" in payload) || typeof payload.zoneId !== "string"
+            || !("name" in payload) || typeof payload.name !== "string"
+            || !("ownerUsername" in payload) || (payload.ownerUsername !== null && typeof payload.ownerUsername !== "string")) return;
+          if (mapEditModeRef.current && (mapDraftDirtyRef.current || mapCommitInFlightRef.current)) return;
+          const { zoneId, name, ownerUsername } = payload as { zoneId: string; name: string; ownerUsername: string | null };
+          const applyZoneUpdate = (layout: RoomLayout | null) => layout ? {
+            ...layout,
+            zones: layout.zones.map((zone) => {
+              if (zone.id !== zoneId || zone.kind !== "private") return zone;
+              const updated = { ...zone, name };
+              if (ownerUsername) updated.ownerUsername = ownerUsername;
+              else delete updated.ownerUsername;
+              return updated;
+            }),
+          } : layout;
+          setOfficeMapLayout(applyZoneUpdate);
+          if (mapEditModeRef.current) setMapEditBaseline(applyZoneUpdate);
+        });
         room.onMessage("map-edit-lock", (payload: unknown) => {
           if (typeof payload !== "object" || payload === null || !("editorUsername" in payload)) return;
           setMapEditorUsername(typeof payload.editorUsername === "string" ? payload.editorUsername : null);

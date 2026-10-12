@@ -198,8 +198,18 @@ export function roomWorldFromConfig(config: unknown): WorldConfig {
 }
 
 /** The office map's saved props use the same Campus coordinates as players and rendering. */
-export function campusWorldFromConfig(config: unknown, excludedPropIds: ReadonlySet<string> = new Set()): WorldConfig {
+export function campusWorldFromConfig(
+  config: unknown,
+  excludedPropIds: ReadonlySet<string> = new Set(),
+  propPositionOverrides: ReadonlyMap<string, { x: number; z: number; rotation?: number }> = new Map(),
+): WorldConfig {
   const layout = readRoomLayout(config);
+  const props = propPositionOverrides.size
+    ? layout.props.map((prop) => {
+      const position = propPositionOverrides.get(prop.id);
+      return position ? { ...prop, ...position } : prop;
+    })
+    : layout.props;
   const width = layout.dimensions?.width ?? CAMPUS_WORLD.width;
   const depth = layout.dimensions?.depth ?? CAMPUS_WORLD.depth;
   const spawnPoints = layout.spawnPoint
@@ -212,7 +222,7 @@ export function campusWorldFromConfig(config: unknown, excludedPropIds: Readonly
         ...CAMPUS_WORLD.spawnPoints,
       ]
     : CAMPUS_WORLD.spawnPoints;
-  const placedProps: Blocker[] = layout.props.filter((prop) => !excludedPropIds.has(prop.id) && prop.collision && !prop.elevation).map((prop) => {
+  const placedProps: Blocker[] = props.filter((prop) => !excludedPropIds.has(prop.id) && prop.collision && !prop.elevation).map((prop) => {
     const footprint = roomPropCollisionFootprint(prop);
     const playerClearanceRadius = roomPropCollisionClearanceRadius(prop);
     return {

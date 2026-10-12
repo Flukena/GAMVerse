@@ -283,7 +283,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       // The parked vehicle remains in the saved map as a collidable prop. If it
       // also blocks its driver, forward/sideways movement starts inside its
       // footprint and gets rejected until the player reverses out of it.
-      this.vehicleWorldsBySessionId.set(client.sessionId, campusWorldFromConfig(this.mapConfig, new Set([placed.id])));
+      this.refreshVehicleCollisionWorlds();
       player.sittingPropId = "";
       this.pendingSitsBySessionId.delete(client.sessionId);
       player.rotation = player.vehiclePropRotation;
@@ -512,6 +512,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       this.clients.find((existing) => existing.sessionId === existingSessionId)?.leave(4001, "This account connected from another session.");
       this.state.players.delete(existingSessionId);
       this.vehicleWorldsBySessionId.delete(existingSessionId);
+      this.refreshVehicleCollisionWorlds();
       this.usernamesBySessionId.delete(existingSessionId);
       this.officeRolesBySessionId.delete(existingSessionId);
       this.movementInputs.delete(existingSessionId);
@@ -641,6 +642,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.updateProximity();
     this.state.players.delete(client.sessionId);
     this.vehicleWorldsBySessionId.delete(client.sessionId);
+    this.refreshVehicleCollisionWorlds();
     this.movementInputs.delete(client.sessionId);
     this.autoRoutes.delete(client.sessionId);
     this.pendingSitsBySessionId.delete(client.sessionId);
@@ -711,6 +713,32 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     logServerEvent("realtime", "office.map.refresh.completed", { officeId, roomCount: rooms.size });
   }
 
+  static updateDeskZone(officeId: string, update: { id: string; name: string; ownerUsername: string | null }) {
+    const rooms = OfficeRoom.roomsByOffice.get(officeId) ?? new Set<OfficeRoom>();
+    for (const room of rooms) room.applyDeskZoneUpdate(update);
+    logServerEvent("realtime", "office.desk-zone.updated", { officeId, zoneId: update.id, ownerUsername: update.ownerUsername, roomCount: rooms.size });
+  }
+
+  private applyDeskZoneUpdate(update: { id: string; name: string; ownerUsername: string | null }) {
+    const zone = this.mapLayout.zones.find((entry) => entry.id === update.id && entry.kind === "private");
+    if (!zone) return;
+    const nextZone: RoomLayoutZone = { ...zone, name: update.name };
+    if (update.ownerUsername) nextZone.ownerUsername = update.ownerUsername;
+    else delete nextZone.ownerUsername;
+    this.mapLayout = { ...this.mapLayout, zones: this.mapLayout.zones.map((entry) => entry.id === update.id ? nextZone : entry) };
+    const config = typeof this.mapConfig === "object" && this.mapConfig !== null && "layout" in this.mapConfig
+      ? this.mapConfig as { version?: number; layout?: RoomLayout }
+      : { version: 1, layout: this.mapLayout };
+    this.mapConfig = { ...config, layout: this.mapLayout };
+    for (const [sessionId, currentZone] of this.mediaZoneBySessionId) {
+      if (currentZone.id !== update.id) continue;
+      this.mediaZoneBySessionId.set(sessionId, nextZone);
+      const client = this.clients.find((entry) => entry.sessionId === sessionId);
+      if (client) this.sendMediaZone(client, sessionId);
+    }
+    this.broadcast("desk-zone-updated", { zoneId: update.id, name: update.name, ownerUsername: update.ownerUsername });
+  }
+
   private static mergeSavedProps(config: unknown, rawProps: unknown | null) {
     if (rawProps === null) return config;
     const parsed = readRoomLayout({ layout: { props: rawProps } });
@@ -723,14 +751,11 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     const worldGeometryChanged = worldGeometrySignature(this.mapLayout) !== worldGeometrySignature(nextLayout);
     this.mapConfig = config;
     this.mapLayout = nextLayout;
-    this.world = campusWorldFromConfig(config);
+    this.refreshVehicleCollisionWorlds();
     if (worldGeometryChanged) this.worldVersion += 1;
     this.lockedZoneIds = new Set([...this.lockedZoneIds].filter((id) => this.mapLayout.zones.some((zone) => zone.id === id)));
     let relocatedPlayers = 0;
     for (const [sessionId, player] of this.state.players) {
-      if (player.vehicleId && player.vehiclePropId) {
-        this.vehicleWorldsBySessionId.set(sessionId, campusWorldFromConfig(config, new Set([player.vehiclePropId])));
-      }
       if (worldGeometryChanged) player.worldVersion = this.worldVersion;
       if (player.sittingPropId && !this.mapLayout.props.some((prop) => {
         const seat = parseRoomPropSeatReference(player.sittingPropId);
@@ -755,6 +780,28 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.broadcast("office-map", { config });
     this.updatePrivateMembership();
     this.updateProximity();
+  }
+
+  /** Keep collision footprints aligned with movable vehicle props in the scene. */
+  private refreshVehicleCollisionWorlds() {
+    const movedProps = new Map<string, { x: number; z: number; rotation: number }>();
+    for (const player of this.state.players.values()) {
+      if (!player.vehiclePropId) continue;
+      movedProps.set(player.vehiclePropId, {
+        x: player.vehiclePropX,
+        z: player.vehiclePropZ,
+        rotation: player.vehiclePropRotation,
+      });
+    }
+
+    this.world = campusWorldFromConfig(this.mapConfig, new Set(), movedProps);
+    for (const [sessionId, player] of this.state.players) {
+      if (player.vehicleId && player.vehiclePropId) {
+        this.vehicleWorldsBySessionId.set(sessionId, campusWorldFromConfig(this.mapConfig, new Set([player.vehiclePropId]), movedProps));
+      } else {
+        this.vehicleWorldsBySessionId.delete(sessionId);
+      }
+    }
   }
 
   private updateMeetingMembership() {
@@ -1021,6 +1068,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       }
       this.autoRoutes.set(followerSessionId, { points, index: 0, stalledTicks: 0, followTargetSessionId: follow.targetSessionId });
     }
+    let vehicleCollisionChanged = false;
     for (const [sessionId, player] of this.state.players) {
       const input = this.movementInputs.get(sessionId);
       if (!input) continue;
@@ -1189,7 +1237,15 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       // steer away with another WASD direction; ejecting on a single blocked
       // simulation tick made manual driving feel like the keys were ignored.
       if (intent.x !== 0 || intent.z !== 0) player.rotation = Math.atan2(intent.x, intent.z);
+      if (player.vehicleId && player.vehiclePropId) {
+        if (Math.hypot(player.vehiclePropX - player.x, player.vehiclePropZ - player.z) > 0.001
+          || Math.abs(player.vehiclePropRotation - player.rotation) > 0.001) vehicleCollisionChanged = true;
+        player.vehiclePropX = player.x;
+        player.vehiclePropZ = player.z;
+        player.vehiclePropRotation = player.rotation;
+      }
     }
+    if (vehicleCollisionChanged) this.refreshVehicleCollisionWorlds();
     this.updateMeetingMembership();
     this.updateProximity();
   }
@@ -1199,14 +1255,42 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     const exitedVehicleId = player.vehicleId;
     player.sittingPropId = "";
     const username = this.usernamesBySessionId.get(sessionId);
+    let parkedPropMoved = false;
     if (player.vehiclePropId) {
+      parkedPropMoved = true;
       player.vehiclePropX = player.x;
       player.vehiclePropZ = player.z;
       player.vehiclePropRotation = player.rotation;
+      const prop = this.mapLayout.props.find((item) => item.id === player.vehiclePropId);
+      if (prop) {
+        const footprint = roomPropCollisionFootprint({ ...prop, rotation: player.vehiclePropRotation });
+        const exitWorld = this.vehicleWorldsBySessionId.get(sessionId) ?? this.world;
+        const clearance = exitWorld.playerRadius + 0.12;
+        const offsets = [0, 0.45, 0.9, 1.35];
+        const candidates = offsets.flatMap((extra) => [
+          { x: player.x + footprint.width / 2 + clearance + extra, z: player.z },
+          { x: player.x - footprint.width / 2 - clearance - extra, z: player.z },
+          { x: player.x, z: player.z + footprint.depth / 2 + clearance + extra },
+          { x: player.x, z: player.z - footprint.depth / 2 - clearance - extra },
+        ]);
+        const exit = candidates.find((candidate) => isPositionWalkable(candidate, exitWorld));
+        if (exit) {
+          player.x = exit.x;
+          player.z = exit.z;
+        } else {
+          const safeSpawn = findSafeSpawn(
+            [...this.state.players.entries()].filter(([otherSessionId]) => otherSessionId !== sessionId).map(([, other]) => ({ x: other.x, z: other.z })),
+            exitWorld,
+          );
+          player.x = safeSpawn.x;
+          player.z = safeSpawn.z;
+        }
+      }
     }
     player.vehicleId = "";
     player.vehicleMode = "";
     this.vehicleWorldsBySessionId.delete(sessionId);
+    if (parkedPropMoved) this.refreshVehicleCollisionWorlds();
     if (username) void recordOfficeActivity(this.officeId, username, "vehicle.leave", exitedVehicleId);
     this.clients.find((client) => client.sessionId === sessionId)?.send("vehicle-exited", {});
   }
