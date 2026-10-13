@@ -1,0 +1,13 @@
+.maintainer-account-safety-list li { flex-wrap: wrap; }
+.maintainer-account-safety-info { min-width: 180px; flex: 1; }
+.maintainer-account-safety-actions { display: flex; align-items: center; gap: 8px; }
+.maintainer-account-status { border-radius: 999px; padding: 4px 8px; background: #e7f4ec; color: #267148; font-size: 10px; font-weight: 700; }
+.maintainer-account-status.is-suspended { background: #fae9e6; color: #a34d42; }
+.maintainer-account-safety-list .maintainer-account-note,
+.maintainer-account-safety-list .maintainer-account-feedback { flex-basis: 100%; text-transform: none; }
+.maintainer-account-safety-list .maintainer-account-note { color: #87958c; }
+.maintainer-account-safety-list .maintainer-account-feedback { color: #267148; }
+.maintainer-account-safety-list .maintainer-account-feedback.is-error { color: #a34d42; }
+@media (max-width: 600px) {
+  .maintainer-account-safety-actions { width: 100%; justify-content: space-between; }
+}

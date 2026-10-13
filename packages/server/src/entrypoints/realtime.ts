@@ -1,10 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
 import { defineServer } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { getSession } from "../auth/service.js";
-import { databaseIsReady, initializeDatabase } from "../infra/db.js";
-import { logServerError, logServerEvent } from "../infra/logger.js";
-import { OfficeRoom, closeOfficeRooms, kickOfficeMember, officeRoomDefinition } from "../offices/OfficeRoom.js";
+import { database, databaseIsReady, initializeDatabase } from "../infra/db.js";
+import { getRecentServerErrorCount, logServerError, logServerEvent } from "../infra/logger.js";
+import { hasValidInternalServiceToken } from "../infra/internalServiceAuth.js";
+import { OfficeRoom, closeOfficeRooms, kickAccountFromOffices, kickOfficeMember, officeRoomDefinition } from "../offices/OfficeRoom.js";
 import { getOfficeRole } from "../offices/repository.js";
 import { createMeetingAudioToken, createPrivateVoiceToken, createProximityAudioToken, liveKitIdentity } from "../media/service.js";
 import { errorMessage, jsonBodyParser, originGuard, sessionFromCookie, type HttpRequest as AuthRequest, type HttpResponse as AuthResponse } from "../http/middleware.js";
@@ -29,6 +29,30 @@ const server = defineServer({
       if (typeof officeId !== "string") { response.status(400).json({ error: "Office id is required." }); return; }
       logServerEvent("realtime", "office.close.requested", { officeId });
       closeOfficeRooms(officeId); response.sendStatus(204);
+    });
+    app.post("/internal/members/kick-account", (request: AuthRequest, response: AuthResponse) => {
+      if (!authorizedServiceCall(request)) { response.sendStatus(401); return; }
+      const username = request.body?.username;
+      if (typeof username !== "string" || !username) { response.status(400).json({ error: "Username is required." }); return; }
+      const kickedClientCount = kickAccountFromOffices(username);
+      logServerEvent("realtime", "account.sessions.kicked", { kickedClientCount });
+      response.json({ kickedClientCount });
+    });
+    app.get("/internal/operations/metrics", async (request: AuthRequest, response: AuthResponse) => {
+      if (!authorizedServiceCall(request)) { response.sendStatus(401); return; }
+      response.setHeader("Cache-Control", "no-store");
+      let ready = false;
+      if (database) {
+        try { await databaseIsReady(); ready = true; }
+        catch { ready = false; }
+      }
+      const { activeRoomCount, activeParticipantCount } = OfficeRoom.getOperationsCounts();
+      response.json({
+        ready,
+        activeRoomCount,
+        activeParticipantCount,
+        recentErrorCount: getRecentServerErrorCount(),
+      });
     });
     app.post("/internal/offices/map", async (request: AuthRequest, response: AuthResponse) => {
       if (!authorizedServiceCall(request)) { response.sendStatus(401); return; }
@@ -114,7 +138,5 @@ server.listen(port);
 logServerEvent("realtime", "service.listening", { port, nodeEnv: process.env.NODE_ENV ?? "development" });
 
 function authorizedServiceCall(request: AuthRequest) {
-  const supplied = Buffer.from(request.header("x-internal-service-token") ?? "");
-  const expected = Buffer.from(serviceToken);
-  return expected.length >= 32 && supplied.length === expected.length && timingSafeEqual(supplied, expected);
+  return hasValidInternalServiceToken(request.header("x-internal-service-token"), serviceToken);
 }

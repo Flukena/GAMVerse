@@ -11,7 +11,7 @@
     "start:api": "node dist/api.js",
     "start:realtime": "node dist/index.js",
     "build": "esbuild src/entrypoints/realtime.ts --bundle --platform=node --format=esm --external:@colyseus/* --external:pg --external:express --outfile=dist/index.js && esbuild src/entrypoints/api.ts --bundle --platform=node --format=esm --external:@colyseus/* --external:pg --external:express --outfile=dist/api.js",
-    "test": "tsx --test src/auth.test.ts"
+    "test": "tsx --test src/auth.test.ts src/infra/audit.test.ts src/infra/operations.test.ts"
   },
   "dependencies": {
     "@colyseus/core": "^0.18.1",

@@ -10,6 +10,9 @@ import { WorldCanvas } from "../world/WorldCanvas";
 import { FullScreenLoading } from "./FullScreenLoading";
 import { ModifyPropsEditor } from "./ModifyPropsEditor";
 import { PageTutorial } from "./PageTutorial";
+import { MaintainerAuditPanel } from "./MaintainerAuditPanel";
+import { MaintainerAccountSafety, type MaintainerAccount } from "./MaintainerAccountSafety";
+import { MaintainerSystemPanel } from "./MaintainerSystemPanel";
 import { playSocialNotificationSound, unlockSocialNotificationAudio } from "../audio/notificationSounds";
 import { setNoiseReduction, type NoiseReductionResult } from "../audio/noiseReduction";
 import { DROP_EVENT_LABEL, LEAVE_EVENT_LABEL, CONSENTED_CLOSE_CODE, FRESH_JOIN_DELAY_MS, FRESH_JOIN_MAX_DELAY_MS, FRESH_JOIN_MAX_RETRIES_COUNT, RECONNECT_INITIAL_DELAY_MS, REMOVED_CLOSE_CODE, RETRY_BACKOFF_MULTIPLIER, installOfficeReconnection, shouldFreshJoin } from "./connection/officeReconnection";
@@ -74,7 +77,7 @@ type OfficeInvite = { id: string; officeId: string; officeName: string; inviter:
 type OfficeMember = { username: string; role: "owner" | "admin" | "user"; joinedAt: string | null };
 type ProximityAudioTrack = { track: RemoteAudioTrack; username: string };
 type VideoTileItem = { key: string; track: LocalVideoTrack | RemoteVideoTrack; label: string; local: boolean };
-type ManagedAccount = { username: string; email: string | null; lastActiveAt: string | null };
+type ManagedAccount = MaintainerAccount;
 
 const movementKeys = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"];
 const VOICE_AUDIO_CAPTURE_OPTIONS = { autoGainControl: true, echoCancellation: true, noiseSuppression: true, voiceIsolation: true };
@@ -367,6 +370,9 @@ export function OfficeApp() {
   const [managedOfficeName, setManagedOfficeName] = useState("");
   const [officeMembers, setOfficeMembers] = useState<OfficeMember[]>([]);
   const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [accountsLoadError, setAccountsLoadError] = useState<string | null>(null);
+  const [accountReloadToken, setAccountReloadToken] = useState(0);
   const [inviteLinkBusyOfficeId, setInviteLinkBusyOfficeId] = useState<string | null>(null);
   const [inviteLinkFeedback, setInviteLinkFeedback] = useState<{ officeId: string; message: string } | null>(null);
   const [meetingZoneActive, setMeetingZoneActive] = useState(false);
@@ -1437,14 +1443,17 @@ const toggleMeetingMute = async () => {
 
   useEffect(() => {
     if (!authUser || authUser.role !== "maintainer") return;
+    setAccountsLoading(true);
+    setAccountsLoadError(null);
     void fetch(`${endpoint}/maintainer/users`, { credentials: "include" })
       .then(async (response) => {
         const result = await response.json() as { users?: ManagedAccount[]; error?: string };
         if (!response.ok) throw new Error(result.error ?? "Could not load accounts.");
         setAccounts(result.users ?? []);
       })
-      .catch((cause) => setAccountError(cause instanceof Error ? cause.message : "Could not load accounts."));
-  }, [authUser]);
+      .catch((cause) => setAccountsLoadError(cause instanceof Error ? cause.message : "Could not load accounts."))
+      .finally(() => setAccountsLoading(false));
+  }, [authUser, accountReloadToken]);
 
   const changePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setLobbyBusy(true); setAccountError(null);
@@ -2586,7 +2595,19 @@ const toggleMeetingMute = async () => {
             {lobbyError && <p className="auth-error" role="alert">{lobbyError}</p>}
             <footer className="create-office-dialog-actions"><button className="lobby-button" type="button" disabled={lobbyBusy} onClick={() => setCreateOfficeDialogOpen(false)}>Cancel</button><button className="lobby-button primary" type="submit" disabled={lobbyBusy || !createOfficeInputsValid}>{lobbyBusy ? "Creating…" : "Create office & map"}</button></footer>
           </form></div>}
-          {authUser.role === "maintainer" && <section className="lobby-panel account-panel"><div className="card-heading"><div><span className="eyebrow">PLATFORM ACCOUNTS</span><h2>Accounts and recovery</h2></div><span className="count-chip">{accounts.length}</span></div><p className="empty-people">Create a fresh one-time reset link for a user and share it with them. No email is sent.</p><ul className="manager-member-list">{accounts.map((account) => <li key={account.username}><div><strong>{account.username}</strong><small>{account.email || "No email"} · Active {account.lastActiveAt ? new Date(account.lastActiveAt).toLocaleString() : "unknown"}</small></div><div className="member-actions"><button className="lobby-button" disabled={account.username === authUser.username} onClick={() => void issueResetLink(account.username)}>Generate reset link</button></div>{resetUrls[account.username] && <div className="invite-link-box account-reset-link"><code>{resetUrls[account.username]}</code><button className="lobby-button" onClick={() => void navigator.clipboard.writeText(resetUrls[account.username]!)}>Copy link</button><small>One use · expires in 15 minutes · generating another link invalidates this one</small></div>}</li>)}</ul></section>}
+          {authUser.role === "maintainer" && <MaintainerSystemPanel endpoint={endpoint} />}
+          {authUser.role === "maintainer" && <MaintainerAccountSafety
+            accounts={accounts}
+            loading={accountsLoading}
+            loadError={accountsLoadError}
+            onRetry={() => setAccountReloadToken((current) => current + 1)}
+            endpoint={endpoint}
+            currentUsername={authUser.username}
+            resetUrls={resetUrls}
+            onGenerateResetLink={issueResetLink}
+            onAccountUpdated={(updated) => setAccounts((current) => current.map((account) => account.username === updated.username ? updated : account))}
+          />}
+          {authUser.role === "maintainer" && <MaintainerAuditPanel endpoint={endpoint} />}
           <nav className="lobby-section-tabs" role="tablist" aria-label="Workspace sections">
             <button data-tutorial-target="lobby-offices" type="button" role="tab" id="offices-tab" aria-selected={activeLobbyTab === "offices"} aria-controls="offices-panel" className={activeLobbyTab === "offices" ? "active" : ""} onClick={() => setActiveLobbyTab("offices")}>Offices <span>{offices.length}</span></button>
             <button data-tutorial-target="lobby-invitations" type="button" role="tab" id="invitations-tab" aria-selected={activeLobbyTab === "invitations"} aria-controls="invitations-panel" className={activeLobbyTab === "invitations" ? "active" : ""} onClick={() => setActiveLobbyTab("invitations")}>Invitations <span>{invites.length}</span></button>

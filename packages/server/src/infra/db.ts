@@ -47,6 +47,8 @@ export async function initializeDatabase() {
     { version: 17, file: "017_add_quaternius_zombie_character.sql" },
     { version: 18, file: "018_office_owned_props.sql" },
     { version: 19, file: "019_user_nickname.sql" },
+    { version: 20, file: "020_maintainer_audit.sql" },
+    { version: 21, file: "021_account_suspension.sql" },
   ];
   const client = await database.connect();
   try {

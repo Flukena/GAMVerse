@@ -72,6 +72,19 @@ function worldGeometrySignature(layout: RoomLayout) {
 
 export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }> {
   private static roomsByOffice = new Map<string, Set<OfficeRoom>>();
+
+  static getOperationsCounts() {
+    let activeRoomCount = 0;
+    let activeParticipantCount = 0;
+    for (const rooms of OfficeRoom.roomsByOffice.values()) {
+      for (const room of rooms) {
+        activeRoomCount += 1;
+        activeParticipantCount += room.clients.length;
+      }
+    }
+    return { activeRoomCount, activeParticipantCount };
+  }
+
   state = new OfficeState();
   private officeId = "";
   private roomKey = "lobby";
@@ -808,6 +821,20 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     }
   }
 
+  static kickAccountFromAllOffices(username: string) {
+    let kickedClientCount = 0;
+    for (const rooms of OfficeRoom.roomsByOffice.values()) {
+      for (const room of rooms) {
+        for (const [sessionId, memberUsername] of room.usernamesBySessionId) {
+          if (memberUsername !== username) continue;
+          const client = room.clients.find((candidate) => candidate.sessionId === sessionId);
+          if (client) { client.leave(4003, "Account access was suspended."); kickedClientCount += 1; }
+        }
+      }
+    }
+    return kickedClientCount;
+  }
+
   static closeOffice(officeId: string) {
     for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) {
       for (const client of [...room.clients]) {
@@ -1480,6 +1507,10 @@ export const officeRoomDefinition = defineRoom(OfficeRoom).filterBy(["officeId"]
 
 export function kickOfficeMember(officeId: string, username: string) {
   OfficeRoom.kickMember(officeId, username);
+}
+
+export function kickAccountFromOffices(username: string) {
+  return OfficeRoom.kickAccountFromAllOffices(username);
 }
 
 export function closeOfficeRooms(officeId: string) {

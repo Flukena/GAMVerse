@@ -1,10 +1,12 @@
 import express from "express";
 import { createServer } from "node:http";
 import { readRoomLayout } from "@gammyverse/shared";
-import { changeAccountPassword, completePasswordReset, createPasswordResetLink, getSession, listAccountsForMaintainer, loginAccount, pruneInactiveAccounts, registerAccount, revokeSession, updateAccountCharacter, updateAccountNickname } from "../auth/service.js";
+import { changeAccountPassword, completePasswordReset, createPasswordResetLink, getSession, listAccountsForMaintainer, loginAccount, pruneInactiveAccounts, registerAccount, revokeSession, setAccountSuspended, updateAccountCharacter, updateAccountNickname } from "../auth/service.js";
 import { deleteUserCharacterModel, getCharacterModel, listUserCharacterModels, uploadUserCharacterModel } from "../auth/characterModels.js";
-import { databaseIsReady, initializeDatabase } from "../infra/db.js";
-import { logServerError, logServerEvent } from "../infra/logger.js";
+import { database, databaseIsReady, initializeDatabase } from "../infra/db.js";
+import { listMaintainerAuditEvents } from "../infra/audit.js";
+import { getRecentServerErrorCount, logServerError, logServerEvent } from "../infra/logger.js";
+import { getPlatformOperationsCounts } from "../infra/operations.js";
 import { listOfficeActivity, startOfficeActivityCleanup } from "../offices/activity.js";
 import { MAX_OFFICE_MAP_REQUEST_BYTES, MAX_OFFICE_PROPS_REQUEST_BYTES } from "../offices/limits.js";
 import { acceptOfficeInvite, claimOfficeDeskZone, createOffice, createOfficeInvite, deleteOffice, getOfficeMapLayout, getOfficeMembers, getOfficeProps, getOfficeRole, listInvites, listOffices, OfficeMapVersionConflict, OfficePropsVersionConflict, pruneInactiveOffices, removeOfficeMember, saveOfficeMapLayout, saveOfficeProps, setOfficeMemberRole, unclaimOfficeDeskZone, updateOfficeName } from "../offices/repository.js";
@@ -88,6 +90,89 @@ function configureApi() {
         const session = await requestSession(request);
         if (!session || session.role !== "maintainer") { response.status(403).json({ error: "Maintainer access required." }); return; }
         response.json({ users: await listAccountsForMaintainer() });
+      });
+      app.patch("/maintainer/users/:username/suspension", async (request: AuthRequest, response: AuthResponse) => {
+        const session = await requestSession(request);
+        if (!session || session.role !== "maintainer") { response.status(403).json({ error: "Maintainer access required." }); return; }
+        if (typeof request.body?.suspended !== "boolean") { response.status(400).json({ error: "Suspension status must be true or false." }); return; }
+        try {
+          const result = await setAccountSuspended(session.username, request.params.username, request.body.suspended);
+          if ("error" in result) response.status(400).json(result);
+          else {
+            response.setHeader("Cache-Control", "no-store");
+            if (request.body.suspended) {
+              try { await notifyRealtime("members/kick-account", { username: request.params.username }); }
+              catch {
+                response.status(503).json({ ...result, activeSessionsDisconnected: false, error: "Account is suspended, but active connections could not be closed. Retry after realtime recovers." });
+                return;
+              }
+            }
+            response.json(request.body.suspended ? { ...result, activeSessionsDisconnected: true } : result);
+          }
+        } catch (error) { response.status(503).json({ error: errorMessage(error) }); }
+      });
+      app.get("/maintainer/audit", async (request: AuthRequest, response: AuthResponse) => {
+        const session = await requestSession(request);
+        if (!session || session.role !== "maintainer") { response.status(403).json({ error: "Maintainer access required." }); return; }
+        const limitValue = typeof request.query?.limit === "string" ? Number(request.query.limit) : undefined;
+        const offsetValue = typeof request.query?.offset === "string" ? Number(request.query.offset) : 0;
+        if ((limitValue !== undefined && (!Number.isInteger(limitValue) || limitValue < 1))
+          || !Number.isInteger(offsetValue) || offsetValue < 0) {
+          response.status(400).json({ error: "Audit pagination values are invalid." });
+          return;
+        }
+        response.setHeader("Cache-Control", "no-store");
+        try {
+          response.json({ events: await listMaintainerAuditEvents({
+            limit: limitValue,
+            offset: Math.min(offsetValue, 9_999),
+            action: typeof request.query?.action === "string" ? request.query.action : undefined,
+            targetType: typeof request.query?.targetType === "string" ? request.query.targetType : undefined,
+            targetId: typeof request.query?.targetId === "string" ? request.query.targetId : undefined,
+          }) });
+        } catch (error) { response.status(503).json({ error: errorMessage(error) }); }
+      });
+      app.get("/maintainer/overview", async (request: AuthRequest, response: AuthResponse) => {
+        const session = await requestSession(request);
+        if (!session || session.role !== "maintainer") { response.status(403).json({ error: "Maintainer access required." }); return; }
+        response.setHeader("Cache-Control", "no-store");
+        let databaseReady = false;
+        let counts: Awaited<ReturnType<typeof getPlatformOperationsCounts>> | null = null;
+        if (database) {
+          try {
+            await databaseIsReady();
+            databaseReady = true;
+            counts = await getPlatformOperationsCounts();
+          } catch {
+            databaseReady = false;
+            counts = null;
+          }
+        }
+        const realtime = await getRealtimeOperationsOverview();
+        response.json({
+          generatedAt: new Date().toISOString(),
+          services: {
+            api: { status: "ready" },
+            database: { status: databaseReady ? "ready" : "unavailable" },
+            realtime: {
+              status: realtime.ready ? "ready" : "unavailable",
+              activeRooms: realtime.activeRoomCount,
+              activeParticipants: realtime.activeParticipantCount,
+            },
+          },
+          counts: counts ? {
+            accounts: counts.accounts,
+            suspendedAccounts: counts.suspendedAccounts,
+            offices: counts.offices,
+            activeOffices: counts.activeOffices,
+            officeActivity24h: counts.officeActivityLast24Hours,
+          } : null,
+          recentErrors: {
+            windowMinutes: 15,
+            count: getRecentServerErrorCount() + (realtime.recentErrorCount ?? 0),
+            complete: realtime.recentErrorCount !== null,
+          },
+        });
       });
       app.post("/maintainer/users/:username/password-reset", async (request: AuthRequest, response: AuthResponse) => {
         const session = await requestSession(request);
@@ -418,6 +503,42 @@ async function notifyRealtime(action: string, body: Record<string, string>) {
   } catch (error) {
     logServerError("api", "realtime.control.failed", error, { action, officeId: body.officeId, durationMs: Math.round(performance.now() - startedAt) });
     throw error;
+  }
+}
+
+type RealtimeOperationsOverview = {
+  ready: boolean;
+  activeRoomCount: number | null;
+  activeParticipantCount: number | null;
+  recentErrorCount: number | null;
+};
+
+async function getRealtimeOperationsOverview(): Promise<RealtimeOperationsOverview> {
+  const baseUrl = process.env.REALTIME_INTERNAL_URL;
+  const serviceToken = process.env.INTERNAL_SERVICE_TOKEN;
+  if (!baseUrl || !serviceToken) return { ready: false, activeRoomCount: null, activeParticipantCount: null, recentErrorCount: null };
+  try {
+    const result = await fetch(baseUrl.replace(/\/$/, "") + "/internal/operations/metrics", {
+      headers: { "X-Internal-Service-Token": serviceToken },
+      signal: AbortSignal.timeout(2_000),
+    });
+    if (!result.ok) return { ready: false, activeRoomCount: null, activeParticipantCount: null, recentErrorCount: null };
+    const payload: unknown = await result.json();
+    if (typeof payload !== "object" || payload === null) return { ready: false, activeRoomCount: null, activeParticipantCount: null, recentErrorCount: null };
+    const metrics = payload as Record<string, unknown>;
+    const safeCount = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+    const activeRoomCount = safeCount(metrics.activeRoomCount);
+    const activeParticipantCount = safeCount(metrics.activeParticipantCount);
+    const recentErrorCount = safeCount(metrics.recentErrorCount);
+    const metricsAvailable = activeRoomCount !== null && activeParticipantCount !== null && recentErrorCount !== null;
+    return {
+      ready: metrics.ready === true && metricsAvailable,
+      activeRoomCount: metricsAvailable ? activeRoomCount : null,
+      activeParticipantCount: metricsAvailable ? activeParticipantCount : null,
+      recentErrorCount: metricsAvailable ? recentErrorCount : null,
+    };
+  } catch {
+    return { ready: false, activeRoomCount: null, activeParticipantCount: null, recentErrorCount: null };
   }
 }
 

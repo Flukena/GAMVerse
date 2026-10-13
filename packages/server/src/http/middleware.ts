@@ -6,6 +6,7 @@ export type HttpRequest = {
   path: string;
   body?: Record<string, unknown>;
   params: Record<string, string>;
+  query?: Record<string, string | string[] | undefined>;
   header(name: string): string | undefined;
   on(event: string, listener: (...args: any[]) => void): void;
   destroy(): void;
