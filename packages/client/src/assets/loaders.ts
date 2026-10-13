@@ -19,6 +19,33 @@ type RoomPropModelPaths =
   | { format: "obj"; materialUrl: string; modelUrl: string };
 const roomPropTemplateCache = new Map<string, Promise<THREE.Group>>();
 
+function waitForObjTexture(texture: THREE.Texture): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let listenersAdded = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearInterval(poll);
+      clearTimeout(timeout);
+      resolve();
+    };
+    const inspect = () => {
+      const image = texture.image as (HTMLImageElement & EventTarget) | undefined;
+      if (!image) return;
+      if (image.complete || image.width > 0 || typeof image.addEventListener !== "function") return finish();
+      if (listenersAdded) return;
+      listenersAdded = true;
+      image.addEventListener("load", finish, { once: true });
+      // Preserve the model's base material when an optional texture is absent.
+      image.addEventListener("error", finish, { once: true });
+    };
+    const poll = setInterval(inspect, 20);
+    const timeout = setTimeout(finish, 5000);
+    inspect();
+  });
+}
+
 export function loadGltfAsset(url: string): Promise<GLTF> {
   return gltfLoader.loadAsync(encodeURI(url));
 }
@@ -28,7 +55,24 @@ export async function loadObjAsset(mtlUrl: string, objUrl: string): Promise<THRE
   materials.preload();
   const loader = new OBJLoader();
   loader.setMaterials(materials);
-  return loader.loadAsync(encodeURI(objUrl));
+  const model = await loader.loadAsync(encodeURI(objUrl));
+
+  // MTLLoader returns before its referenced atlas images have necessarily
+  // finished loading. Rendered prop thumbnails are cached on first draw, so
+  // that race left OBJ props permanently black/blank even though the model
+  // and texture URLs were valid.
+  const textureLoads: Promise<void>[] = [];
+  model.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+      for (const value of Object.values(material)) {
+        if (!(value instanceof THREE.Texture)) continue;
+        textureLoads.push(waitForObjTexture(value));
+      }
+    }
+  });
+  if (textureLoads.length) await Promise.all(textureLoads);
+  return model;
 }
 
 function loadRoomPropTemplate(paths: RoomPropModelPaths) {

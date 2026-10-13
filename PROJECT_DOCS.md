@@ -1,6 +1,6 @@
 # GAMVerse project documentation
 
-This is the single project documentation file. It combines the former `docs/`, `research/`, progress, and asset-inventory Markdown files. The first section reflects the source tree inspected on **12 October 2026**. The archived sections after it preserve earlier plans, research, and implementation notes; their paths and status claims are historical.
+This is the single project documentation file. It combines the former `docs/`, `research/`, progress, and asset-inventory Markdown files. The first section reflects the source tree inspected on **13 October 2026**. The archived sections after it preserve earlier plans, research, and implementation notes; their paths and status claims are historical.
 
 ## Current implementation
 
@@ -42,9 +42,11 @@ flowchart LR
 
 The client verifies the session and office membership before joining a realtime room. The server enforces office-scoped owner, admin, and member permissions. The office creator is the owner; maintainer permission is application-wide. Browser route state is never an access grant.
 
+Maintainers can manage platform accounts from the lobby: issue one-time password reset links, suspend/reactivate accounts, review recent office/account changes in a bounded audit history, and inspect aggregate service health. Suspension revokes persisted sessions and asks the realtime process to disconnect existing sessions; if realtime control is unavailable, the UI reports that the account was suspended but existing connections may still need disconnecting. The audit table retains the newest 10,000 entries and excludes reset tokens, session IDs, passwords, and request bodies. The system overview contains aggregate counts only; realtime/error metrics are process-local and are not durable monitoring.
+
 ### Persistence and map contract
 
-PostgreSQL migrations are in `packages/server/migrations/` and applied by `initializeDatabase()` in `packages/server/src/infra/db.ts`. Current durable data includes users and hashed sessions, office membership and invitations, password reset links, rooms/activity, character-model records, versioned office map layouts, and versioned office props. Movement and presence snapshots stay in Colyseus room memory.
+PostgreSQL migrations are in `packages/server/migrations/` and applied by `initializeDatabase()` in `packages/server/src/infra/db.ts`. Current durable data includes users and hashed sessions, account suspension status, bounded maintainer audit events, office membership and invitations, password reset links, rooms/activity, character-model records, versioned office map layouts, and versioned office props. Movement and presence snapshots stay in Colyseus room memory.
 
 `RoomLayout` (`packages/shared/src/roomLayout.ts`) describes dimensions, spawn point, zones, walls, doors, roads, and props. `generateCampusMap()` (`packages/shared/src/campusMapGenerator.ts`) accepts total people, people per team, and team count; the create-office UI derives people per team from total people and team count. The ten-team design uses private 8 × 8 m workrooms, meeting spaces, a lobby, Town Hall, cafeteria, restrooms, and roads. Generated rooms have actual door leaves; legacy generated openings are converted when the layout is read. Map geometry and office props are saved through separate versioned endpoints, so map edits should not overwrite newer prop edits.
 
@@ -71,6 +73,7 @@ Deployable models, previews, textures, and pack license notices are under `packa
 - `docker compose up -d` runs the complete development stack at `https://localhost:5173` by default. Development Caddy uses a local CA certificate. Set `DEV_HOST` in an ignored `.env` file for another local hostname.
 - `pnpm install --frozen-lockfile`, `pnpm build`, and `pnpm test` are the root workspace commands. The root test script covers the shared package and client connection/camera tests; the server has a separate test script. `pnpm dev` does not start PostgreSQL, LiveKit, or Caddy.
 - `compose.production.yaml`, `Caddyfile`, and `.env.production.example` define a single-host Linux deployment. Configure DNS, unique secrets, HTTPS, WebRTC/TURN ports, backups, and external-network checks before use. `/health/live` and `/health/ready` are provided by API and realtime services.
+- Maintainers can read a no-store `/maintainer/overview` aggregate with API/database/realtime readiness, total and suspended accounts, active offices, office-activity count over 24 hours, active realtime rooms/participants, and structured server-error count over 15 minutes. Realtime metrics cross the existing API-to-realtime internal-token boundary; the credential is never included in the response. Counts are process-local for realtime and include only the current realtime process. Error counts include only calls to the structured `logServerError` helper, are in-memory, and reset on restart; they are diagnostic signals, not durable monitoring or alerts. This view excludes user identifiers, movement, room names, raw media and payloads.
 - `.env`, local certificates, dependency backups, and load-test outputs are generated/private material and should not be committed. The repository itself has no initialized Git metadata in this workspace; initialize and review the staged file list before pushing to GitHub.
 
 ### Current limitations and verification boundary

@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { database } from "../infra/db.js";
+import { recordAuditEvent } from "../infra/audit.js";
 import { DEFAULT_CHARACTER_ID, KENNEY_CHARACTER_IDS, type KenneyCharacterId } from "@gammyverse/shared";
 import { isCustomCharacterId, userOwnsCharacterModel } from "./characterModels.js";
 
@@ -14,7 +15,7 @@ const activityWriteIntervalMs = 24 * 60 * 60 * 1000;
 const sessions = new Map<string, { username: string; role: PlatformRole; expiresAt: number }>();
 const lastActivityWriteAt = new Map<string, number>();
 export type PlatformRole = "maintainer" | "user";
-type UserRecord = { username: string; salt: string; passwordHash: string; createdAt: string; lastActiveAt?: string; isMaintainer?: boolean; email?: string | null; characterId?: string | null; nickname?: string | null };
+type UserRecord = { username: string; salt: string; passwordHash: string; createdAt: string; lastActiveAt?: string; isMaintainer?: boolean; email?: string | null; characterId?: string | null; nickname?: string | null; suspendedAt?: string | null };
 let userRecordsPromise: Promise<UserRecord[]> | undefined;
 let writeQueue = Promise.resolve();
 
@@ -127,11 +128,12 @@ export async function loginAccount(usernameValue: unknown, passwordValue: unknow
   if (!username || !validPassword(passwordValue)) return { error: "Username or password is incorrect." };
   const record = database
     ? (await database.query<UserRecord>(
-      "SELECT username, nickname, password_salt AS salt, password_hash AS \"passwordHash\", created_at AS \"createdAt\", last_active_at AS \"lastActiveAt\", is_maintainer AS \"isMaintainer\", COALESCE('custom-' || custom_character_model_id::text, character_id) AS \"characterId\" FROM app_users WHERE username = $1",
+      "SELECT username, nickname, password_salt AS salt, password_hash AS \"passwordHash\", created_at AS \"createdAt\", last_active_at AS \"lastActiveAt\", is_maintainer AS \"isMaintainer\", COALESCE('custom-' || custom_character_model_id::text, character_id) AS \"characterId\", suspended_at AS \"suspendedAt\" FROM app_users WHERE username = $1",
       [username],
     )).rows[0]
     : (await users()).find((item) => item.username === username);
   if (!record) return { error: "Username or password is incorrect." };
+  if (record.suspendedAt) return { error: "This account is suspended. Contact a maintainer." };
   const submitted = await hashPassword(passwordValue, record.salt);
   const expected = Buffer.from(record.passwordHash, "hex");
   if (submitted.length !== expected.length || !timingSafeEqual(submitted, expected)) {
@@ -180,11 +182,61 @@ export async function changeAccountPassword(usernameValue: unknown, currentPassw
 }
 
 export async function listAccountsForMaintainer() {
-  if (!database) return (await users()).map(({ username, email = null, lastActiveAt = null }) => ({ username, email, lastActiveAt }));
-  const result = await database.query<{ username: string; email: string | null; lastActiveAt: string | null }>(
-    'SELECT username, email, last_active_at AS "lastActiveAt" FROM app_users ORDER BY username',
+  if (!database) return (await users()).map(({ username, email = null, lastActiveAt = null, suspendedAt = null }) => ({ username, email, lastActiveAt, suspendedAt }));
+  const result = await database.query<{ username: string; email: string | null; lastActiveAt: string | null; suspendedAt: string | null }>(
+    'SELECT username, email, last_active_at AS "lastActiveAt", suspended_at AS "suspendedAt" FROM app_users ORDER BY username',
   );
   return result.rows;
+}
+
+/** Suspend or reactivate an account without deleting it. Suspension revokes every session. */
+export async function setAccountSuspended(actorValue: unknown, usernameValue: unknown, suspended: unknown) {
+  const actor = normalizeUsername(actorValue);
+  const username = normalizeUsername(usernameValue);
+  if (!actor || !username) return { error: "Account not found." };
+  if (typeof suspended !== "boolean") return { error: "Suspension status must be true or false." };
+  if (suspended && actor === username) return { error: "You cannot suspend your own account." };
+  if (!database) return { error: "Account suspension requires the PostgreSQL audit store." };
+
+  const client = await database.connect();
+  try {
+      await client.query("BEGIN");
+      // Serialize maintainer suspension decisions so concurrent requests cannot suspend the final maintainer.
+      await client.query("SELECT pg_advisory_xact_lock(724031106)");
+      const target = await client.query<{ is_maintainer: boolean; suspended_at: Date | null }>(
+        "SELECT is_maintainer, suspended_at FROM app_users WHERE username = $1 FOR UPDATE",
+        [username],
+      );
+      const account = target.rows[0];
+      if (!account) { await client.query("ROLLBACK"); return { error: "Account not found." }; }
+      const currentlySuspended = account.suspended_at !== null;
+      if (currentlySuspended === suspended) { await client.query("COMMIT"); return { suspendedAt: account.suspended_at?.toISOString() ?? null }; }
+      if (suspended && account.is_maintainer) {
+        const activeMaintainers = await client.query<{ count: string }>(
+          "SELECT count(*)::text AS count FROM app_users WHERE is_maintainer = TRUE AND suspended_at IS NULL",
+        );
+        if (Number(activeMaintainers.rows[0]?.count ?? 0) <= 1) {
+          await client.query("ROLLBACK");
+          return { error: "The last active maintainer cannot be suspended." };
+        }
+      }
+      const updated = await client.query<{ suspended_at: Date | null }>(
+        "UPDATE app_users SET suspended_at = CASE WHEN $2 THEN now() ELSE NULL END WHERE username = $1 RETURNING suspended_at",
+        [username, suspended],
+      );
+      if (suspended) {
+        await client.query("UPDATE app_sessions SET revoked_at = now() WHERE username = $1 AND revoked_at IS NULL", [username]);
+      }
+      await recordAuditEvent(client, {
+        actorUsername: actor,
+        action: suspended ? "account.suspended" : "account.reactivated",
+        targetType: "account",
+        targetId: username,
+      });
+      await client.query("COMMIT");
+      return { suspendedAt: updated.rows[0]?.suspended_at?.toISOString() ?? null };
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+  finally { client.release(); }
 }
 
 export async function createPasswordResetLink(actorValue: unknown, usernameValue: unknown) {
@@ -201,6 +253,7 @@ export async function createPasswordResetLink(actorValue: unknown, usernameValue
     if (!target.rowCount) { await client.query("ROLLBACK"); return { error: "Account not found." }; }
     await client.query("UPDATE app_password_resets SET revoked_at = now() WHERE username = $1 AND used_at IS NULL AND revoked_at IS NULL", [username]);
     await client.query("INSERT INTO app_password_resets(username, token_hash, created_by, expires_at) VALUES ($1, $2, $3, $4)", [username, tokenHash(token), actor, expiresAt]);
+    await recordAuditEvent(client, { actorUsername: actor, action: "password_reset.issued", targetType: "account", targetId: username });
     await client.query("COMMIT");
     return { token, expiresAt: expiresAt.toISOString() };
   } catch (error) { await client.query("ROLLBACK"); throw error; }
@@ -262,7 +315,7 @@ export async function pruneInactiveAccounts(now = Date.now()) {
               AND admins.last_active_at >= $1
             ORDER BY memberships.joined_at ASC, memberships.username ASC LIMIT 1) AS next_admin
         FROM app_offices offices JOIN app_users users ON users.username = offices.owner_username
-        WHERE users.last_active_at < $1 AND offices.archived_at IS NULL
+        WHERE users.last_active_at < $1 AND users.suspended_at IS NULL AND offices.archived_at IS NULL
         ORDER BY offices.id FOR UPDATE OF offices, users`,
         [cutoff],
       );
@@ -271,7 +324,7 @@ export async function pruneInactiveAccounts(now = Date.now()) {
         await client.query("UPDATE app_offices SET owner_username = $2 WHERE id = $1", [office.office_id, nextOwner]);
       }
       const deleted = await client.query<{ username: string }>(
-        "DELETE FROM app_users WHERE last_active_at < $1 RETURNING username",
+        "DELETE FROM app_users WHERE last_active_at < $1 AND suspended_at IS NULL RETURNING username",
         [cutoff],
       );
       await client.query("DELETE FROM app_sessions WHERE expires_at < now() OR revoked_at < now() - interval '30 days'");
@@ -289,7 +342,7 @@ export async function pruneInactiveAccounts(now = Date.now()) {
     const records = await users();
     const deleted = records.filter((record) => {
       const lastActiveAt = Date.parse(record.lastActiveAt ?? record.createdAt);
-      return !Number.isFinite(lastActiveAt) || lastActiveAt < cutoff.getTime();
+      return !record.suspendedAt && (!Number.isFinite(lastActiveAt) || lastActiveAt < cutoff.getTime());
     });
     if (deleted.length === 0) return [];
     const deletedUsernames = new Set(deleted.map((record) => record.username));
@@ -306,7 +359,7 @@ export async function getSession(value: unknown) {
   if (typeof value !== "string") return null;
   if (database) {
     const result = await database.query<{ username: string; nickname: string | null; is_maintainer: boolean; character_id: string | null }>(
-      "SELECT users.username, users.nickname, users.is_maintainer, COALESCE('custom-' || users.custom_character_model_id::text, users.character_id) AS character_id FROM app_sessions sessions JOIN app_users users USING (username) WHERE sessions.token_hash = $1 AND sessions.revoked_at IS NULL AND sessions.expires_at > now()",
+      "SELECT users.username, users.nickname, users.is_maintainer, COALESCE('custom-' || users.custom_character_model_id::text, users.character_id) AS character_id FROM app_sessions sessions JOIN app_users users USING (username) WHERE sessions.token_hash = $1 AND sessions.revoked_at IS NULL AND sessions.expires_at > now() AND users.suspended_at IS NULL",
       [tokenHash(value)],
     );
     const user = result.rows[0];
@@ -319,7 +372,7 @@ export async function getSession(value: unknown) {
     return null;
   }
   const record = (await users()).find((item) => item.username === session.username);
-  if (!record) return null;
+  if (!record || record.suspendedAt) return null;
   return { username: session.username, nickname: record.nickname ?? null, role: session.role, characterId: normalizeCharacterId(record.characterId === undefined ? DEFAULT_CHARACTER_ID : record.characterId) };
 }
 

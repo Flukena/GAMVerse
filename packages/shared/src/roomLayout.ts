@@ -15,6 +15,7 @@ export type OfficePropsSnapshot = { props: RoomLayoutProp[]; configVersion: numb
 
 export type RoomLayoutZone = { id: string; name: string; kind: "private" | "meeting" | "restroom"; ownerUsername?: string; x: number; z: number; width: number; depth: number; color: string };
 import { EXTERNAL_ROOM_PROP_CATALOG, EXTERNAL_WALL_ASSET_IDS } from "./externalRoomProps.js";
+import { NATURE_ROOM_PROP_CATALOG } from "./natureRoomProps.js";
 
 const BUILT_IN_WALL_MODEL_ASSETS = ["kit-building-kit-wall-half", "poly-kitchen-wall-plain", "poly-kitchen-wall-plain-detail", "poly-kitchen-wall-tiles", "poly-kitchen-wall-tiles-w", "quaternius-sushi-wall-normal", "quaternius-sushi-wall-redwood", "quaternius-sushi-wall-shelves", "quaternius-sushi-wall-shoji", "quaternius-sushi-wall-shoji-interior"] as const;
 export const ROOM_WALL_MODEL_ASSETS = [...BUILT_IN_WALL_MODEL_ASSETS, ...EXTERNAL_WALL_ASSET_IDS] as const;
@@ -48,7 +49,7 @@ export function roomPropCollisionClearanceRadius(prop: Pick<RoomLayoutProp, "ass
 }
 
 export type RoomPropDefinition = Pick<RoomLayoutProp, "asset" | "width" | "depth" | "collision"> & {
-  label: string; height: number; model?: string; modelUrl?: string; pack?: string; format?: "gltf"; group?: string; preview?: string; wallAxis?: "x" | "z"; geometry?: "townhall-stage" | "townhall-podium" | "restroom-partition" | "wayfinding-sign" | "wall-picture" | "wall-shelf";
+  label: string; height: number; model?: string; modelUrl?: string; materialUrl?: string; pack?: string; format?: "gltf"; group?: string; preview?: string; wallAxis?: "x" | "z"; geometry?: "townhall-stage" | "townhall-podium" | "restroom-partition" | "wayfinding-sign" | "wall-picture" | "wall-shelf";
   /** Wall-mounted props save their vertical offset without needing a tabletop. */
   wallMounted?: boolean;
   /** Natural model footprint used by movement collision when editor cells are larger. */
@@ -846,7 +847,7 @@ const ENVIRONMENT_PROP_SCALE: Readonly<Record<string, number>> = {
 };
 
 /** Shared behavioral hints for the prop library. Placement/interaction support can be enabled progressively. */
-export const ROOM_PROP_CATALOG: ReadonlyArray<RoomPropDefinition> = [...ROOM_PROP_CATALOG_BASE, ...EXTERNAL_ROOM_PROP_CATALOG].map((item) => {
+export const ROOM_PROP_CATALOG: ReadonlyArray<RoomPropDefinition> = [...ROOM_PROP_CATALOG_BASE, ...EXTERNAL_ROOM_PROP_CATALOG, ...NATURE_ROOM_PROP_CATALOG].map((item) => {
   const scale = ENVIRONMENT_PROP_SCALE[item.asset] ?? (/^kit-city-kit-industrial-building-[a-t]$/.test(item.asset) ? 1.5 : 1);
   const sizedItem = scale === 1 ? item : {
     ...item,

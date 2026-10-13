@@ -85,6 +85,23 @@ button:focus-visible { outline: 3px solid #287a59; outline-offset: 3px; }
 .manager-dialog h2 { margin: 7px 0 3px; font: 800 22px "Manrope", sans-serif; }
 .manager-owner { margin: 0 0 16px; color: #839087; font-size: 11px; }
 .account-panel { margin: 18px 0; }
+.maintainer-audit-panel { margin: 18px 0; }
+.maintainer-audit-filters { display: flex; align-items: end; gap: 8px; margin: 0 0 10px; }
+.maintainer-audit-filters label { display: grid; flex: 1; gap: 5px; color: #65756a; font-size: 10px; font-weight: 650; }
+.maintainer-audit-filters input { width: 100%; min-width: 0; height: 36px; padding: 0 9px; border: 1px solid #dfe6e0; border-radius: 8px; background: #fff; color: #30463a; font: inherit; font-weight: 450; }
+.maintainer-audit-more { margin-top: 10px; }
+.maintainer-audit-list { list-style: none; margin: 0; padding: 0; }
+.maintainer-audit-list li { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 11px 0; border-top: 1px solid #edf0ec; }
+.maintainer-audit-event { display: grid; gap: 4px; min-width: 0; }
+.maintainer-audit-event strong { color: #30463a; font-size: 11px; }
+.maintainer-audit-event span, .maintainer-audit-list time { color: #87958c; font-size: 10px; }
+.maintainer-audit-list time { flex: 0 0 auto; text-align: right; }
+@media (max-width: 560px) {
+  .maintainer-audit-filters { align-items: stretch; flex-wrap: wrap; }
+  .maintainer-audit-filters label { flex-basis: calc(50% - 5px); }
+  .maintainer-audit-list li { flex-direction: column; gap: 5px; }
+  .maintainer-audit-list time { text-align: left; }
+}
 .account-reset-link { flex-basis: 100%; }
 .password-dialog { display: flex; flex-direction: column; gap: 12px; width: min(420px, 100%); }
 .password-dialog label { display: flex; flex-direction: column; gap: 7px; color: #536359; font-size: 11px; font-weight: 600; }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ROOM_PROP_CATALOG, type RoomLayoutProp } from "@gammyverse/shared";
 import { preloadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
+import { classifyModifyProp, MODIFY_PROPS_CATEGORIES } from "./modifyPropsCategories";
 import { PropThumbnail } from "./PropThumbnail";
 import "./ModifyPropsEditor.css";
 
@@ -51,16 +52,10 @@ export function ModifyPropsEditor({ open, officeName, dimension, props, catalog 
   useEffect(() => { if (open) onDraftChange?.(draft); }, [draft, onDraftChange, open]);
   useEffect(() => { if (open) setDraft(props); }, [open, props]);
 
-  const semanticCategories = ["Floor tiles", "Small items", "Tables & surfaces", "Shelves", "Seats"];
-  const categories = useMemo(() => ["All props", ...semanticCategories, ...Array.from(new Set(catalog.map((item) => item.group ?? "Furniture"))).filter((group) => !semanticCategories.includes(group)).sort()], [catalog]);
+  const categories = useMemo(() => ["All props", ...MODIFY_PROPS_CATEGORIES], []);
   const filteredCatalog = useMemo(() => catalog.filter((item) => {
-    const semanticMatch = category === "Floor tiles" ? item.group === "Floor tiles"
-      : category === "Small items" ? item.placementClass === "small"
-      : category === "Tables & surfaces" ? item.placementClass === "surface"
-      : category === "Shelves" ? item.placementClass === "shelf"
-      : category === "Seats" ? item.placementClass === "seat"
-      : category === "All props" || (item.group ?? "Furniture") === category;
-    return semanticMatch && item.label.toLowerCase().includes(query.trim().toLowerCase());
+    const categoryMatch = category === "All props" || classifyModifyProp(item) === category;
+    return categoryMatch && item.label.toLowerCase().includes(query.trim().toLowerCase());
   }), [catalog, category, query]);
 
   if (!open) return null;

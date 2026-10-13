@@ -1,4 +1,5 @@
 import { database } from "../infra/db.js";
+import { recordAuditEvent } from "../infra/audit.js";
 import { createHash, randomBytes } from "node:crypto";
 import { MAX_OFFICE_PROPS } from "./limits.js";
 import { campusWorldFromConfig, isPositionWalkable, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type OfficePropsSnapshot, type RoomLayout, type RoomLayoutProp } from "@gammyverse/shared";
@@ -512,19 +513,29 @@ export async function createOfficeInvite(
     if (await getOfficeRole(invitedUsername, officeId)) throw new Error("That account is already an office member.");
   }
   const token = randomBytes(32).toString("base64url");
-  if (invitedUsername) {
-    await database.query(
-      "UPDATE app_office_invites SET revoked_at = now() WHERE office_id = $1 AND invited_username = $2 AND accepted_at IS NULL AND revoked_at IS NULL",
-      [officeId, invitedUsername],
+  const client = await database.connect();
+  try {
+    await client.query("BEGIN");
+    if (invitedUsername) {
+      await client.query(
+        "UPDATE app_office_invites SET revoked_at = now() WHERE office_id = $1 AND invited_username = $2 AND accepted_at IS NULL AND revoked_at IS NULL",
+        [officeId, invitedUsername],
+      );
+    }
+    const result = await client.query<{ id: string; expires_at: Date }>(
+      `INSERT INTO app_office_invites(office_id, invited_username, role, token_hash, created_by, expires_at)
+      VALUES ($1, $2, $3, $4, $5, now() + interval '7 days') RETURNING id, expires_at`,
+      [officeId, invitedUsername, role, tokenHash(token), actor],
     );
-  }
-  const result = await database.query<{ id: string; expires_at: Date }>(
-    `INSERT INTO app_office_invites(office_id, invited_username, role, token_hash, created_by, expires_at)
-    VALUES ($1, $2, $3, $4, $5, now() + interval '7 days') RETURNING id, expires_at`,
-    [officeId, invitedUsername, role, tokenHash(token), actor],
-  );
-  await database.query("UPDATE app_offices SET last_activity_at = now() WHERE id = $1", [officeId]);
-  return { id: result.rows[0].id, token, role, expiresAt: result.rows[0].expires_at.toISOString() };
+    await client.query("UPDATE app_offices SET last_activity_at = now() WHERE id = $1", [officeId]);
+    await recordAuditEvent(client, {
+      actorUsername: actor, action: "office_invite.issued", targetType: "office", targetId: officeId,
+      metadata: { role, inviteType: invitedUsername ? "account" : "link" },
+    });
+    await client.query("COMMIT");
+    return { id: result.rows[0].id, token, role, expiresAt: result.rows[0].expires_at.toISOString() };
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+  finally { client.release(); }
 }
 
 export async function acceptOfficeInvite(username: string, tokenValue: unknown) {
@@ -588,8 +599,19 @@ export async function setOfficeMemberRole(actor: string, isMaintainer: boolean, 
   if (!current || current === "owner") throw new Error("The office owner cannot be changed as a member.");
   if (nextRole === "admin" && !["owner", "maintainer"].includes(actorRole)) throw new Error("Only the owner or maintainer can appoint an admin.");
   if (current === "admin" && !["owner", "maintainer"].includes(actorRole)) throw new Error("Only the owner or maintainer can change an admin.");
-  await database.query("UPDATE app_office_memberships SET role = $3 WHERE office_id = $1 AND username = $2", [officeId, target, nextRole]);
-  await database.query("UPDATE app_offices SET last_activity_at = now() WHERE id = $1", [officeId]);
+  if (current === nextRole) return;
+  const client = await database.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("UPDATE app_office_memberships SET role = $3 WHERE office_id = $1 AND username = $2", [officeId, target, nextRole]);
+    await client.query("UPDATE app_offices SET last_activity_at = now() WHERE id = $1", [officeId]);
+    await recordAuditEvent(client, {
+      actorUsername: actor, action: "office_member.role_changed", targetType: "account", targetId: target,
+      metadata: { officeId, fromRole: current, toRole: nextRole },
+    });
+    await client.query("COMMIT");
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+  finally { client.release(); }
 }
 
 export async function removeOfficeMember(actor: string, isMaintainer: boolean, officeId: string, target: string) {
@@ -619,6 +641,10 @@ export async function removeOfficeMember(actor: string, isMaintainer: boolean, o
       }
     }
     await client.query("UPDATE app_offices SET last_activity_at = now() WHERE id = $1", [officeId]);
+    await recordAuditEvent(client, {
+      actorUsername: actor, action: "office_member.removed", targetType: "account", targetId: target,
+      metadata: { officeId, previousRole: targetRole },
+    });
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -634,7 +660,19 @@ export async function updateOfficeName(actor: string, isMaintainer: boolean, off
   if (actorRole !== "owner" && actorRole !== "maintainer") throw new Error("Only the owner or maintainer can change the office name.");
   const name = typeof nameValue === "string" ? nameValue.trim().replace(/\s+/g, " ") : "";
   if (name.length < 2 || name.length > 64) throw new Error("Office name must be 2–64 characters.");
-  await database.query("UPDATE app_offices SET name = $2, last_activity_at = now() WHERE id = $1", [officeId, name]);
+  const client = await database.connect();
+  try {
+    await client.query("BEGIN");
+    const current = await client.query<{ name: string }>("SELECT name FROM app_offices WHERE id = $1 AND archived_at IS NULL FOR UPDATE", [officeId]);
+    if (!current.rows[0]) throw new Error("Office not found.");
+    const previousName = current.rows[0].name;
+    await client.query("UPDATE app_offices SET name = $2, last_activity_at = now() WHERE id = $1", [officeId, name]);
+    if (previousName !== name) {
+      await recordAuditEvent(client, { actorUsername: actor, action: "office.renamed", targetType: "office", targetId: officeId });
+    }
+    await client.query("COMMIT");
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+  finally { client.release(); }
   return name;
 }
 
@@ -650,6 +688,7 @@ export async function deleteOffice(actor: string, isMaintainer: boolean, officeI
     const office = result.rows[0];
     if (!office) throw new Error("Office not found.");
     if (!isMaintainer && office.owner_username !== actor) throw new Error("Only the office owner can delete this office.");
+    await recordAuditEvent(client, { actorUsername: actor, action: "office.deleted", targetType: "office", targetId: officeId });
     // Office-owned records use ON DELETE CASCADE, so membership, invite,
     // room, map, zone, and activity data are removed in this transaction.
     await client.query("DELETE FROM app_offices WHERE id = $1", [officeId]);
