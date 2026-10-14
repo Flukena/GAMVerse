@@ -6,6 +6,8 @@ export type CameraMode = "tpp" | "fpp" | "free" | "map2d";
 export type CameraState = {
   mode: CameraMode;
   following: boolean;
+  /** Keep the third-person camera behind the player's facing direction. */
+  followFacing: boolean;
   editing: boolean;
   campus: boolean;
   arrival: "awaiting-avatar" | "ready";
@@ -21,6 +23,7 @@ export type CameraEvent =
   | { type: "toggle-fpp" }
   | { type: "focus-character" }
   | { type: "manual-drag" }
+  | { type: "manual-rotate" }
   | { type: "walk-input" }
   | { type: "edit"; active: boolean }
   | { type: "zoom"; ratio: number; distanceM?: number }
@@ -29,10 +32,14 @@ export type CameraEvent =
 
 export function createCameraState(campus: boolean, alignBehind = true): CameraState {
   return {
-    mode: "tpp", following: true, editing: false, campus, arrival: "awaiting-avatar", alignBehind,
+    mode: "tpp", following: true, followFacing: true, editing: false, campus, arrival: "awaiting-avatar", alignBehind,
     distanceM: LIVE_OFFICE_FOCUS_DISTANCE_M, zoomRatio: CAMPUS_MAX_ZOOM_RATIO,
     elevationRad: campus ? MathUtils.degToRad(DEFAULT_CAMPUS_ELEVATION_DEG) : DEFAULT_TPP_ELEVATION_RAD,
   };
+}
+
+export function isBehindCharacterLocked(state: CameraState): boolean {
+  return state.mode === "tpp" && state.following && state.followFacing && !state.editing;
 }
 
 function resolveMode(state: CameraState): CameraState {
@@ -43,12 +50,12 @@ function resolveMode(state: CameraState): CameraState {
 }
 
 function focusCharacter(state: CameraState): CameraState {
-  return resolveMode({ ...state, mode: state.mode === "fpp" ? "fpp" : "tpp", following: true, zoomRatio: CAMPUS_MIN_ZOOM_RATIO, distanceM: LIVE_OFFICE_FOCUS_DISTANCE_M });
+  return resolveMode({ ...state, mode: state.mode === "fpp" ? "fpp" : "tpp", following: true, followFacing: true, zoomRatio: CAMPUS_MIN_ZOOM_RATIO, distanceM: LIVE_OFFICE_FOCUS_DISTANCE_M });
 }
 
 function toggleFirstPerson(state: CameraState): CameraState {
   if (state.editing) return state;
-  if (state.mode === "fpp") return { ...focusCharacter({ ...state, mode: "tpp" }), elevationRad: DEFAULT_TPP_ELEVATION_RAD };
+  if (state.mode === "fpp") return { ...focusCharacter({ ...state, mode: "tpp" }), followFacing: state.followFacing, elevationRad: DEFAULT_TPP_ELEVATION_RAD };
   return { ...state, mode: "fpp", following: true, arrival: "ready" };
 }
 
@@ -59,6 +66,7 @@ export function cameraReducer(state: CameraState, event: CameraEvent): CameraSta
     case "toggle-fpp": return toggleFirstPerson(state);
     case "focus-character": return focusCharacter(state);
     case "manual-drag": return state.mode === "fpp" ? state : resolveMode({ ...state, following: false });
+    case "manual-rotate": return state.mode === "fpp" ? state : { ...state, followFacing: false };
     case "walk-input": return state.mode === "free" && !state.editing ? resolveMode({ ...state, following: true }) : state;
     case "edit": return resolveMode({ ...state, editing: event.active, following: event.active ? false : state.following });
     case "zoom": return resolveMode({ ...state, zoomRatio: MathUtils.clamp(event.ratio, CAMPUS_MIN_ZOOM_RATIO, CAMPUS_MAX_ZOOM_RATIO), ...(event.distanceM === undefined ? {} : { distanceM: Math.max(CAMERA.minZoom, event.distanceM) }) });

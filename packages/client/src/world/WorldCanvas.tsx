@@ -9,12 +9,12 @@ import { loadGltfAsset, loadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
 import { createOfficePropGeometry } from "./officePropGeometry";
 import { fitWallAssetModel } from "./wallAssetTransform";
-import { cameraReducer, createCameraState, type CameraEvent } from "./camera/cameraState";
+import { cameraReducer, createCameraState, isBehindCharacterLocked, type CameraEvent } from "./camera/cameraState";
 import { computeCameraFrame, applyCameraProjection, campusOverviewDistance } from "./camera/cameraFrame";
 import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, panEditorCamera, hasCameraMovement } from "./camera/cameraInput";
 import { CameraOcclusion } from "./camera/cameraOcclusion";
 import { smoothCameraPose, type CameraPose } from "./camera/cameraPose";
-import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_2D_ZOOM_THRESHOLD_RATIO, CAMPUS_BOUNDARY_WALL_HEIGHT_M, CAMERA_ZOOM_BUTTON_RATIO, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
+import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_2D_ZOOM_THRESHOLD_RATIO, CAMPUS_BOUNDARY_WALL_HEIGHT_M, CAMERA_ZOOM_BUTTON_RATIO, FOLLOW_FACING_RESPONSE_PER_SECOND, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
 
 type CharacterModelId = KenneyCharacterId | `custom-${string}`;
 type PlayerStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
@@ -35,6 +35,7 @@ interface Props {
   speakingUsernamesRef?: MutableRefObject<Set<string>>;
   heldKeysRef?: MutableRefObject<Set<string>>;
   cameraYawRef: MutableRefObject<number>;
+  cameraBehindCharacterRef: MutableRefObject<boolean>;
   firstPersonViewRef: MutableRefObject<boolean>;
   roomPortals?: RoomPortalVisual[];
   roomLayout: RoomLayout | null;
@@ -742,7 +743,7 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
-export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, firstPersonViewRef, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
+export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compassRoseRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -777,6 +778,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const nextState = cameraReducer(cameraStateRef.current, event);
     if (nextState === cameraStateRef.current) return;
     cameraStateRef.current = nextState;
+    cameraBehindCharacterRef.current = isBehindCharacterLocked(nextState);
     setCameraState(nextState);
   };
   const toggleCameraView = () => {
@@ -2239,8 +2241,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         deskZonePress = { pointerId: event.pointerId, zoneId: deskZone?.id ?? null };
       }
       if (event.button === 0 && !buildModeRef.current) {
-        if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
-        dispatchCamera({ type: "manual-drag" });
         cameraDrag = { pointerId: event.pointerId, mode: "pan", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
       } else if (event.button === 2) {
         event.preventDefault();
@@ -2248,12 +2248,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         // an object drag left active by another pointer/button sequence.
         if (draggingMapProp) endMapPropDrag(draggingMapProp);
         draggingMapProp = null;
-        // A manual right-drag must detach the camera from the avatar before
-        // orbiting. After auto-move the camera is often still character-focused;
-        // without clearing that state, the render loop keeps pulling the view
-        // back toward the moving/arrived player and makes the drag feel ignored.
-        if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
-        dispatchCamera({ type: "manual-drag" });
+        // An orbit releases only the behind-character heading after the
+        // pointer actually moves. A right click alone keeps the camera lock.
+        if (mapEditModeRef.current) {
+          if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
+          dispatchCamera({ type: "manual-drag" });
+        }
         // Right-drag orbits in the normal view and Modify props; map editing
         // keeps its established right-drag pan behavior.
         cameraDrag = { pointerId: event.pointerId, mode: mapEditModeRef.current ? "pan" : "rotate", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
@@ -2333,7 +2333,15 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       const deltaY = event.clientY - cameraDrag.y;
       cameraDrag.x = event.clientX;
       cameraDrag.y = event.clientY;
-      if (Math.hypot(event.clientX - cameraDrag.startX, event.clientY - cameraDrag.startY) >= 4) cameraDrag.moved = true;
+      if (!cameraDrag.moved && Math.hypot(event.clientX - cameraDrag.startX, event.clientY - cameraDrag.startY) >= 4) {
+        cameraDrag.moved = true;
+        if (cameraDrag.mode === "rotate") dispatchCamera({ type: "manual-rotate" });
+        else if (!mapEditModeRef.current && !buildModeRef.current) {
+          if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
+          dispatchCamera({ type: "manual-drag" });
+        }
+      }
+      if (!cameraDrag.moved) return;
       if (cameraDrag.mode === "rotate") {
         if (firstPersonViewRef.current) {
           lookFirstPerson(deltaX, deltaY, CAMERA.dragSensitivity);
@@ -3142,6 +3150,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       const heldKeys = heldKeysRef?.current;
       const walkingInput = Boolean(heldKeys && hasCameraMovement(heldKeys));
       if (walkingInput) dispatchCamera({ type: "walk-input" });
+      const lockBehind = isBehindCharacterLocked(cameraStateRef.current);
+      cameraBehindCharacterRef.current = lockBehind;
+      if (lockBehind && localPlayerState) {
+        const blend = 1 - Math.exp(-FOLLOW_FACING_RESPONSE_PER_SECOND * delta);
+        cameraYawRef.current = lerpAngle(cameraYawRef.current, localPlayerState.rotation + Math.PI, blend);
+      }
       const frame = computeCameraFrame({
         state: cameraStateRef.current, localPosition: local?.position, panTarget: cameraPanTarget,
         width: activeFloor.width, depth: activeFloor.depth, aspect: camera.aspect,

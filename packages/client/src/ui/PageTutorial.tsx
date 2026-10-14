@@ -14,17 +14,18 @@ const tutorials: Record<TutorialPage, { title: string; steps: TutorialStep[] }> 
     { title: "Create an office", body: "Create a new office and generate its map. You can also enter an office listed below.", target: "lobby-create-office" },
     { title: "Your offices", body: "Open an office you belong to from this list.", target: "lobby-offices" },
     { title: "Invitations", body: "Check invitations here when a teammate invites you.", target: "lobby-invitations" },
-    { title: "Move around", body: "Use your keyboard to walk around once you enter an office.", keyboard: "W A S D  ·  Arrow keys" },
+    { title: "Move around", body: "Inside an office, W/S walk forward or backward. Hold A/D to turn left or right in 15° steps while the camera follows your character.", keyboard: "W / S  ·  Hold A / D" },
   ] },
   office: { title: "Inside the office", steps: [
-    { title: "Focus your character", body: "Center the map on your character. Use the adjacent arrow button to travel to your desk when available.", target: "office-focus-character" },
+    { title: "Focus your character", body: "Center the view and lock the camera behind your character again. Use the adjacent arrow button to travel to your desk when available.", target: "office-focus-character" },
     { title: "Office toolbar", body: "These controls manage microphone, camera, screen sharing, audio, status, and leaving the office.", target: "office-toolbar" },
-    { title: "Move around", body: "Walk with your keyboard. Hold Shift to move faster, press Space to jump in 3D, or double-click the map to automate travel.", keyboard: "W A S D  ·  Arrow keys  ·  Shift  ·  Space" },
+    { title: "Move and turn", body: "With the camera locked behind you, W/S walk forward or backward. Hold A/D to turn in 15° steps. Right-drag to free the camera and use camera-relative movement; Focus character locks it again.", keyboard: "W / S  ·  Hold A / D  ·  Right-drag" },
+    { title: "Move faster or travel", body: "Hold Shift to move faster, press Space to jump in 3D, or double-click the ground to travel automatically.", keyboard: "Shift  ·  Space  ·  Double-click" },
   ] },
   meeting: { title: "Join the meeting", steps: [
     { title: "Microphone", body: "Speak with people in this room. Your microphone connects when you enter a voice zone.", target: "office-microphone" },
     { title: "Camera and screen", body: "Turn on your camera or share your screen from these controls.", target: "office-toolbar" },
-    { title: "Move around", body: "Walk around the meeting room with your keyboard. Press Space to jump in 3D.", keyboard: "W A S D  ·  Arrow keys  ·  Space" },
+    { title: "Move around", body: "With the camera locked, W/S walk and holding A/D turns in 15° steps. Right-drag to free the camera, or press Space to jump in 3D.", keyboard: "W / S  ·  Hold A / D  ·  Right-drag  ·  Space" },
   ] },
 };
 
