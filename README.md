@@ -10,7 +10,7 @@ GAMVerse is a self-hosted virtual office that runs in a browser. Members share a
 - A campus map generator driven by total people and team count. Office owners and admins can edit room zones, doors, spawn point, roads, and props. Each member can claim one private workroom.
 - Three.js avatars and a client-controlled 2D overview; Kenney, Quaternius, and Poly Pizza assets are served from the client package.
 - Avatars turn along the shortest angle. First-person aim controls facing while standing or strafing, and switching to third person keeps the view direction; seats and vehicles retain their facing rules.
-- Camera follow smooths both position and aim in the orbit frame. Third-person view pulls inward around walls and collision props, then eases back out; reduced motion and room/view changes snap. First-person pitch is limited to ±75°.
+- Camera follow smooths both position and aim in the orbit frame. Third-person view keeps the selected zoom while walls, doors, and collision props blocking the avatar fade temporarily. Crossing doorways or media zones preserves zoom, elevation and view mode; reduced motion and world/view changes snap. First-person pitch is limited to ±75°.
 - LiveKit audio for meeting rooms, private rooms, and nearby groups, plus camera and screen sharing controls.
 - Account edits preserve the office session; transient realtime drops attempt to resume the reserved session before automatically joining again.
 - Per-device idle-animation preference and presence statuses such as Available, Do Not Disturb, and Toilet.

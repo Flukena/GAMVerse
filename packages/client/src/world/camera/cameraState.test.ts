@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Vector3 } from "three";
+import { computeCameraFrame } from "./cameraFrame";
 import { cameraReducer, createCameraState } from "./cameraState";
 import { CAMPUS_2D_ZOOM_THRESHOLD_RATIO, CAMPUS_MIN_ZOOM_RATIO, DEFAULT_TPP_ELEVATION_RAD, LIVE_OFFICE_FOCUS_DISTANCE_M } from "./constants";
 
 const FREE_ZOOM_RATIO = CAMPUS_2D_ZOOM_THRESHOLD_RATIO / 2;
 const CUSTOM_DISTANCE_M = 20;
+const MAP_WIDTH_M = 200;
+const MAP_DEPTH_M = 250;
+const TEST_ASPECT_RATIO = 1.5;
+const CUSTOM_ELEVATION_RAD = Math.PI / 6;
+const DOOR_STEP_M = 0.1;
+const POSE_TOLERANCE_M = 1e-9;
 
 function readyState() {
   return cameraReducer(createCameraState(true), { type: "avatar-ready" });
@@ -79,4 +87,34 @@ test("room arrival while walking keeps the current yaw instead of aligning behin
 test("character focus preserves FPP instead of desynchronizing its mode", () => {
   const fpp = cameraReducer(readyState(), { type: "toggle-fpp" });
   assert.equal(cameraReducer(fpp, { type: "focus-character" }).mode, "fpp");
+});
+
+test("entering and leaving a media zone preserves zoom, elevation and the live camera frame", () => {
+  const zoomed = cameraReducer(readyState(), { type: "zoom", ratio: FREE_ZOOM_RATIO });
+  const before = cameraReducer(zoomed, { type: "elevation", radians: CUSTOM_ELEVATION_RAD });
+  const input = { panTarget: new Vector3(), width: MAP_WIDTH_M, depth: MAP_DEPTH_M, aspect: TEST_ASPECT_RATIO, yaw: 0, pitch: 0 };
+  const initialFrame = computeCameraFrame({ ...input, state: before, localPosition: new Vector3() });
+  let state = before;
+  for (const z of [DOOR_STEP_M, 0]) {
+    state = cameraReducer(state, { type: "room-change", campus: true, alignBehind: false, preserveFraming: true });
+    assert.equal(state, before);
+    assert.equal(state.arrival, "ready");
+    const frame = computeCameraFrame({ ...input, state, localPosition: new Vector3(0, 0, z) });
+    assert.equal(frame.pose.fov, initialFrame.pose.fov);
+    assert.ok(Math.abs(frame.pose.position.distanceTo(frame.pose.lookAt) - initialFrame.pose.position.distanceTo(initialFrame.pose.lookAt)) < POSE_TOLERANCE_M);
+  }
+});
+
+test("media-zone crossings preserve FPP, detached, 2D and editor views", () => {
+  const ready = readyState();
+  const states = [
+    cameraReducer(ready, { type: "toggle-fpp" }),
+    cameraReducer(ready, { type: "manual-drag" }),
+    cameraReducer(ready, { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO }),
+    cameraReducer(ready, { type: "edit", active: true }),
+    createCameraState(true),
+  ];
+  for (const state of states) {
+    assert.equal(cameraReducer(state, { type: "room-change", campus: true, alignBehind: true, preserveFraming: true }), state);
+  }
 });

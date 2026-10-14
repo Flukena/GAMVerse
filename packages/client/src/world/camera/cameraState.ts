@@ -16,7 +16,7 @@ export type CameraState = {
   elevationRad: number;
 };
 export type CameraEvent =
-  | { type: "room-change"; campus: boolean; alignBehind: boolean }
+  | { type: "room-change"; campus: boolean; alignBehind: boolean; preserveFraming?: boolean }
   | { type: "avatar-ready" }
   | { type: "toggle-fpp" }
   | { type: "focus-character" }
@@ -54,7 +54,7 @@ function toggleFirstPerson(state: CameraState): CameraState {
 
 export function cameraReducer(state: CameraState, event: CameraEvent): CameraState {
   switch (event.type) {
-    case "room-change": return createCameraState(event.campus, event.alignBehind);
+    case "room-change": return event.preserveFraming ? state : createCameraState(event.campus, event.alignBehind);
     case "avatar-ready": return { ...(state.editing ? state : focusCharacter(state)), arrival: "ready" };
     case "toggle-fpp": return toggleFirstPerson(state);
     case "focus-character": return focusCharacter(state);

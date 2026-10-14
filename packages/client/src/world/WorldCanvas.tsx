@@ -11,7 +11,7 @@ import { createOfficePropGeometry } from "./officePropGeometry";
 import { cameraReducer, createCameraState, type CameraEvent } from "./camera/cameraState";
 import { computeCameraFrame, applyCameraProjection, campusOverviewDistance } from "./camera/cameraFrame";
 import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, panEditorCamera, hasCameraMovement } from "./camera/cameraInput";
-import { CameraColliders } from "./camera/cameraColliders";
+import { CameraOcclusion } from "./camera/cameraOcclusion";
 import { smoothCameraPose, type CameraPose } from "./camera/cameraPose";
 import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_BOUNDARY_WALL_HEIGHT_M, CAMERA_ZOOM_BUTTON_RATIO, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
 
@@ -264,14 +264,16 @@ function makeCampusFloor(floor: { id: number; name: string; width: number; depth
   group.add(base);
 
   const edge = new THREE.MeshStandardMaterial({ color: 0xd7d8d0, roughness: 0.86 });
+  const boundaryWalls: THREE.Mesh[] = [];
   for (const footprint of roomBoundaryWalls(floor.width, floor.depth)) {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(footprint.width, CAMPUS_BOUNDARY_WALL_HEIGHT_M, footprint.depth), edge);
     wall.position.set(footprint.x + floor.width / 2, CAMPUS_BOUNDARY_WALL_HEIGHT_M / 2, footprint.z + floor.depth / 2);
     wall.castShadow = true;
     wall.receiveShadow = true;
     group.add(wall);
+    boundaryWalls.push(wall);
   }
-  return group;
+  return { group, boundaryWalls };
 }
 
 interface AvatarAnimationState {
@@ -706,6 +708,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   firstPersonViewRef.current = firstPersonView;
   useEffect(() => () => { firstPersonViewRef.current = false; }, [firstPersonViewRef]);
   const previousRoomKeyRef = useRef(cameraRoomKey);
+  const previousWorldKeyRef = useRef(activeRoomKey);
   const cameraStateRef = useRef(createCameraState(activeRoomKey === "lobby"));
   const dispatchCamera = (event: CameraEvent) => {
     cameraStateRef.current = cameraReducer(cameraStateRef.current, event);
@@ -769,20 +772,19 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   }, [buildMode, mapEditMode, firstPersonViewRef]);
   useEffect(() => { if (buildMode) return; movePropArmedIdRef.current = null; setMovePropArmedId(null); setPropActionMenu(null); }, [buildMode]);
   useEffect(() => {
-    if (previousRoomKeyRef.current === cameraRoomKey) return;
+    if (previousRoomKeyRef.current === cameraRoomKey && previousWorldKeyRef.current === activeRoomKey) return;
+    const worldChanged = previousWorldKeyRef.current !== activeRoomKey;
     previousRoomKeyRef.current = cameraRoomKey;
-    // A room transition is a fresh arrival: always show the local avatar from
-    // nearby third person, even if the previous room was left in first person
-    // or with a distant camera zoom.
+    previousWorldKeyRef.current = activeRoomKey;
+    // Keep yaw while walking into another world so the movement basis cannot reverse.
+    const walking = Boolean(heldKeysRef?.current && hasCameraMovement(heldKeysRef.current));
+    dispatchCamera({ type: "room-change", campus: activeRoomKey === "lobby", alignBehind: !walking, preserveFraming: !worldChanged });
+    // Media zones share the same world. Only entering another world resets framing.
+    if (!worldChanged) return;
     firstPersonViewRef.current = false;
     setFirstPersonView(false);
     setWeaponInventoryOpen(false);
     if (document.pointerLockElement) document.exitPointerLock();
-    // Room-entry alignment changes camera-relative movement directions. Keep
-    // the current yaw while a key is held so walking backward across a zone
-    // boundary cannot reverse the input basis and bounce between its edges.
-    const walking = Boolean(heldKeysRef?.current && hasCameraMovement(heldKeysRef.current));
-    dispatchCamera({ type: "room-change", campus: activeRoomKey === "lobby", alignBehind: !walking });
     cameraPositionRef.current = null;
   }, [activeRoomKey, cameraRoomKey, firstPersonViewRef]);
 
@@ -793,10 +795,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const mapWorld = { ...CAMPUS_WORLD, ...dimensions };
     const activeFloor = { ...CAMPUS_LAYOUT.floors[0]!, ...dimensions };
 
-    const cameraColliders = new CameraColliders(campusOverview ? roomLayout : null, {
-      x: campusOverview ? mapWorld.width / 2 : 0,
-      z: campusOverview ? mapWorld.depth / 2 : 0,
-    }, campusOverview);
+    const cameraOcclusion = new CameraOcclusion();
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#d8e5df");
     scene.fog = null;
@@ -1124,7 +1123,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       floorGroup.visible = true;
       campusFloorGroups.set(floor.id, floorGroup);
       campusRoot.add(floorGroup);
-      floorGroup.add(makeCampusFloor(floor));
+      const campusFloor = makeCampusFloor(floor);
+      floorGroup.add(campusFloor.group);
+      campusFloor.boundaryWalls.forEach((wall) => cameraOcclusion.register(wall));
     }
     const roadwayGroup = new THREE.Group();
     roadwayGroup.name = "Generated office roads";
@@ -1349,6 +1350,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             });
           });
           kenneyWalls.add(segment);
+          cameraOcclusion.register(segment);
         }
       }
     }).catch((error) => console.warn("Could not load Kenney wall segments.", error));
@@ -1360,6 +1362,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       normalizeProp(desk, 1.05);
       desk.position.set(-2.4, 0, -2.4);
       furniture.add(desk);
+      cameraOcclusion.register(desk);
       furniturePieces.push(desk);
     }, (error) => console.warn("Could not load the Kenney desk; keeping the procedural room furnishing.", error));
     if (!roomLayout) loadObjModel("chairDesk", (chair) => {
@@ -1367,6 +1370,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       normalizeProp(chair, 0.9);
       chair.position.set(-2.4, 0, -0.85);
       furniture.add(chair);
+      cameraOcclusion.register(chair);
       furniturePieces.push(chair);
     }, (error) => console.warn("Could not load the Kenney chair.", error));
     if (!roomLayout) loadObjModel("computerScreen", (monitor) => {
@@ -1374,6 +1378,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       normalizeProp(monitor, 0.65);
       monitor.position.set(-2.4, 1.03, -2.45);
       furniture.add(monitor);
+      cameraOcclusion.register(monitor);
       furniturePieces.push(monitor);
     }, (error) => console.warn("Could not load the Kenney monitor.", error));
     if (!roomLayout) loadObjModel("pottedPlant", (plant) => {
@@ -1381,6 +1386,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       normalizeProp(plant, 1.1);
       plant.position.set(3.2, 0, -1.8);
       furniture.add(plant);
+      cameraOcclusion.register(plant);
       furniturePieces.push(plant);
     }, (error) => console.warn("Could not load the Kenney plant.", error));
     if (roomLayout) {
@@ -1467,6 +1473,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               model.userData.officeMapWallId = wall.id;
               model.traverse((child) => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
               campusMapProps.add(model);
+              cameraOcclusion.register(model);
               furniturePieces.push(model);
             }, (error) => console.warn(`Could not load wall model ${wall.asset}.`, error));
           } else {
@@ -1478,6 +1485,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             mesh.receiveShadow = true;
             mesh.userData.officeMapWallId = wall.id;
             campusMapProps.add(mesh);
+            cameraOcclusion.register(mesh);
           }
         }
       }
@@ -1547,6 +1555,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           const swing = THREE.MathUtils.degToRad(88) * (wall.axis === "horizontal" ? -inward : inward) * (side < 0 ? 1 : -1);
           doorAnimation.hinges.push({ group: hinge, openAngle: swing });
           campusMapProps.add(hinge);
+          cameraOcclusion.register(hinge);
         }
         animatedDoors.push(doorAnimation);
         if (door.asset) {
@@ -1560,6 +1569,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             model.userData.officeMapDoorId = door.id;
             model.traverse((child) => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
             campusMapProps.add(model);
+            cameraOcclusion.register(model);
             furniturePieces.push(model);
           }, (error) => console.warn(`Could not load doorway model ${door.asset}.`, error));
           continue;
@@ -1572,11 +1582,13 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           post.position.set(atX + (wall.axis === "horizontal" ? side * door.width / 2 : 0), postHeight / 2, atZ + (wall.axis === "vertical" ? side * door.width / 2 : 0));
           post.castShadow = true;
           campusMapProps.add(post);
+          cameraOcclusion.register(post);
         }
         const lintel = new THREE.Mesh(new THREE.BoxGeometry(wall.axis === "horizontal" ? door.width + postWidth : frameDepth, 0.12, wall.axis === "vertical" ? door.width + postWidth : frameDepth), new THREE.MeshStandardMaterial({ color: "#fb8500", roughness: 0.7 }));
         lintel.position.set(atX, postHeight, atZ);
         lintel.castShadow = true;
         campusMapProps.add(lintel);
+        cameraOcclusion.register(lintel);
       }
       for (const prop of roomLayout.props) {
         const catalog = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
@@ -1645,6 +1657,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           object.userData.collision = prop.collision;
           propPivot.add(object);
           campusMapProps.add(propPivot);
+          if (prop.collision) cameraOcclusion.register(propPivot);
           furniturePieces.push(propPivot);
         }, (error) => console.warn(`Could not load room prop ${prop.asset}.`, error));
         if (prop.collision && !prop.elevation) {
@@ -1879,7 +1892,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const motionScale = reduceMotion ? 0 : 1;
     let previousCameraPose: CameraPose | null = null;
     let previousCameraMode = cameraStateRef.current.mode;
-    let previousCameraRoomKey = previousRoomKeyRef.current;
+    let previousCameraWorldKey = previousWorldKeyRef.current;
     const cameraPanTarget = cameraPanTargetRef.current ?? new THREE.Vector3(activeFloor.width / 2, 0, activeFloor.depth / 2);
     cameraPanTargetRef.current = cameraPanTarget;
     const currentLookTarget = cameraPanTarget.clone();
@@ -2981,15 +2994,15 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       firstPersonViewModel.visible = firstPerson && !mapEditModeRef.current && !buildModeRef.current && !localPlayerState?.vehicleId;
       if (firstPersonViewModel.visible) equipFirstPersonBlaster(selectedBlasterIdRef.current);
       applyCameraProjection(camera, frame, campusOverviewRef.current);
-      const roomChanged = previousCameraRoomKey !== previousRoomKeyRef.current;
+      const roomChanged = previousCameraWorldKey !== previousWorldKeyRef.current;
       const modeChanged = previousCameraMode !== frame.mode;
       const pose = smoothCameraPose(previousCameraPose, frame.pose, delta, { reduceMotion, modeChanged, roomChanged });
-      const visiblePose = cameraColliders.apply(pose, frame.mode, delta, reduceMotion || modeChanged || roomChanged || !previousCameraPose);
+      const visiblePose = cameraOcclusion.apply(pose, frame.mode, delta, reduceMotion || modeChanged || roomChanged || !previousCameraPose);
       camera.position.copy(visiblePose.position);
       camera.lookAt(visiblePose.lookAt);
       previousCameraPose = pose;
       previousCameraMode = frame.mode;
-      previousCameraRoomKey = previousRoomKeyRef.current;
+      previousCameraWorldKey = previousWorldKeyRef.current;
       const actionMenu = propActionMenuRef.current;
       const actionMenuElement = propActionMenuElementRef.current;
       if (actionMenuElement) {
@@ -3264,7 +3277,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       if (draggingMapProp) endMapPropDrag(draggingMapProp);
       draggingMapProp = null;
       cameraPositionRef.current = camera.position.clone();
-      cameraColliders.dispose();
+      cameraOcclusion.dispose();
       disposed = true;
       zoneLockIconsRef.current.clear();
       cancelAnimationFrame(animationFrame);

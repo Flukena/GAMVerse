@@ -1,3 +1,8 @@
+{
+	# Browsers send no SNI for a bare IP address; without this, LAN devices get a TLS "internal error".
+	default_sni {$DEV_HOST}
+}
+
 https://{$DEV_HOST}:5173 {
 	tls internal
 	reverse_proxy office-dev:5173

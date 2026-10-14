@@ -72,6 +72,8 @@ Each phase is a separate PR, and each phase must leave the game playable. Phases
 
 ### Phase 4 — TPP camera occlusion
 
+- **Superseded on 12 October 2026:** immediate spring-arm compression caused an 8 m camera distance to drop to 3.7 m in one frame at a doorway. The owner chose stable zoom with transparent occluders. `cameraOcclusion.ts` now fades registered wall/door/prop visuals at fixed framing, with cached bounds and isolated materials; the spring arm and its tuning have been removed. The original design below is retained as history.
+- **Doorway follow-up:** media-zone notifications also triggered arrival resets and snapped the pose. Zone changes within the same `activeRoomKey` now preserve camera state, pointer lock and pose smoothing. Actual world changes retain the arrival lifecycle. Regression tests cover zoom/elevation/frame preservation and FPP/free/2D/editor modes.
 - **Problem:** the TPP camera can sit inside walls and props.
 - **Change:** inside `computeCameraPose` or a thin wrapper, raycast from the look target to the desired camera position against walls and collision props. If it hits, pull the camera in to `hit distance − CAMERA_COLLISION_PADDING`, clamped to a minimum distance. Ease back out; snap in immediately.
 - **Performance:** raycast against a prebuilt collider list, not `scene.children` recursively. Check frame time against `docs/PERFORMANCE_REVIEW.md` guidance.

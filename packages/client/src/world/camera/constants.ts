@@ -28,11 +28,6 @@ export const CAMERA_FAR_DISTANCE_RATIO = 2;
 export const CAMPUS_FIT_TANGENT_RATIO = 0.84;
 export const CAMPUS_FIT_MIN_ASPECT_RATIO = 0.35;
 export const CAMPUS_FIT_PADDING_M = 5;
-// Initial spring-arm tuning; browser wall/tight-room checks validate these clearances.
-export const CAMERA_COLLISION_PADDING_M = 0.2;
-export const CAMERA_MIN_DISTANCE_M = 0.5;
-export const CAMERA_FALLBACK_WALL_HEIGHT_M = 2.2;
-export const CAMERA_FALLBACK_PROP_HEIGHT_M = 1;
 export const FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL = 0.0022;
 export const CAMPUS_BOUNDARY_WALL_HEIGHT_M = 1.35;
 export const MAP_EDIT_PAN_SPEED_M_PER_SEC = 18;
