@@ -1,4 +1,3 @@
-import { REACTION_EMOJIS } from "@gammyverse/shared";
 import type { ChatTransport } from "./ChatPanel";
 export function SocialControls({
   room,
@@ -12,18 +11,8 @@ export function SocialControls({
   return (
     <div
       className="gather-social-controls"
-      aria-label="Reactions and hand raise"
+      aria-label="Hand raise and interaction"
     >
-      {REACTION_EMOJIS.map((emoji) => (
-        <button
-          type="button"
-          key={emoji}
-          aria-label={`React ${emoji}`}
-          onClick={() => room?.send("reaction", { emoji })}
-        >
-          {emoji}
-        </button>
-      ))}
       <button
         type="button"
         aria-pressed={raised}

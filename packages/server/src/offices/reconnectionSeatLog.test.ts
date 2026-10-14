@@ -10,11 +10,13 @@ const RECONNECT_TIMEOUT_REASON_LABEL = "timeout";
 const RECONNECT_SHUTDOWN_REASON_LABEL = "shutdown";
 const UNCODED_ERROR_LABEL = "uncoded";
 const ROOM_SHUTDOWN_MESSAGE_LABEL = "disconnecting";
+const ROOM_DISPOSING_MESSAGE_LABEL = "disposing";
 const UNEXPECTED_FAILURE_MESSAGE_LABEL = "transport failed";
 const CONTEXT = { roomId: "room", officeId: "office", sessionId: "session" };
 
 for (const [reason, rejection] of [
   [RECONNECT_TIMEOUT_REASON_LABEL, false],
+  [RECONNECT_SHUTDOWN_REASON_LABEL, new Error(ROOM_DISPOSING_MESSAGE_LABEL)],
   [RECONNECT_SHUTDOWN_REASON_LABEL, new ServerError(CloseCode.NORMAL_CLOSURE, ROOM_SHUTDOWN_MESSAGE_LABEL)],
 ] as const) {
   test(`reconnect ${reason} rejection logs info without incrementing error metric`, () => {

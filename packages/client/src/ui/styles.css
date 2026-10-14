@@ -1099,3 +1099,15 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .world-control-actions .weapon-inventory-control { display: grid; }
 @keyframes world-control-reveal { from { opacity: 0; transform: translateX(6px) scale(.96); transform-origin: right center; } to { opacity: 1; transform: translateX(0) scale(1); } }
 @media (max-width: 720px) { .world-control-dock { right: 14px; bottom: calc(8px + env(safe-area-inset-bottom)); gap: 7px; } .world-control-trigger { width: 44px; height: 44px; } .world-control-actions .overview-zoom-controls button { width: 44px; height: 40px; } }
+
+.bottom-dock:has(.reaction-picker-popover) { z-index: 13; }
+.reaction-picker-control { position: relative; flex: 0 0 auto; }
+.reaction-picker-popover { position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: repeat(3, 38px); gap: 4px; padding: 6px; border: 1px solid rgba(142, 202, 230, .28); border-radius: 12px; background: #023047; box-shadow: 0 10px 28px rgba(20, 36, 27, .26); }
+.reaction-picker-popover .dock-button { font-size: 21px; }
+.reaction-picker-control .dock-button:focus-visible { outline: 2px solid #8ecae6; outline-offset: 2px; }
+
+.office-minimap { max-width: calc(100vw - 24px); height: auto; }
+.app-shell:has(.office-sidebar.is-open) .office-minimap { visibility: hidden; }
+@media (max-width: 760px) {
+  .office-minimap { --minimap-touch-clearance-px: 148px; --minimap-horizontal-reserve-px: 230px; transform: translateX(var(--minimap-touch-clearance-px)); max-width: calc(100vw - var(--minimap-horizontal-reserve-px)); }
+}

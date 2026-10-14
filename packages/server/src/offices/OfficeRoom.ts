@@ -1,5 +1,5 @@
 import { disposedRoomSpotlightUsernames } from "./spotlightRoomDisposal.js";
-import { logReconnectionSeatFailure } from "./reconnectionSeatLog.js";
+import { trackReconnectionSeat } from "./reconnectionSeat.js";
 import { readReconnectAccess, SessionSecurity } from "./sessionSecurity.js";
 import { registerSocialMessages, unregisterSocialMessages, socialPeople } from "./socialMessages.js";
 import { OFFICE_ACCESS_REVOKED_CLOSE_CODE, OFFICE_CLOSED_CLOSE_CODE, Spotlight, spotlightDepartureReason, type SpotlightDeparture } from "./spotlight.js";
@@ -130,6 +130,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   private lockedZoneIds = new Set<string>();
   private mediaIdentityBySessionId = new Map<string, string>();
   private sessionSecurity = new SessionSecurity();
+  private shuttingDown = false;
   private officeRolesBySessionId = new Map<string, string>();
   private mapEditorSessionId: string | null = null;
   private mapEditorUsername: string | null = null;
@@ -724,9 +725,15 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       rateLimitExceeded: (client._numMessagesLastSecond ?? INITIAL_MESSAGE_COUNT) > this.maxMessagesPerSecond });
   }
 
+  onBeforeShutdown() {
+    this.shuttingDown = true;
+    super.onBeforeShutdown();
+  }
+
   onDrop(client: DropDiagnosticClient, code?: number) {
     const player = this.state.players.get(client.sessionId);
     this.logSessionDrop(client, code);
+    if (this.shuttingDown) return;
     const username = this.usernamesBySessionId.get(client.sessionId);
     if (!username || this.sessionSecurity.activeSession(username) !== client.sessionId) return;
     const reason = spotlightDepartureReason(code, "drop");
@@ -742,18 +749,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.updateMeetingMembership();
     this.updatePrivateMembership();
     this.updateProximity();
-    try {
-      const reconnection = this.allowReconnection(client, RECONNECTION_SEAT_TIMEOUT_SECONDS);
-      const seat = { reject: (error: Error) => reconnection.reject(error) };
-      this.sessionSecurity.reserve(username, client.sessionId, seat);
-      void reconnection.catch((error) => logReconnectionSeatFailure(error, { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId })).finally(() => {
-        this.sessionSecurity.releaseSeat(client.sessionId, seat);
-      });
-    } catch (error) {
-      // A room that is already shutting down cannot accept a reconnect. Record
-      // the shutdown edge instead of letting an expected disposal throw obscure it.
-      logServerEvent("realtime", "office.client.reconnect.unavailable", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, reason: error instanceof Error ? error.message : String(error) });
-    }
+    const reconnection = this.allowReconnection(client, RECONNECTION_SEAT_TIMEOUT_SECONDS);
+    trackReconnectionSeat(reconnection, this.sessionSecurity, username, { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId });
   }
 
   async onReconnect(client: Client) {
@@ -865,7 +862,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     const rooms = OfficeRoom.roomsByOffice.get(this.officeId);
     const lastRoom = rooms?.size === 1 && rooms.has(this);
     const peers = [...(rooms ?? [])].filter(room => room !== this).map(room => room.sessionSecurity);
-    const departingUsernames = disposedRoomSpotlightUsernames(this.usernamesBySessionId.values(), peers);
+    const departingUsernames = disposedRoomSpotlightUsernames(this.usernamesBySessionId.values(), peers, lastRoom ? undefined : this.spotlight?.snapshot().usernames ?? []);
     if (this.sessionSecurity.close() && (lastRoom || departingUsernames.length > 0)) {
       void this.spotlight?.departSecurity(departingUsernames).catch((error) =>
         logServerError("realtime", SPOTLIGHT_CLOSE_FAILED_EVENT_LABEL, error, { officeId: this.officeId }));

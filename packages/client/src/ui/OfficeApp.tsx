@@ -4,6 +4,7 @@ import { mediaTileKey } from "./social/socialState";
 import { type ChatTransport } from "./social/ChatPanel";
 import { useOfficeSocial } from "./social/useOfficeSocial";
 import { OfficeSocialOverlay } from "./social/OfficeSocialOverlay";
+import { ReactionPicker } from "./social/ReactionPicker";
 import "./social/social.css";
 import { Client, type Room } from "@colyseus/sdk";
 import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
@@ -17,6 +18,7 @@ import { fetchVoiceToken } from "./media/voiceToken";
 import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance } from "livekit-client";
 import { CharacterPreview3D } from "../world/CharacterPreview3D";
 import { QUATERNIUS_CHARACTERS } from "../assets/characterAssets";
+import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { Minimap } from "./Minimap";
 import type { Map2dLocateRequest } from "../world/map2d/map2dInput";
 import { WorldCanvas } from "../world/WorldCanvas";
@@ -268,7 +270,7 @@ function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" {...shared}>{drawings[name]}</svg>;
 }
 
-const endpoint = import.meta.env.VITE_REALTIME_URL ?? (import.meta.env.PROD ? window.location.origin : "http://localhost:2567");
+const endpoint = getRealtimeEndpoint();
 const CAMERA_CAPTURE_720P30 = { resolution: { width: 1280, height: 720, frameRate: 30 }, frameRate: { ideal: 30, max: 30 } };
 const SCREEN_CAPTURE_1080P30 = { resolution: { width: 1920, height: 1080, frameRate: 30 }, contentHint: "detail" as const };
 const getInviteRouteToken = (path: string) => path.match(/^\/join\/([A-Za-z0-9_-]{30,100})\/?$/)?.[1] ?? null;
@@ -2840,6 +2842,7 @@ export function OfficeApp() {
         <button type="button" className={`dock-button ${screenShareEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name="screen" /></button>
         <button type="button" className={`dock-button ${userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "active" : ""}`} aria-pressed={userStatus === "do-not-disturb" || userStatus === "in-meeting"} title={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Headphones off · click to set Available" : "Headphones on · click to turn on Do not disturb"} aria-label={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Turn headphones on" : "Turn headphones off"} onClick={toggleHeadphones}><FeatherIcon name={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "headphonesOff" : "headphones"} /></button>
         <button type="button" className={`dock-button ghost-mode-button${ghostModeEnabled ? " active" : ""}`} aria-pressed={ghostModeEnabled} title="Hold this button or hold G to pass through props and interior walls" aria-label="Hold to enable ghost mode" disabled={appPaused} onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); setGhostMode(true); }} onPointerUp={() => setGhostMode(false)} onPointerCancel={() => setGhostMode(false)} onLostPointerCapture={() => setGhostMode(false)} onBlur={() => setGhostMode(false)} onKeyDown={(event) => { if ((event.code === "Space" || event.code === "Enter") && !event.repeat) { event.preventDefault(); setGhostMode(true); } }} onKeyUp={(event) => { if (event.code === "Space" || event.code === "Enter") setGhostMode(false); }}><kbd>G</kbd><span>{ghostModeEnabled ? "Ghost on" : "Hold Ghost"}</span></button>
+        <ReactionPicker room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} disabled={appPaused} />
         <span className="dock-separator" />
         <div className="user-status-dock-control">
           <button type="button" className={`dock-button user-status-trigger${userStatusMenuOpen ? " active" : ""}`} aria-label={`Your status: ${userStatusOptions.find((item) => item.value === userStatus)?.label ?? "Available"}`} title={`Status · ${userStatusOptions.find((item) => item.value === userStatus)?.label ?? "Available"}`} aria-haspopup="menu" aria-expanded={userStatusMenuOpen} onClick={() => setUserStatusMenuOpen((open) => !open)}>

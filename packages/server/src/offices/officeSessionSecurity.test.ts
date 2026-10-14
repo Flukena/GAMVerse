@@ -18,6 +18,8 @@ const SESSION_ID = "original-session";
 const REPLACEMENT_SESSION_ID = "replacement-session";
 const SESSION_TOKEN = "test-session-token";
 const TRANSPORT_DROP_CLOSE_CODE = 1006;
+const SERVER_SHUTDOWN_CLOSE_CODE = 4001;
+const ROOM_DISPOSING_MESSAGE_LABEL = "disposing";
 const KICK_REJECTION_LABEL = "kick";
 const CLOSE_REJECTION_LABEL = "close";
 const REPLACE_REJECTION_LABEL = "replace";
@@ -374,5 +376,50 @@ test("OfficeRoom disposal ignores revoked peer ownership of a dropped presenter"
     assert.deepEqual(first.spotlight.snapshot().usernames, []);
     first.room.onLeave(first.client, OFFICE_ACCESS_REVOKED_CLOSE_CODE);
     assert.equal(first.rotations() - before, 1);
+  } finally { first.cleanup(); second.cleanup(); }
+});
+
+test("OfficeRoom graceful shutdown skips reconnect reservations", () => {
+  const f = fixture();
+  const disconnect = mock.method(f.room, "disconnect", () => Promise.resolve());
+  const reconnect = mock.method(f.room, "allowReconnection", () => Promise.reject(new Error(ROOM_DISPOSING_MESSAGE_LABEL)));
+  try {
+    f.room.onBeforeShutdown();
+    f.room.onDrop(f.client, SERVER_SHUTDOWN_CLOSE_CODE);
+    assert.equal(disconnect.mock.callCount(), 1);
+    assert.equal(reconnect.mock.callCount(), 0);
+  } finally { f.cleanup(); }
+});
+
+test("OfficeRoom rejected plain reconnect promise is never reserved as a cancellable seat", async () => {
+  const f = fixture();
+  const errors: string[] = [];
+  mock.method(console, "error", (message: string) => { errors.push(message); });
+  mock.method(f.room, "allowReconnection", () => Promise.reject(new Error(ROOM_DISPOSING_MESSAGE_LABEL)));
+  try {
+    const errorsBefore = getRecentServerErrorCount();
+    f.room.onDrop(f.client, TRANSPORT_DROP_CLOSE_CODE);
+    assert.doesNotThrow(() => OfficeRoom.kickMember(OFFICE_ID, USERNAME));
+    await Promise.resolve();
+    assert.deepEqual(errors, []);
+    assert.equal(getRecentServerErrorCount(), errorsBefore);
+  } finally { f.cleanup(); }
+});
+
+test("OfficeRoom non-last disposal of pending-seat non-presenter keeps spotlight epoch", async () => {
+  const first = fixture();
+  const second = fixture();
+  second.internals.spotlight = first.spotlight;
+  second.internals.sessionSecurity.finish(USERNAME, SESSION_ID);
+  second.internals.sessionSecurity.activate(PEER_USERNAME, SESSION_ID);
+  second.internals.usernamesBySessionId.set(SESSION_ID, PEER_USERNAME);
+  registry.roomsByOffice.set(OFFICE_ID, new Set([first.room, second.room]));
+  try {
+    await first.spotlight.command(USERNAME, { targetUsername: PEER_USERNAME, on: true });
+    const before = first.spotlight.snapshot();
+    first.room.onDrop(first.client, TRANSPORT_DROP_CLOSE_CODE);
+    first.room.onDispose();
+    assert.equal(first.seatRejected(), true);
+    assert.deepEqual(first.spotlight.snapshot(), before);
   } finally { first.cleanup(); second.cleanup(); }
 });

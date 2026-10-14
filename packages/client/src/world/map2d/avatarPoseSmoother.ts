@@ -22,13 +22,13 @@ export function smoothAvatarPose(
   target: AvatarPose,
   deltaS: number,
   local: boolean,
+  output: AvatarPose = { x: 0, z: 0, rotation: 0 },
 ): AvatarPose {
   const blend = avatarPoseBlend(deltaS, local);
-  return {
-    x: current.x + (target.x - current.x) * blend,
-    z: current.z + (target.z - current.z) * blend,
-    rotation: lerpAngle(current.rotation, target.rotation, blend),
-  };
+  output.x = current.x + (target.x - current.x) * blend;
+  output.z = current.z + (target.z - current.z) * blend;
+  output.rotation = lerpAngle(current.rotation, target.rotation, blend);
+  return output;
 }
 export function isPoseSettled(
   current: AvatarPose,

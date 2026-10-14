@@ -69,3 +69,13 @@ test("window shortcut toggles once without canvas focus and unregisters", () => 
     assert.equal(handlers.has("keydown"), false);
   } finally { globalThis.HTMLElement = originalHTMLElement; }
 });
+
+test("M ignores focus inside an ARIA dialog or native dialog", () => {
+  for (const dialogTag of ["[role=dialog]", "dialog"]) {
+    const target = {
+      tagName: "BUTTON", isContentEditable: false,
+      closest(selector: string) { return selector.includes(dialogTag) ? {} : null; },
+    };
+    assert.equal(shouldToggleMap2d(MAP_KEY, READY, target), false);
+  }
+});

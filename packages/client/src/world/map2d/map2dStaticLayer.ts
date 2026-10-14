@@ -1,14 +1,14 @@
-import { ROOM_PROP_CATALOG, type RoomLayout } from "@gammyverse/shared";
+import { type RoomLayout } from "@gammyverse/shared";
 import {
   MAP2D_BITMAP_MAX_EDGE_PX,
-  MAP2D_COLORS,
-  MAP2D_FONT_PX,
   MAP2D_SCALE_BUCKETS_PER_UNIT,
 } from "./constants";
-import { worldToScreen, type Map2dProjection } from "./map2dProjection";
+import { type Map2dProjection } from "./map2dProjection";
+import { drawMap2dStaticDetail } from "./map2dStaticDrawing";
+import { MAP2D_DETAIL_PALETTE } from "./map2dStaticDetail";
+import { propPreviewImages } from "./propPreviewImages";
 const HASH_OFFSET = 2166136261;
 const HASH_MULTIPLIER = 16777619;
-const PROP_GROUP_COLORS = ["#c0bd9e", "#adc6bf", "#b7bed6", "#d1b1ad"];
 export function map2dStaticCacheKey(
   layout: RoomLayout | null,
   configVersion: number,
@@ -19,101 +19,15 @@ export function map2dStaticCacheKey(
     hash = Math.imul(hash ^ character.charCodeAt(0), HASH_MULTIPLIER);
   return `${hash >>> 0}:${configVersion}:${Math.round(pxPerM * MAP2D_SCALE_BUCKETS_PER_UNIT)}`;
 }
-function drawRect(
-  ctx: CanvasRenderingContext2D,
-  p: Map2dProjection,
-  item: { x: number; z: number; width: number; depth: number },
-  color: string,
-  rotation = 0,
-) {
-  const screen = worldToScreen(p, item);
-  ctx.save();
-  ctx.translate(screen.x, screen.y);
-  ctx.rotate(-rotation);
-  ctx.fillStyle = color;
-  ctx.fillRect(
-    (-item.width * p.pxPerM) / 2,
-    (-item.depth * p.pxPerM) / 2,
-    item.width * p.pxPerM,
-    item.depth * p.pxPerM,
-  );
-  ctx.restore();
-}
-function drawProps(
-  ctx: CanvasRenderingContext2D,
-  p: Map2dProjection,
-  layout: RoomLayout,
-) {
-  for (const prop of layout.props) {
-    const definition = ROOM_PROP_CATALOG.find(
-      (item) => item.asset === prop.asset,
-    );
-    const group = definition?.group ?? "";
-    const groupIndex =
-      [...group].reduce((sum, character) => sum + character.charCodeAt(0), 0) %
-      PROP_GROUP_COLORS.length;
-    drawRect(
-      ctx,
-      p,
-      prop,
-      PROP_GROUP_COLORS[groupIndex] ?? MAP2D_COLORS.prop,
-      prop.rotation,
-    );
-    const glyph = prop.interaction
-      ? "↗"
-      : definition?.vehicleId
-        ? "▰"
-        : definition?.interaction === "sit"
-          ? "▱"
-          : "";
-    if (!glyph) continue;
-    const screen = worldToScreen(p, prop);
-    ctx.fillStyle = MAP2D_COLORS.text;
-    ctx.font = `${MAP2D_FONT_PX}px system-ui`;
-    ctx.textAlign = "center";
-    ctx.fillText(glyph, screen.x, screen.y);
-  }
-}
-function drawWalls(
-  ctx: CanvasRenderingContext2D,
-  p: Map2dProjection,
-  layout: RoomLayout,
-) {
-  for (const wall of layout.walls) {
-    drawRect(
-      ctx,
-      p,
-      {
-        ...wall,
-        width: wall.axis === "horizontal" ? wall.length : wall.thickness,
-        depth: wall.axis === "vertical" ? wall.length : wall.thickness,
-      },
-      wall.color ?? MAP2D_COLORS.wall,
-    );
-    for (const door of layout.doors.filter((item) => item.wallId === wall.id)) {
-      const position = {
-        x: wall.x + (wall.axis === "horizontal" ? door.offset : 0),
-        z: wall.z + (wall.axis === "vertical" ? door.offset : 0),
-      };
-      drawRect(
-        ctx,
-        p,
-        {
-          ...position,
-          width: wall.axis === "horizontal" ? door.width : wall.thickness,
-          depth: wall.axis === "vertical" ? door.width : wall.thickness,
-        },
-        door.kind === "opening" ? MAP2D_COLORS.floor : MAP2D_COLORS.door,
-      );
-    }
-  }
-}
 export class Map2dStaticLayer {
   readonly canvas: HTMLCanvasElement;
   private cacheKey = "";
   private scalePxPerM = 0;
   private previousLayout: RoomLayout | null | undefined;
   private previousInputs = "";
+  private previousImageRevision = -1;
+  private previousDimensions: { widthM: number; depthM: number; configVersion: number; pxPerM: number } | null = null;
+  get revision(): number { return propPreviewImages.revision; }
   constructor() {
     this.canvas = document.createElement("canvas");
   }
@@ -124,12 +38,14 @@ export class Map2dStaticLayer {
     configVersion: number,
     pxPerM: number,
   ): void {
-    const inputs = `${configVersion}:${Math.round(pxPerM * MAP2D_SCALE_BUCKETS_PER_UNIT)}:${widthM}:${depthM}`;
+    const inputs = `${this.revision}:${configVersion}:${Math.round(pxPerM * MAP2D_SCALE_BUCKETS_PER_UNIT)}:${widthM}:${depthM}`;
     if (layout === this.previousLayout && inputs === this.previousInputs)
       return;
     this.previousLayout = layout;
+    this.previousDimensions = { widthM, depthM, configVersion, pxPerM };
+    this.previousImageRevision = this.revision;
     this.previousInputs = inputs;
-    const key = `${map2dStaticCacheKey(layout, configVersion, pxPerM)}:${widthM}:${depthM}`;
+    const key = `${this.revision}:${map2dStaticCacheKey(layout, configVersion, pxPerM)}:${widthM}:${depthM}`;
     if (key === this.cacheKey) return;
     this.cacheKey = key;
     this.scalePxPerM = Math.min(
@@ -147,17 +63,15 @@ export class Map2dStaticLayer {
       heightPx: this.canvas.height,
       dpr: 1,
     };
-    ctx.fillStyle = MAP2D_COLORS.floor;
+    ctx.fillStyle = layout?.roadways?.length ? MAP2D_DETAIL_PALETTE.grass : MAP2D_DETAIL_PALETTE.floor;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     if (!layout) return;
-    for (const road of layout.roadways ?? [])
-      drawRect(ctx, p, road, MAP2D_COLORS.road);
-    for (const zone of layout.zones)
-      drawRect(ctx, p, zone, zone.color || MAP2D_COLORS.zone);
-    drawWalls(ctx, p, layout);
-    drawProps(ctx, p, layout);
+    drawMap2dStaticDetail(ctx, p, layout);
   }
   blit(ctx: CanvasRenderingContext2D, p: Map2dProjection): void {
+    const previous = this.previousDimensions;
+    if (previous && this.previousImageRevision !== this.revision)
+      this.update(this.previousLayout ?? null, previous.widthM, previous.depthM, previous.configVersion, previous.pxPerM);
     const factor = p.pxPerM / this.scalePxPerM;
     const left =
       p.widthPx / 2 - p.center.x * p.pxPerM - (this.canvas.width * factor) / 2;

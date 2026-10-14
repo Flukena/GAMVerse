@@ -4,11 +4,8 @@ import {
   MAP2D_DRAG_THRESHOLD_PX,
   MAP2D_VIEW_STORAGE_KEY,
 } from "./constants";
-import {
-  smoothAvatarPose,
-  isPoseSettled,
-  type AvatarPose,
-} from "./avatarPoseSmoother";
+import { Map2dPlayerFrames } from "./map2dPlayerFrames";
+import { Map2dFrameChanges, writeMap2dFollowProjection } from "./map2dFrameChanges";
 import {
   drawMap2dDynamic,
   drawMap2dInteraction,
@@ -18,6 +15,7 @@ import {
 } from "./map2dDynamicLayer";
 import { pickMap2dPlayer } from "./map2dInput";
 import { Map2dStaticLayer } from "./map2dStaticLayer";
+import { AvatarPortraits } from "./avatarPortraits";
 import {
   map2dWheelScale,
   screenToWorld,
@@ -47,6 +45,7 @@ export type Map2dFrame = {
   nowMs: number;
   deltaS: number;
   destination?: Map2dPoint | null;
+  following?: boolean;
 };
 export function readMap2dPreference(): boolean {
   try {
@@ -64,11 +63,11 @@ export function persistMap2dPreference(view: "2d" | "3d"): void {
 }
 export class Map2dRenderer {
   readonly staticLayer = new Map2dStaticLayer();
+  private readonly portraits = new AvatarPortraits();
   private state: Map2dFrame | null = null;
-  private signature = "";
-  private previousLayout: RoomLayout | null | undefined;
-  private readonly renderedPlayers = new Map<string, Map2dPlayer>();
-  private readonly poses = new Map<string, AvatarPose>();
+  private readonly playerFrames = new Map2dPlayerFrames();
+  private readonly changes = new Map2dFrameChanges();
+  private readonly projection: Map2dProjection = { center: { x: 0, z: 0 }, pxPerM: 0, widthPx: 0, heightPx: 0, dpr: 1 };
   private pointer: {
     id: number;
     start: ScreenPoint;
@@ -115,11 +114,11 @@ export class Map2dRenderer {
     if (pointer.dragged)
       this.listener.pan({
         x:
-          state.projection.center.x -
-          (point.x - pointer.previous.x) / state.projection.pxPerM,
+          this.projection.center.x -
+          (point.x - pointer.previous.x) / this.projection.pxPerM,
         z:
-          state.projection.center.z -
-          (point.y - pointer.previous.y) / state.projection.pxPerM,
+          this.projection.center.z -
+          (point.y - pointer.previous.y) / this.projection.pxPerM,
       });
     pointer.previous = point;
   };
@@ -130,15 +129,15 @@ export class Map2dRenderer {
     if (!pointer || pointer.dragged || !state) return;
     const point = this.point(event);
     const playerId = pickMap2dPlayer(
-      state.projection,
-      this.renderedPlayers,
+      this.projection,
+      this.playerFrames.players,
       point,
     );
     if (playerId) {
       this.listener.selectPlayer(playerId, event.clientX, event.clientY);
       return;
     }
-    const world = screenToWorld(state.projection, point);
+    const world = screenToWorld(this.projection, point);
     if (
       Math.abs(world.x) <= state.widthM / 2 &&
       Math.abs(world.z) <= state.depthM / 2
@@ -157,76 +156,42 @@ export class Map2dRenderer {
       return;
     }
     const point = this.point(event);
-    const before = screenToWorld(state.projection, point);
-    const scale = map2dWheelScale(state.projection.pxPerM, event.deltaY);
+    const before = screenToWorld(this.projection, point);
+    const scale = map2dWheelScale(this.projection.pxPerM, event.deltaY);
     this.listener.zoom(scale);
-    const after = screenToWorld({ ...state.projection, pxPerM: scale }, point);
+    const after = screenToWorld({ ...this.projection, pxPerM: scale }, point);
     this.listener.pan({
-      x: state.projection.center.x + before.x - after.x,
-      z: state.projection.center.z + before.z - after.z,
+      x: this.projection.center.x + before.x - after.x,
+      z: this.projection.center.z + before.z - after.z,
     });
   };
-  private smoothPlayers(state: Map2dFrame): {
-    players: Map<string, Map2dPlayer>;
-    settled: boolean;
-  } {
-    const players = new Map<string, Map2dPlayer>();
-    let settled = true;
-    for (const [id, target] of state.players) {
-      const pose = smoothAvatarPose(
-        this.poses.get(id) ?? target,
-        target,
-        state.deltaS,
-        id === state.localId,
-      );
-      this.poses.set(id, pose);
-      players.set(id, { ...target, ...pose });
-      settled &&= isPoseSettled(pose, target);
-    }
-    for (const id of this.poses.keys())
-      if (!players.has(id)) this.poses.delete(id);
-    this.renderedPlayers.clear();
-    for (const [id, player] of players) this.renderedPlayers.set(id, player);
-    return { players, settled };
+  private resizeCanvas(): void {
+    const p = this.projection;
+    const width = Math.round(p.widthPx * p.dpr);
+    const height = Math.round(p.heightPx * p.dpr);
+    if (this.canvas.width === width && this.canvas.height === height) return;
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.changes.invalidate();
   }
-  frame(state: Map2dFrame): void {
+  frame(state: Map2dFrame): Map2dPoint | undefined {
     this.state = state;
     this.canvas.style.display = state.visible ? "block" : "none";
     if (!state.visible) {
-      this.signature = "";
+      this.changes.invalidate();
       return;
     }
-    if (state.layout !== this.previousLayout) {
-      this.previousLayout = state.layout;
-      this.signature = "";
-    }
-    const p = state.projection;
-    const width = Math.round(p.widthPx * p.dpr);
-    const height = Math.round(p.heightPx * p.dpr);
-    if (this.canvas.width !== width || this.canvas.height !== height) {
-      this.canvas.width = width;
-      this.canvas.height = height;
-      this.signature = "";
-    }
-    const smoothed = this.smoothPlayers(state);
-    const activeDecorations = state.decorations.filter(
-      (item) => item.expiresAtMs > state.nowMs,
-    );
-    const signature = JSON.stringify([
-      p,
-      state.configVersion,
-      [...state.players],
-      [...state.speaking],
-      activeDecorations,
-      state.destination,
-    ]);
-    if (
-      signature === this.signature &&
-      smoothed.settled &&
-      activeDecorations.length === 0
-    )
-      return;
-    this.signature = smoothed.settled ? signature : "";
+    const playersChanged = this.playerFrames.update(state.players, state.localId, state.deltaS);
+    writeMap2dFollowProjection(this.projection, state.projection, Boolean(state.following),
+      state.localId ? this.playerFrames.players.get(state.localId) : undefined);
+    const p = this.projection;
+    this.resizeCanvas();
+    const sceneChanged = this.changes.update(state, p, this.staticLayer.revision, this.portraits.revision);
+    if (playersChanged || sceneChanged) this.drawFrame(state);
+    return p.center;
+  }
+  private drawFrame(state: Map2dFrame): void {
+    const p = this.projection;
     const ctx = this.canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(p.dpr, 0, 0, p.dpr, 0, 0);
@@ -245,21 +210,23 @@ export class Map2dRenderer {
       ctx,
       p,
       state.layout?.props ?? [],
-      state.localId ? smoothed.players.get(state.localId) : undefined,
+      state.localId ? this.playerFrames.players.get(state.localId) : undefined,
     );
     drawMap2dDynamic(
       ctx,
       p,
-      smoothed.players,
+      this.playerFrames.players,
       state.localId,
       state.speaking,
-      activeDecorations,
+      this.changes.activeDecorations,
       state.nowMs,
+      this.portraits,
     );
   }
   dispose(): void {
     this.staticLayer.dispose();
-    this.poses.clear();
+    this.portraits.dispose();
+    this.playerFrames.clear();
     this.canvas.removeEventListener("pointerdown", this.pointerDown);
     this.canvas.removeEventListener("pointermove", this.pointerMove);
     this.canvas.removeEventListener("pointerup", this.pointerUp);

@@ -7,6 +7,7 @@ import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { loadCharacterAsset, type LoadedCharacterAsset } from "../assets/characterAssets";
 import { loadGltfAsset, loadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
+import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { createOfficePropGeometry } from "./officePropGeometry";
 import { fitWallAssetModel } from "./wallAssetTransform";
 import { cameraReducer, createCameraState, isBehindCharacterLocked, type CameraEvent } from "./camera/cameraState";
@@ -2026,8 +2027,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const getCharacterModel = (characterId: CharacterModelId) => {
       let model = characterModels.get(characterId);
       if (!model) {
-        const endpoint = import.meta.env.VITE_REALTIME_URL ?? (import.meta.env.PROD ? window.location.origin : "http://localhost:2567");
-        model = loadCharacterAsset(characterId, endpoint);
+        model = loadCharacterAsset(characterId, getRealtimeEndpoint());
         characterModels.set(characterId, model);
         void model.catch(() => undefined);
       }
@@ -3399,10 +3399,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
         lastLocateRequestRef.current = locate.requestId;
       }
-      if (showMap2d && cameraStateRef.current.following && localPlayerState) map2dCenterRef.current = { x: localPlayerState.x, z: localPlayerState.z };
-      map2dRenderer.frame({ visible: showMap2d, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
+      map2dCenterRef.current = map2dRenderer.frame({ visible: showMap2d, following: cameraStateRef.current.following, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
         projection: { center: map2dCenterRef.current, pxPerM: cameraStateRef.current.map2dScalePxPerM, widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
-        players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: map2dDestinationRef.current });
+        players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: map2dDestinationRef.current }) ?? map2dCenterRef.current;
       socialOverlay.frame({ camera, players: playersRef.current, decorations: map2dDecorationsRef?.current ?? [], localId, layout: roomLayout, offsetX: campusOverviewRef.current ? mapWorld.width / 2 : 0, offsetZ: campusOverviewRef.current ? mapWorld.depth / 2 : 0, visible: !showMap2d, nowMs: performance.now() });
       if (!showMap2d) renderer.render(scene, camera);
       animationFrame = requestAnimationFrame(render);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { CAMPUS_WORLD, type RoomLayout } from "@gammyverse/shared";
+import { minimapCanvasPoint } from "./minimapGeometry";
 import { Map2dStaticLayer } from "../world/map2d/map2dStaticLayer";
 import {
   screenToWorld,
@@ -8,7 +9,7 @@ import {
   type Map2dPoint,
   type Map2dProjection,
 } from "../world/map2d/map2dProjection";
-const MINIMAP_RIGHT_OFFSET_PX = 12;
+const MINIMAP_LEFT_OFFSET_PX = 12;
 const MINIMAP_BOTTOM_OFFSET_PX = 110;
 const MINIMAP_Z_INDEX = 5;
 const MINIMAP_BORDER_RADIUS_PX = 8;
@@ -100,12 +101,13 @@ export function Minimap({
   return (
     <canvas
       ref={canvasRef}
+      className="office-minimap"
       width={MINIMAP_WIDTH_PX}
       height={MINIMAP_HEIGHT_PX}
       aria-label="Office minimap; click to pan 2D"
       style={{
         position: "absolute",
-        right: MINIMAP_RIGHT_OFFSET_PX,
+        left: MINIMAP_LEFT_OFFSET_PX,
         bottom: MINIMAP_BOTTOM_OFFSET_PX,
         zIndex: MINIMAP_Z_INDEX,
         border: MINIMAP_BORDER_CSS,
@@ -114,10 +116,11 @@ export function Minimap({
       onClick={(event) => {
         const rect = event.currentTarget.getBoundingClientRect();
         onPan(
-          screenToWorld(projection, {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-          }),
+          screenToWorld(projection, minimapCanvasPoint(
+            { x: event.clientX - rect.left, y: event.clientY - rect.top },
+            rect,
+            { width: MINIMAP_WIDTH_PX, height: MINIMAP_HEIGHT_PX },
+          )),
         );
       }}
     />

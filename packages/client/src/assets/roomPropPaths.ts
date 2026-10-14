@@ -29,3 +29,7 @@ export function roomPropAssetPaths(item: RoomPropAssetPathDefinition) {
   const base = item.model ? "/assets/kenney/furniture-kit/Models/" : "/assets/kenney/furniture/";
   return { format: "obj" as const, materialUrl: `${base}${model}.mtl`, modelUrl: `${base}${model}.obj` };
 }
+
+export function roomPropPreviewUrl(item: RoomPropAssetPathDefinition): string | undefined {
+  return item.preview;
+}
