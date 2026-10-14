@@ -1,0 +1,86 @@
+.gather-chat {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 240px;
+}
+.gather-chat nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.gather-chat ol {
+  overflow: auto;
+  max-height: 45vh;
+  padding-left: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.gather-chat form {
+  display: flex;
+  gap: 4px;
+}
+.gather-chat input {
+  min-width: 0;
+  flex: 1;
+}
+.gather-social-controls {
+  position: fixed;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  z-index: 12;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  gap: 4px;
+}
+.gather-spotlight {
+  position: fixed;
+  right: 16px;
+  top: 80px;
+  z-index: 15;
+  max-width: 320px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px;
+}
+.gather-spotlight:empty {
+  display: none;
+}
+.gather-spotlight video {
+  max-width: 300px;
+}
+.gather-spotlight-banner {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  background: #fff;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+.gather-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #0008;
+  display: grid;
+  place-items: center;
+  z-index: 100;
+}
+.gather-interaction {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  width: min(90vw, 960px);
+  max-height: 90vh;
+  overflow: auto;
+}
+.gather-interaction iframe {
+  border: 0;
+  width: 100%;
+  height: 60vh;
+}

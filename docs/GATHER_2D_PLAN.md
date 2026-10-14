@@ -1,6 +1,6 @@
 # Gather-style 2D mode plan
 
-Status: draft for owner approval (2026-10-14), revised after the Codex plan review. Review: `~/basedata/gamverse/gather-2d-plan-20261014/codex-plan-review.md`. Nothing here is implemented yet.
+Status: implemented on feat/gather-2d (pending browser checks).
 
 Goal: make 2D a full play mode with the core Gather Town features, while keeping 3D. The owner chose:
 - a 2D/3D toggle that works anywhere on the campus, with walking and interaction in 2D;
@@ -42,7 +42,7 @@ Each phase is one PR and leaves the game playable. The server stays authoritativ
 - `view` survives `room-change` and `avatar-ready`. Only the user changes it.
 - 2D follows the avatar until the user drags. In `map2d`, `walk-input` sets `following = true`, which is new; `cameraState.test.ts:30` is updated on purpose.
 - 2D zoom is its own `map2dScalePxPerM`, clamped to named min/max constants.
-- Toggle: a toolbar button plus a key from the unused key set (not `Tab`). The key is handled only while the world has focus and never inside inputs or dialogs.
+- Toggle: a toolbar button plus M, handled once at window level. Match the camera-view shortcut guards: ignore repeats, paused gameplay and build/map-edit mode; never inside inputs or dialogs (including textareas, selects, contentEditable targets, ARIA dialogs and native dialogs). Canvas focus is not required.
 - Persist the preference per device in `localStorage`, wrapped in try/catch.
 
 **Renderer** (new `client/src/world/map2d/`, extracted from the god-file)
@@ -59,6 +59,7 @@ Each phase is one PR and leaves the game playable. The server stays authoritativ
 - `Map2dRenderer` class: owns the canvases, dirty state and disposal. `WorldCanvas` calls only `renderer.frame(state)`. WebGL rendering is skipped in 2D.
 
 **Input in 2D**
+- M toggles explicit 2D/3D. V retains the 3D TPP/FPP toggle and is ignored in explicit 2D.
 - The overlay receives pointer events while in `map2d`. Every 2D pointer action goes through `map2dProjection`, never the 3D camera:
   - **click empty floor:** `onAutoMove({x, z}, randomVehicle=false)`, with a destination marker until `auto-move-status`;
   - **click a player:** the existing menu. Overlapping players are resolved by picking the nearest one within `MAP2D_PICK_RADIUS_PX`;

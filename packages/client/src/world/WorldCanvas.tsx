@@ -7,18 +7,27 @@ import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { loadCharacterAsset, type LoadedCharacterAsset } from "../assets/characterAssets";
 import { loadGltfAsset, loadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
+import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { createOfficePropGeometry } from "./officePropGeometry";
 import { fitWallAssetModel } from "./wallAssetTransform";
 import { cameraReducer, createCameraState, isBehindCharacterLocked, type CameraEvent } from "./camera/cameraState";
 import { computeCameraFrame, applyCameraProjection, campusOverviewDistance } from "./camera/cameraFrame";
-import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, panEditorCamera, hasCameraMovement } from "./camera/cameraInput";
+import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, cameraZoomButtonEvent, panEditorCamera, hasCameraMovement } from "./camera/cameraInput";
 import { CameraOcclusion } from "./camera/cameraOcclusion";
 import { smoothCameraPose, type CameraPose } from "./camera/cameraPose";
 import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_2D_ZOOM_THRESHOLD_RATIO, CAMPUS_BOUNDARY_WALL_HEIGHT_M, CAMERA_ZOOM_BUTTON_RATIO, FOLLOW_FACING_RESPONSE_PER_SECOND, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
 
+import { WorldSocialOverlay } from "./WorldSocialOverlay";
+import { Map2dRenderer, readMap2dPreference, persistMap2dPreference } from "./map2d/Map2dRenderer";
+import { smoothAvatarPose, avatarPoseBlend } from "./map2d/avatarPoseSmoother";
+import { registerMap2dShortcut } from "./map2d/map2dShortcut";
+import { applyCameraView } from "./camera/cameraView";
+import { locateMap2d, type Map2dLocateRequest } from "./map2d/map2dInput";
+import type { Map2dDecoration } from "./map2d/map2dDynamicLayer";
+
 type CharacterModelId = KenneyCharacterId | `custom-${string}`;
 type PlayerStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
-type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; characterId: CharacterModelId; petId?: string; weaponId?: KenneyBlasterId | ""; vehicleId?: string; vehicleMode?: "" | "manual" | "auto"; vehiclePropId?: string; vehiclePropX?: number; vehiclePropZ?: number; vehiclePropRotation?: number; sittingPropId?: string; dancing?: boolean; status?: PlayerStatus };
+type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; characterId: CharacterModelId; petId?: string; weaponId?: KenneyBlasterId | ""; vehicleId?: string; vehicleMode?: "" | "manual" | "auto"; vehiclePropId?: string; vehiclePropX?: number; vehiclePropZ?: number; vehiclePropRotation?: number; sittingPropId?: string; dancing?: boolean; status?: PlayerStatus; handRaised?: boolean };
 type RoomPortalVisual = { roomKey: string; name: string; x: number; z: number; isLocked: boolean };
 type BlasterVector = { x: number; y: number; z: number };
 type BlasterShotEvent = { shooterSessionId: string; start: BlasterVector; end: BlasterVector };
@@ -37,6 +46,11 @@ interface Props {
   cameraYawRef: MutableRefObject<number>;
   cameraBehindCharacterRef: MutableRefObject<boolean>;
   firstPersonViewRef: MutableRefObject<boolean>;
+  map2dDecorationsRef?: MutableRefObject<Map2dDecoration[]>;
+  map2dViewRef?: MutableRefObject<boolean>;
+  locateRequestRef?: MutableRefObject<Map2dLocateRequest | null>;
+  propsConfigVersion?: number;
+  autoMoveStatusRevisionRef?: MutableRefObject<number>;
   roomPortals?: RoomPortalVisual[];
   roomLayout: RoomLayout | null;
   personalDeskZone?: RoomLayoutZone | null;
@@ -743,7 +757,7 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
-export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
+export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, locateRequestRef, autoMoveStatusRevisionRef, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compassRoseRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -774,6 +788,25 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const previousWorldKeyRef = useRef(activeRoomKey);
   const cameraStateRef = useRef(createCameraState(activeRoomKey === "lobby"));
   const [cameraState, setCameraState] = useState(cameraStateRef.current);
+  const map2dCenterRef = useRef({ x: 0, z: 0 });
+  const locateDecorationsRef = useRef<Map2dDecoration[]>([]);
+  const lastLocateRequestRef = useRef(0);
+  const lastAutoMoveStatusRevisionRef = useRef(0);
+  const map2dDestinationRef = useRef<{ x: number; z: number } | null>(null);
+  const setMap2dView = (view: "2d" | "3d") => {
+    cameraStateRef.current = applyCameraView(cameraStateRef.current, view, {
+      exitFirstPerson: () => {
+        setFirstPersonView(false);
+        firstPersonViewRef.current = false;
+        if (document.pointerLockElement) document.exitPointerLock();
+      },
+      persistView: persistMap2dPreference,
+    });
+    cameraBehindCharacterRef.current = isBehindCharacterLocked(cameraStateRef.current);
+    setCameraState(cameraStateRef.current);
+  };
+  const toggleMap2d = () => setMap2dView(cameraStateRef.current.mode === "map2d" ? "3d" : "2d");
+  useEffect(() => { if (readMap2dPreference()) setMap2dView("2d"); }, []);
   const dispatchCamera = (event: CameraEvent) => {
     const nextState = cameraReducer(cameraStateRef.current, event);
     if (nextState === cameraStateRef.current) return;
@@ -782,6 +815,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     setCameraState(nextState);
   };
   const toggleCameraView = () => {
+    if (cameraStateRef.current.view === "2d") return;
     dispatchCamera({ type: "toggle-fpp" });
     const enteringFirstPerson = cameraStateRef.current.mode === "fpp";
     setActiveFloatingGroup(null);
@@ -884,12 +918,22 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     host.appendChild(renderer.domElement);
     const map2dCanvas = document.createElement("canvas");
     map2dCanvas.setAttribute("aria-hidden", "true");
-    Object.assign(map2dCanvas.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "none", display: "none" });
+    Object.assign(map2dCanvas.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "auto", display: "none" });
+    renderer.domElement.tabIndex = 0;
     host.appendChild(map2dCanvas);
     map2dCanvasRef.current = map2dCanvas;
-    const map2dCameraState = new Float64Array(32);
-    const map2dPlayerState = new Map<string, { x: number; z: number; displayName: string; local: boolean; speaking: boolean }>();
-    let map2dWasVisible = false;
+    const socialOverlay = new WorldSocialOverlay(host, scene);
+    const map2dRenderer = new Map2dRenderer(map2dCanvas, {
+      pan: (center) => { map2dCenterRef.current = center; dispatchCamera({ type: "manual-drag" }); },
+      zoom: (pxPerM) => dispatchCamera({ type: "map2d-scale", pxPerM }),
+      zoomOverview: (deltaYPx) => dispatchCamera(cameraWheelEvent(cameraStateRef.current, deltaYPx, tppTransitionDistanceMRef.current)),
+      walk: (destination) => { map2dDestinationRef.current = destination; buildCallbacksRef.current.onAutoMove?.(destination, false); },
+      selectPlayer: (id, x, y) => buildCallbacksRef.current.onSelectPlayer?.(id, x, y),
+    });
+    const removeMap2dShortcut = registerMap2dShortcut(window, {
+      state: () => ({ paused: appPaused, buildMode: buildModeRef.current, mapEditMode: mapEditModeRef.current }),
+      toggle: toggleMap2d,
+    });
     // Compact shooter-style first-person viewmodel. The arms are simple
     // stylized shapes; the blaster itself is Kenney's CC0 model.
     const firstPersonViewModel = new THREE.Group();
@@ -1983,8 +2027,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const getCharacterModel = (characterId: CharacterModelId) => {
       let model = characterModels.get(characterId);
       if (!model) {
-        const endpoint = import.meta.env.VITE_REALTIME_URL ?? (import.meta.env.PROD ? window.location.origin : "http://localhost:2567");
-        model = loadCharacterAsset(characterId, endpoint);
+        model = loadCharacterAsset(characterId, getRealtimeEndpoint());
         characterModels.set(characterId, model);
         void model.catch(() => undefined);
       }
@@ -2975,10 +3018,14 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             fallback.rightLeg.rotation.x = dancing ? -Math.sin(animation.phase * 0.5) * 0.35 : moving ? stride * strideAmount * 1.15 : 0;
           }
         }
-        const responsiveness = id === localId ? 0.38 : 0.16;
-        const blend = 1 - Math.pow(1 - responsiveness, delta * 60);
-        current.x = THREE.MathUtils.lerp(current.x, renderX, blend);
-        current.z = THREE.MathUtils.lerp(current.z, renderZ, blend);
+        const blend = avatarPoseBlend(delta, id === localId);
+        const rotationOffset = animation?.rotationOffset ?? Math.PI;
+        // Kenney's authored sit clip faces the opposite local direction from
+        // the chair fronts in our office furniture assets.
+        const targetRotation = sittingProp ? (sittingAnchor?.rotation ?? sittingProp.rotation) + rotationOffset + Math.PI : player.rotation + rotationOffset;
+        const pose = smoothAvatarPose({ x: current.x, z: current.z, rotation: avatar.rotation.y }, { x: renderX, z: renderZ, rotation: targetRotation }, delta, id === localId);
+        current.x = pose.x;
+        current.z = pose.z;
         avatar.position.x = current.x;
         avatar.position.z = current.z;
         const jumpStartedAt = jumpStartedAtRef?.current.get(id);
@@ -2991,11 +3038,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         // as the chair. Kenney's character packs include a native "sit" clip;
         // keep the model's proportions intact while that pose is active.
         avatar.scale.y = 1;
-        const rotationOffset = animation?.rotationOffset ?? Math.PI;
-        // Kenney's authored sit clip faces the opposite local direction from
-        // the chair fronts in our office furniture assets.
-        const targetRotation = sittingProp ? (sittingAnchor?.rotation ?? sittingProp.rotation) + rotationOffset + Math.PI : player.rotation + rotationOffset;
-        avatar.rotation.y = lerpAngle(avatar.rotation.y, targetRotation, blend);
+        avatar.rotation.y = pose.rotation;
         // While mounted, keep the avatar hidden even when the vehicle is idle.
         avatar.visible = !vehicleId;
         const avatarModel = animation?.model;
@@ -3357,127 +3400,28 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       if (placementGhost.visible) {
         placementGhost.position.set(placementGhostPosition.x, placementGhostElevation, placementGhostPosition.z);
       }
+      if (autoMoveStatusRevisionRef && autoMoveStatusRevisionRef.current !== lastAutoMoveStatusRevisionRef.current) {
+        lastAutoMoveStatusRevisionRef.current = autoMoveStatusRevisionRef.current; map2dDestinationRef.current = null;
+      }
       const showMap2d = cameraStateRef.current.mode === "map2d";
       renderer.domElement.style.opacity = showMap2d ? "0" : "1";
-      map2dCanvas.style.display = showMap2d ? "block" : "none";
-      if (showMap2d) {
-        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-        const width = Math.max(1, Math.round(host.clientWidth * pixelRatio));
-        const height = Math.max(1, Math.round(host.clientHeight * pixelRatio));
-        const resized = map2dCanvas.width !== width || map2dCanvas.height !== height;
-        if (resized) { map2dCanvas.width = width; map2dCanvas.height = height; }
-        camera.updateMatrixWorld(true);
-        let map2dDirty = !map2dWasVisible || resized;
-        let cameraMatrixIndex = 0;
-        for (const value of camera.matrixWorld.elements) {
-          if (map2dCameraState[cameraMatrixIndex] !== value) map2dDirty = true;
-          map2dCameraState[cameraMatrixIndex++] = value;
+      if (map2dViewRef) map2dViewRef.current = showMap2d;
+      const locate = locateRequestRef?.current;
+      if (locate && locate.requestId !== lastLocateRequestRef.current) {
+        const target = locate.center ?? (locate.sessionId ? playersRef.current.get(locate.sessionId) : undefined);
+        if (target) {
+          const located = locateMap2d(target, locate.sessionId ?? "", performance.now());
+          setMap2dView("2d");
+          dispatchCamera({ type: "manual-drag" }); map2dCenterRef.current = located.center;
+          locateDecorationsRef.current = [located.decoration];
         }
-        for (const value of camera.projectionMatrix.elements) {
-          if (map2dCameraState[cameraMatrixIndex] !== value) map2dDirty = true;
-          map2dCameraState[cameraMatrixIndex++] = value;
-        }
-        const overviewPlayers = playersRef.current;
-        if (overviewPlayers.size !== map2dPlayerState.size) map2dDirty = true;
-        for (const [id, player] of overviewPlayers) {
-          const local = id === localId;
-          const speaking = Boolean(speakingUsernamesRef?.current.has(player.username.trim().toLocaleLowerCase()));
-          const cached = map2dPlayerState.get(id);
-          if (!cached || cached.x !== player.x || cached.z !== player.z || cached.displayName !== player.displayName || cached.local !== local || cached.speaking !== speaking) map2dDirty = true;
-          if (cached) { cached.x = player.x; cached.z = player.z; cached.displayName = player.displayName; cached.local = local; cached.speaking = speaking; }
-          else map2dPlayerState.set(id, { x: player.x, z: player.z, displayName: player.displayName, local, speaking });
-        }
-        for (const id of map2dPlayerState.keys()) if (!overviewPlayers.has(id)) map2dPlayerState.delete(id);
-        const ctx = map2dCanvas.getContext("2d");
-        if (ctx && map2dDirty) {
-          ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-          const w = host.clientWidth; const h = host.clientHeight;
-          ctx.fillStyle = "#e9f0ed"; ctx.fillRect(0, 0, w, h);
-          const projectMapPoint = (x: number, z: number, y = 0.04) => {
-            const point = new THREE.Vector3(x + mapWorld.width / 2, y, z + mapWorld.depth / 2).project(camera);
-            return { x: (point.x + 1) * w / 2, y: (1 - point.y) * h / 2 };
-          };
-          const drawMapRect = (x: number, z: number, width: number, depth: number, fill: string, stroke?: string) => {
-            const corners = [projectMapPoint(x - width / 2, z - depth / 2), projectMapPoint(x + width / 2, z - depth / 2), projectMapPoint(x + width / 2, z + depth / 2), projectMapPoint(x - width / 2, z + depth / 2)];
-            ctx.beginPath(); ctx.moveTo(corners[0]!.x, corners[0]!.y); corners.slice(1).forEach((point) => ctx.lineTo(point.x, point.y)); ctx.closePath();
-            ctx.fillStyle = fill; ctx.fill();
-            if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.4; ctx.stroke(); }
-          };
-          const floorCorners = [projectMapPoint(-mapWorld.width / 2, -mapWorld.depth / 2, 0), projectMapPoint(mapWorld.width / 2, -mapWorld.depth / 2, 0), projectMapPoint(mapWorld.width / 2, mapWorld.depth / 2, 0), projectMapPoint(-mapWorld.width / 2, mapWorld.depth / 2, 0)];
-          ctx.beginPath(); ctx.moveTo(floorCorners[0]!.x, floorCorners[0]!.y); floorCorners.slice(1).forEach((point) => ctx.lineTo(point.x, point.y)); ctx.closePath(); ctx.fillStyle = "#f7f8f4"; ctx.fill(); ctx.strokeStyle = "#c7d3cf"; ctx.lineWidth = 1; ctx.stroke();
-          for (const rect of mergeRoadwayRectangles(roomLayout?.roadways ?? [])) {
-            drawMapRect((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2, rect.right - rect.left, rect.bottom - rect.top, ROAD_SURFACE_COLOR);
-          }
-          for (const road of roomLayout?.roadways ?? []) {
-            const horizontal = road.width >= road.depth;
-            const roadLength = horizontal ? road.width : road.depth;
-            const roadWidth = horizontal ? road.depth : road.width;
-            const major = road.kind === "major";
-            const projectedCenter = projectMapPoint(road.x, road.z);
-            const projectedX = projectMapPoint(road.x + 1, road.z);
-            const projectedZ = projectMapPoint(road.x, road.z + 1);
-            const pixelsPerMeterAlong = Math.max(0.001, Math.hypot(projectedX.x - projectedCenter.x, projectedX.y - projectedCenter.y) * (horizontal ? 1 : 0)
-              + Math.hypot(projectedZ.x - projectedCenter.x, projectedZ.y - projectedCenter.y) * (horizontal ? 0 : 1));
-            const pixelsPerMeterAcross = Math.max(0.001, Math.hypot(projectedX.x - projectedCenter.x, projectedX.y - projectedCenter.y) * (horizontal ? 0 : 1)
-              + Math.hypot(projectedZ.x - projectedCenter.x, projectedZ.y - projectedCenter.y) * (horizontal ? 1 : 0));
-            // World-sized paint becomes sub-pixel in 2D at campus zoom. Keep
-            // markings legible in screen space without widening the asphalt.
-            const markingWidth = Math.max(major ? 0.14 : 0.1, 1.25 / pixelsPerMeterAcross);
-            const ranges = visibleRoadRanges(road, roomLayout?.roadways ?? []);
-            for (const [start, end] of ranges) {
-              for (const side of [-1, 1]) {
-                const offset = side * (roadWidth / 2 - 0.28);
-                if (horizontal) drawMapRect(road.x + (start + end) / 2, road.z + offset, end - start, markingWidth, "#e9eeee");
-                else drawMapRect(road.x + offset, road.z + (start + end) / 2, markingWidth, end - start, "#e9eeee");
-              }
-              const dashLength = Math.max(major ? 2.8 : 1.5, 4 / pixelsPerMeterAlong);
-              const dashGap = Math.max(major ? 2.4 : 2.5, 3 / pixelsPerMeterAlong);
-              const phaseStart = -roadLength / 2 + 1.5;
-              const firstDash = phaseStart + Math.max(0, Math.ceil((start - phaseStart) / (dashLength + dashGap))) * (dashLength + dashGap);
-              for (let along = firstDash; along < end - 0.5; along += dashLength + dashGap) {
-                const segment = Math.min(dashLength, end - 0.5 - along);
-                if (segment <= 0) continue;
-                const color = major ? "#f5c842" : "#e9eeee";
-                if (horizontal) drawMapRect(road.x + along + segment / 2, road.z, segment, markingWidth, color);
-                else drawMapRect(road.x, road.z + along + segment / 2, markingWidth, segment, color);
-              }
-            }
-          }
-          for (const zone of roomLayout?.zones ?? []) {
-            drawMapRect(zone.x, zone.z, zone.width, zone.depth, zone.kind === "meeting" ? "#e8ddc6" : zone.kind === "restroom" ? "#d9e9f2" : "#e2e8e3", "#23495a");
-            const center = projectMapPoint(zone.x, zone.z, 0.08);
-            const occupied = [...overviewPlayers.values()].some((player) =>
-              Math.abs(player.x - zone.x) <= zone.width / 2 && Math.abs(player.z - zone.z) <= zone.depth / 2);
-            if (zone.kind === "private" && zone.ownerUsername?.trim()) {
-              const ownerInitial = Array.from(zone.ownerUsername.trim())[0]!.toLocaleUpperCase();
-              ctx.beginPath(); ctx.roundRect(center.x - 8, center.y - 7, 16, 14, 4); ctx.fillStyle = "#f0bd4e"; ctx.fill(); ctx.strokeStyle = "#76531d"; ctx.lineWidth = 1.5; ctx.stroke();
-              ctx.fillStyle = "#183b4b"; ctx.font = "800 9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(ownerInitial, center.x, center.y);
-            }
-            const localMapPlayer = localId ? playersRef.current.get(localId) : undefined;
-            const withinRoomLabelRadius = Boolean(localMapPlayer
-              && Math.hypot(zone.x - localMapPlayer.x, zone.z - localMapPlayer.z) <= ROOM_LABEL_RADIUS_BLOCKS);
-            if (!occupied && !firstPersonViewRef.current && cameraRoomKeyRef.current === "lobby" && withinRoomLabelRadius && zone.kind !== "private" && zone.width > 16) { ctx.fillStyle = "#183b4b"; ctx.font = "600 10px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(zone.name, center.x, center.y); }
-          }
-          for (const [id, player] of playersRef.current) {
-            const position = projectMapPoint(player.x, player.z, 0.18); const x = position.x; const z = position.y; const radius = 9;
-            const words = player.displayName.trim().split(/\s+/).filter(Boolean);
-            const initials = words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0]?.slice(0, 2) ?? "?");
-            ctx.beginPath(); ctx.arc(x, z, radius, 0, Math.PI * 2); ctx.fillStyle = id === localId ? "#159bb4" : "#51647c"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
-            ctx.fillStyle = "#fff"; ctx.font = "700 9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(initials.toUpperCase(), x, z);
-            if (speakingUsernamesRef?.current.has(player.username.trim().toLocaleLowerCase())) {
-              const bubbleX = x + 12; const bubbleY = z - 16;
-              ctx.beginPath(); ctx.roundRect(bubbleX - 14, bubbleY - 9, 30, 17, 8); ctx.fillStyle = "#fff"; ctx.fill(); ctx.strokeStyle = "#c5e9ef"; ctx.lineWidth = 1; ctx.stroke();
-              ctx.beginPath(); ctx.moveTo(bubbleX - 2, bubbleY + 7); ctx.lineTo(bubbleX + 4, bubbleY + 7); ctx.lineTo(bubbleX, bubbleY + 12); ctx.closePath(); ctx.fillStyle = "#fff"; ctx.fill();
-              ctx.fillStyle = "#12839a"; ctx.font = "800 12px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("···", bubbleX + 1, bubbleY - 1);
-            }
-          }
-        }
-        map2dWasVisible = true;
-      } else {
-        map2dCanvas.style.display = "none";
-        map2dWasVisible = false;
-        renderer.render(scene, camera);
+        lastLocateRequestRef.current = locate.requestId;
       }
+      map2dCenterRef.current = map2dRenderer.frame({ visible: showMap2d, following: cameraStateRef.current.following, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
+        projection: { center: map2dCenterRef.current, pxPerM: cameraStateRef.current.map2dScalePxPerM, widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
+        players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: map2dDestinationRef.current }) ?? map2dCenterRef.current;
+      socialOverlay.frame({ camera, players: playersRef.current, decorations: map2dDecorationsRef?.current ?? [], localId, layout: roomLayout, offsetX: campusOverviewRef.current ? mapWorld.width / 2 : 0, offsetZ: campusOverviewRef.current ? mapWorld.depth / 2 : 0, visible: !showMap2d, nowMs: performance.now() });
+      if (!showMap2d) renderer.render(scene, camera);
       animationFrame = requestAnimationFrame(render);
     };
     animationFrame = requestAnimationFrame(render);
@@ -3569,6 +3513,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         });
       }
       renderer.dispose();
+      socialOverlay.dispose();
+      map2dRenderer.dispose(); removeMap2dShortcut();
       map2dCanvas.remove(); map2dCanvasRef.current = null;
       scene.clear();
       deskClaimLayer.remove();
@@ -3596,6 +3542,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         {isDriving ? "Exit vehicle" : "Drive vehicle"}
       </div>}
       {campusOverview && !mapEditMode && !buildMode && <div className="world-control-dock" aria-label="Map controls">
+        <button type="button" className="world-control-trigger" aria-label="Toggle 2D / 3D view (M)" title="2D / 3D · M" onClick={toggleMap2d}>2D / 3D</button>
         <div className="world-control-group" role="group" aria-label="Character actions">
           <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "focus-character" }); }}>
             <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.3"/></svg>
@@ -3638,7 +3585,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
                 <div className="tpp-zoom-readout"><output aria-label="Current camera distance">{Math.round(cameraState.distanceM)} m</output></div>
               </div>
               <button className="tpp-zoom-nudge" type="button" aria-label={campusOverview ? "Zoom out 10 meters or switch to 2D" : "Zoom out 10 meters"} title={campusOverview ? "Zoom out 10 m · switch to 2D at map limit" : "Zoom out 10 m"} disabled={cameraState.distanceM >= tppZoomMaxDistanceM} onClick={() => { const distanceM = cameraStateRef.current.distanceM + CAMERA.zoomStep; if (campusOverview && distanceM >= tppTransitionDistanceMRef.current) dispatchCamera({ type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO, distanceM: tppTransitionDistanceMRef.current }); else dispatchCamera({ type: "distance", distanceM, maxDistanceM: tppZoomMaxDistanceM }); }}>+</button>
-            </div> : <div className="overview-zoom-controls"><button type="button" aria-label="Zoom in one level" title="Zoom in 1×" onClick={() => { dispatchCamera({ type: "zoom", ratio: cameraStateRef.current.zoomRatio / CAMERA_ZOOM_BUTTON_RATIO }); }}>+</button><button type="button" aria-label="Zoom out one level" title="Zoom out 1×" onClick={() => { dispatchCamera({ type: "zoom", ratio: cameraStateRef.current.zoomRatio * CAMERA_ZOOM_BUTTON_RATIO }); }}>−</button></div>}
+            </div> : <div className="overview-zoom-controls"><button type="button" aria-label="Zoom in one level" title="Zoom in 1×" onClick={() => { dispatchCamera(cameraZoomButtonEvent(cameraStateRef.current, CAMERA_ZOOM_BUTTON_RATIO)); }}>+</button><button type="button" aria-label="Zoom out one level" title="Zoom out 1×" onClick={() => { dispatchCamera(cameraZoomButtonEvent(cameraStateRef.current, 1 / CAMERA_ZOOM_BUTTON_RATIO)); }}>−</button></div>}
           </div>}
           <button type="button" className="world-control-trigger" aria-label="Zoom controls" title="Zoom controls" aria-expanded={activeFloatingGroup === "zoom"} aria-controls="map-zoom-actions" onClick={() => setActiveFloatingGroup((group) => group === "zoom" ? null : "zoom")}>
             <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.5 4.5M8 10.8h5.6M10.8 8v5.6"/></svg>

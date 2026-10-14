@@ -1,3 +1,4 @@
+import { chatHistoryEndpoint } from "./chatHistoryEndpoint.js";
 import express from "express";
 import { createServer } from "node:http";
 import { readRoomLayout } from "@gammyverse/shared";
@@ -466,6 +467,7 @@ function configureApi() {
         try { response.json({ officeId: await acceptOfficeInvite(session.username, request.body?.token ?? request.body?.inviteId) }); }
         catch (error) { response.status(400).json({ error: errorMessage(error) }); }
       });
+  app.get("/offices/:officeId/chat", chatHistoryEndpoint);
   app.get("/health/live", (_request: AuthRequest, response: AuthResponse) => response.json({ status: "ok", service: "api" }));
   app.get("/health/ready", async (_request: AuthRequest, response: AuthResponse) => {
     try { await databaseIsReady(); response.json({ status: "ready", service: "api" }); }

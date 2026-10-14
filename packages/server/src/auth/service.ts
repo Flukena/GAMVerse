@@ -1,3 +1,4 @@
+import { normalizeAccountUsername as normalizeUsername } from "@gammyverse/shared";
 import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -30,11 +31,7 @@ async function users(): Promise<UserRecord[]> {
   return userRecordsPromise;
 }
 
-function normalizeUsername(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const username = value.trim().toLowerCase();
-  return /^[a-z0-9_.-]{3,24}$/.test(username) ? username : null;
-}
+
 
 function validPassword(value: unknown): value is string {
   return typeof value === "string" && value.length >= 8 && value.length <= 128;

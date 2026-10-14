@@ -71,3 +71,7 @@ export function panEditorCamera(target: Vector3, keys: ReadonlySet<string>, yawR
     MathUtils.clamp(target.z + (-right * Math.sin(yawRad) - forward * Math.cos(yawRad)) * stepM, 0, depthM),
   );
 }
+
+export function cameraZoomButtonEvent(state: CameraState, factor: number): CameraEvent {
+  return state.view === "2d" ? { type: "map2d-scale", pxPerM: state.map2dScalePxPerM * factor } : { type: "zoom", ratio: state.zoomRatio / factor };
+}

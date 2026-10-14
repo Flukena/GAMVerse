@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { AccessToken, RoomServiceClient, TrackSource } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient, TrackSource, ServerError } from "livekit-server-sdk";
 
 function liveKitConfig() {
   const url = process.env.LIVEKIT_URL;
@@ -94,4 +94,19 @@ export async function revokeProximityParticipants(officeId: string, groupId: str
   await Promise.all(identities.filter((identity) => activeIdentities.has(identity)).map((identity) =>
     service.removeParticipant(roomName, identity, { revokeTokenTs }),
   ));
+}
+
+const SPOTLIGHT_TOKEN_TTL_SECONDS = 60;
+const TOKEN_TIMESTAMP_DIVISOR_MS = 1000;
+export async function createSpotlightToken(username: string, identity: string, roomName: string, publish: boolean) {
+  const { url, apiKey, apiSecret } = liveKitConfig();
+  const token = new AccessToken(apiKey, apiSecret, { identity, name: username, ttl: SPOTLIGHT_TOKEN_TTL_SECONDS });
+  token.addGrant({roomJoin:true, room:roomName, canPublish:publish, canPublishSources:publish ? [TrackSource.MICROPHONE,TrackSource.CAMERA] : [], canSubscribe:true, canPublishData:false});
+  return {url,roomName,token:await token.toJwt()};
+}
+export async function revokeSpotlightParticipant(roomName: string, identity: string, service: Pick<RoomServiceClient, "removeParticipant"> = getRoomService()) {
+  try { await service.removeParticipant(roomName, identity, {revokeTokenTs:BigInt(Math.floor(Date.now()/TOKEN_TIMESTAMP_DIVISOR_MS))}); }
+  catch (error) {
+    if (!(error instanceof ServerError) || error.code !== "not_found") throw error;
+  }
 }
