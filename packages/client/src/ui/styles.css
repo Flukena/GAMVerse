@@ -1180,7 +1180,9 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .reaction-picker-control .dock-button:focus-visible { outline: 2px solid #8ecae6; outline-offset: 2px; }
 
 .office-minimap { max-width: calc(100vw - 24px); height: auto; }
+.app-shell:has(.office-minimap) .page-tutorial-reopen { left: 12px; bottom: 164px; }
 .app-shell:has(.office-sidebar.is-open) .office-minimap { visibility: hidden; }
 @media (max-width: 760px) {
   .office-minimap { --minimap-touch-clearance-px: 148px; --minimap-horizontal-reserve-px: 230px; transform: translateX(var(--minimap-touch-clearance-px)); max-width: calc(100vw - var(--minimap-horizontal-reserve-px)); }
+  .app-shell:has(.office-minimap) .page-tutorial-reopen { left: 160px; }
 }

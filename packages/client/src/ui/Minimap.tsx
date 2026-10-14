@@ -10,7 +10,7 @@ import {
   type Map2dProjection,
 } from "../world/map2d/map2dProjection";
 const MINIMAP_LEFT_OFFSET_PX = 12;
-const MINIMAP_BOTTOM_OFFSET_PX = 110;
+const MINIMAP_BOTTOM_OFFSET_PX = 12;
 const MINIMAP_Z_INDEX = 5;
 const MINIMAP_BORDER_RADIUS_PX = 8;
 const MINIMAP_BORDER_CSS = "1px solid #23495a";
