@@ -317,6 +317,7 @@ export function OfficeApp() {
   const voiceSessionRef = useRef<VoiceRoomSession<LiveKitRoomInstance> | null>(null);
   const voiceTargetInputsRef = useRef<VoiceTargetInputs>({ officeId: null, sessionKey: null, paused: true, meetingZoneId: null, privateZoneId: null, proximityGroupId: null });
   const [voiceRetryExhausted, setVoiceRetryExhausted] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [voiceMediaNotice, setVoiceMediaNotice] = useState<string | null>(null);
   const liveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
   const privateLiveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
@@ -1255,6 +1256,7 @@ export function OfficeApp() {
       setProximityVoiceConnected(state.connected && state.target?.kind === "proximity");
       setVoiceMuted(state.muted); setPrivateVoiceMuted(state.muted); setProximityVoiceMuted(state.muted);
       setVoiceError(state.error?.message ?? null);
+      setVoiceBusy(state.busy);
       setVoiceRetryExhausted(state.retryExhausted);
     },
     roomChanged: (room, target) => {
@@ -3058,6 +3060,7 @@ export function OfficeApp() {
       {videoTiles.length > 0 && !videoPopupOpen && <button type="button" className="video-popup-reopen" onClick={() => setVideoPopupOpen(true)}><FeatherIcon name="maximize" size={16} /> Show camera / screen</button>}
 
       {voiceMediaNotice && <div className="error-banner" role="status">{voiceMediaNotice}<button type="button" onClick={() => setVoiceMediaNotice(null)}>{DISMISS_MEDIA_NOTICE_LABEL}</button></div>}
+      {(voiceBusy || autoMoveNotice) && <div className="voice-area-status" role="status" aria-live="polite">{voiceBusy ? "Joining voice…" : autoMoveNotice}</div>}
       <div className="bottom-dock" data-tutorial-target="office-toolbar" aria-label="Office controls">
         {voiceRetryExhausted && !appPaused ? <span className="dock-button voice-reconnect-indicator" role="img" aria-label="Voice disconnected" title="Voice disconnected"><FeatherIcon name="refresh" /></span> :
         <button data-tutorial-target="office-microphone" type="button" className={`dock-button ${selectedVoiceConnected && !selectedMicMuted ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedVoiceConnected ? (selectedMicMuted ? "Turn microphone on" : "Turn microphone off") : "Voice connects automatically when you enter a voice zone"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void toggleMicrophone()}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /></button>}
@@ -3114,8 +3117,6 @@ export function OfficeApp() {
         {canManageCurrentDesk && activeDeskZone && <button type="button" disabled={deskClaimBusy} onClick={() => void unclaimDeskZone(activeDeskZone.id)}>{deskClaimBusy && deskClaimingZoneId === activeDeskZone.id ? "Unclaiming…" : "Unclaim"}</button>}
         {activeDeskZone && deskClaimError && <small className="desk-claim-error" role="alert">{deskClaimError}</small>}
       </div>}
-
-      {autoMoveNotice && <div className="auto-move-toast" role="status">{autoMoveNotice}</div>}
 
       {followAlerts.length > 0 && <div className="social-alert-stack follow-alert-stack" role="region" aria-label="People following you">
         {followAlerts.map((alert) => <div className="social-alert follow-alert" key={alert.followerSessionId} role="status">
