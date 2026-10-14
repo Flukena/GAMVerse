@@ -1,6 +1,6 @@
 import { CAMERA } from "@gammyverse/shared";
 import { MathUtils } from "three";
-import { CAMPUS_2D_ZOOM_THRESHOLD_RATIO, CAMPUS_MAX_ZOOM_RATIO, CAMPUS_MIN_ZOOM_RATIO, DEFAULT_CAMPUS_ELEVATION_DEG, DEFAULT_TPP_ELEVATION_RAD, LIVE_OFFICE_FOCUS_DISTANCE_M, LIVE_OFFICE_MIN_ZOOM_M, TPP_ELEVATION_MAX_DEG, TPP_ELEVATION_MIN_DEG } from "./constants";
+import { CAMPUS_2D_ZOOM_THRESHOLD_RATIO, CAMPUS_MAX_ZOOM_RATIO, CAMPUS_MIN_ZOOM_RATIO, DEFAULT_CAMPUS_ELEVATION_DEG, DEFAULT_TPP_ELEVATION_RAD, LIVE_OFFICE_FOCUS_DISTANCE_M, TPP_ELEVATION_MAX_DEG, TPP_ELEVATION_MIN_DEG } from "./constants";
 
 export type CameraMode = "tpp" | "fpp" | "free" | "map2d";
 export type CameraState = {
@@ -62,7 +62,7 @@ export function cameraReducer(state: CameraState, event: CameraEvent): CameraSta
     case "walk-input": return state.mode === "free" && !state.editing ? resolveMode({ ...state, following: true }) : state;
     case "edit": return resolveMode({ ...state, editing: event.active, following: event.active ? false : state.following });
     case "zoom": return resolveMode({ ...state, zoomRatio: MathUtils.clamp(event.ratio, CAMPUS_MIN_ZOOM_RATIO, CAMPUS_MAX_ZOOM_RATIO) });
-    case "distance": return { ...state, distanceM: MathUtils.clamp(event.distanceM, LIVE_OFFICE_MIN_ZOOM_M, CAMERA.maxZoom) };
+    case "distance": return { ...state, distanceM: MathUtils.clamp(event.distanceM, CAMERA.minZoom, CAMERA.maxZoom) };
     case "elevation": return { ...state, elevationRad: MathUtils.clamp(event.radians, MathUtils.degToRad(TPP_ELEVATION_MIN_DEG), MathUtils.degToRad(TPP_ELEVATION_MAX_DEG)) };
   }
 }

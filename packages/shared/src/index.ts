@@ -264,8 +264,8 @@ export const CAMERA = {
   offsetZ: 12.5,
   dragSensitivity: 0.006,
   zoomStep: 1.5,
-  minZoom: 10,
-  maxZoom: 28,
+  minZoom: 15,
+  maxZoom: 30,
 } as const;
 
 export const DEFAULT_CAMERA_YAW = Math.atan2(CAMERA.offsetX, CAMERA.offsetZ);
