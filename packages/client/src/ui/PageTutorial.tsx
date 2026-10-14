@@ -19,12 +19,12 @@ const tutorials: Record<TutorialPage, { title: string; steps: TutorialStep[] }> 
   office: { title: "Inside the office", steps: [
     { title: "Focus your character", body: "Center the map on your character. Use the adjacent arrow button to travel to your desk when available.", target: "office-focus-character" },
     { title: "Office toolbar", body: "These controls manage microphone, camera, screen sharing, audio, status, and leaving the office.", target: "office-toolbar" },
-    { title: "Move around", body: "Walk with your keyboard. Hold Shift to move faster. Double-click the map to automate travel.", keyboard: "W A S D  ·  Arrow keys  ·  Shift" },
+    { title: "Move around", body: "Walk with your keyboard. Hold Shift to move faster, press Space to jump in 3D, or double-click the map to automate travel.", keyboard: "W A S D  ·  Arrow keys  ·  Shift  ·  Space" },
   ] },
   meeting: { title: "Join the meeting", steps: [
     { title: "Microphone", body: "Speak with people in this room. Your microphone connects when you enter a voice zone.", target: "office-microphone" },
     { title: "Camera and screen", body: "Turn on your camera or share your screen from these controls.", target: "office-toolbar" },
-    { title: "Move around", body: "Walk around the meeting room with your keyboard.", keyboard: "W A S D  ·  Arrow keys" },
+    { title: "Move around", body: "Walk around the meeting room with your keyboard. Press Space to jump in 3D.", keyboard: "W A S D  ·  Arrow keys  ·  Space" },
   ] },
 };
 

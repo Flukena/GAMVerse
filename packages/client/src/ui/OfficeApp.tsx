@@ -1,5 +1,5 @@
 import { Client, type Room } from "@colyseus/sdk";
-import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, screenMovementToWorld, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
+import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, screenMovementToWorld, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -13,6 +13,7 @@ import { QUATERNIUS_CHARACTERS } from "../assets/characterAssets";
 import { WorldCanvas } from "../world/WorldCanvas";
 import { FullScreenLoading } from "./FullScreenLoading";
 import { ModifyPropsEditor } from "./ModifyPropsEditor";
+import { PropModelPreview } from "./PropModelPreview";
 import { PageTutorial } from "./PageTutorial";
 import { MaintainerAuditPanel } from "./MaintainerAuditPanel";
 import { MaintainerAccountSafety, type MaintainerAccount } from "./MaintainerAccountSafety";
@@ -291,6 +292,7 @@ export function OfficeApp() {
   const appPausedRef = useRef(false);
   const playersRef = useRef<Map<string, PlayerSnapshot>>(new Map());
   const blasterEventsRef = useRef<BlasterShotEvent[]>([]);
+  const jumpStartedAtRef = useRef(new Map<string, number>());
   const localSessionIdRef = useRef<string | null>(null);
   const cameraYawRef = useRef(DEFAULT_CAMERA_YAW);
   const firstPersonViewRef = useRef(false);
@@ -374,6 +376,7 @@ export function OfficeApp() {
   const [mapZoneDoorOffsets, setMapZoneDoorOffsets] = useState<number[]>([0]);
   const [mapZoneWallStyle, setMapZoneWallStyle] = useState<"geometry" | "asset">("geometry");
   const [mapZoneWallAsset, setMapZoneWallAsset] = useState<(typeof ROOM_WALL_MODEL_ASSETS)[number]>(ROOM_WALL_MODEL_ASSETS[0]);
+  const selectedWallAssetDefinition = ROOM_WALL_OPTIONS.find((item) => item.asset === mapZoneWallAsset);
   const [mapZoneWallColor, setMapZoneWallColor] = useState("#023047");
   const [mapZoneDoorStyle, setMapZoneDoorStyle] = useState<"geometry" | "asset">("geometry");
   const [ghostModeEnabled, setGhostModeEnabled] = useState(false);
@@ -1314,9 +1317,10 @@ export function OfficeApp() {
 
   const createOfficeAction = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    let createdOffice: Office | null = null;
     let generatedLayout: RoomLayout;
     try {
-      generatedLayout = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: createOfficePeoplePerTeam, teamCount: generatorTeamCount }).layout;
+      generatedLayout = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: createOfficePeoplePerTeam, teamCount: generatorTeamCount, seed: Math.floor(Math.random() * 0x1_0000_0000) }).layout;
     } catch (cause) {
       setLobbyError(cause instanceof Error ? cause.message : "Check the team and people counts.");
       return;
@@ -1330,6 +1334,7 @@ export function OfficeApp() {
       });
       const result = await response.json() as { office?: Office; error?: string };
       if (!response.ok || !result.office) throw new Error(result.error ?? "Could not create office.");
+      createdOffice = result.office;
       setOfficeName("");
       setOffices((current) => [result.office!, ...current]);
       const mapResponse = await fetch(`${endpoint}/offices/${result.office.id}/map`, {
@@ -1345,8 +1350,17 @@ export function OfficeApp() {
       const propsResult = await propsResponse.json() as { error?: string };
       if (!propsResponse.ok) throw new Error(`Office created and map saved, but its generated props could not be saved: ${propsResult.error ?? "Please open Edit map and save the props again."}`);
       setCreateOfficeDialogOpen(false);
+      selectOffice(result.office);
     } catch (cause) {
       setLobbyError(cause instanceof Error ? cause.message : "Could not create office.");
+      // The office record is already durable after the first request. If map
+      // generation or persistence fails, still take the owner into that office
+      // so they can inspect and repair it instead of leaving an orphaned office
+      // behind in the lobby.
+      if (createdOffice) {
+        setCreateOfficeDialogOpen(false);
+        selectOffice(createdOffice);
+      }
     } finally { setLobbyBusy(false); }
   };
 
@@ -1759,7 +1773,7 @@ export function OfficeApp() {
   const applyGeneratedCampusLayout = async () => {
     if (!officeMapLayout || !activeOffice) return;
     try {
-      const generated = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: generatorPeoplePerTeam, teamCount: generatorTeamCount });
+      const generated = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: generatorPeoplePerTeam, teamCount: generatorTeamCount, seed: Math.floor(Math.random() * 0x1_0000_0000) });
       const propsResponse = await fetch(`${endpoint}/offices/${activeOffice.id}/props`, { credentials: "include" });
       const propsResult = await propsResponse.json() as { props?: RoomLayoutProp[]; configVersion?: number; error?: string };
       if (!propsResponse.ok || !Array.isArray(propsResult.props)) throw new Error(propsResult.error ?? "Could not load existing office props.");
@@ -1981,6 +1995,7 @@ export function OfficeApp() {
         localSessionIdRef.current = room.sessionId;
         setVoiceRealtimeSessionKey(room.sessionId);
         blasterEventsRef.current.length = 0;
+        jumpStartedAtRef.current.clear();
         room.send("weapon-equip", "");
         const storedPet = window.localStorage.getItem(`gammyverse.pet.${connectionUsername}`) ?? "";
         room.send("pet", KENNEY_PET_IDS.includes(storedPet as KenneyPetId) ? storedPet : "");
@@ -2042,6 +2057,9 @@ export function OfficeApp() {
           if (typeof shot.shooterSessionId !== "string" || !vectorIsFinite(shot.start) || !vectorIsFinite(shot.end)) return;
           blasterEventsRef.current.push(shot);
           if (blasterEventsRef.current.length > 24) blasterEventsRef.current.splice(0, blasterEventsRef.current.length - 24);
+        });
+        room.onMessage("player-jump", (payload: unknown) => {
+          if (isValidJumpEvent(payload)) jumpStartedAtRef.current.set(payload.sessionId, performance.now());
         });
         room.onMessage("blaster-hit", (payload: unknown) => {
           if (typeof payload !== "object" || payload === null || !("shooterName" in payload) || typeof payload.shooterName !== "string") return;
@@ -2553,7 +2571,7 @@ export function OfficeApp() {
     <main className={`app-shell${characterPanelOpen ? " character-panel-open" : ""}`}>
       <PageTutorial page={meetingEntry ? "meeting" : "office"} username={authUser.username} />
       {profileDialog}
-      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} firstPersonViewRef={firstPersonViewRef} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} onSelectPlayer={(sessionId, x, y) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") setMapPlayerAction({ sessionId, displayName: player.displayName, x, y }); }} onGhostModeChange={setGhostMode} />
+      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} firstPersonViewRef={firstPersonViewRef} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} jumpStartedAtRef={jumpStartedAtRef} onJump={() => roomRef.current?.send("jump", true)} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} onSelectPlayer={(sessionId, x, y) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") setMapPlayerAction({ sessionId, displayName: player.displayName, x, y }); }} onGhostModeChange={setGhostMode} />
       {mapPlayerAction && <div className="map-player-action-backdrop" role="presentation" onPointerDown={() => setMapPlayerAction(null)}>
         <div className="map-player-action-menu" role="menu" aria-label={`Actions for ${mapPlayerAction.displayName}`} style={{ left: Math.max(8, Math.min(mapPlayerAction.x, window.innerWidth - 188)), top: Math.max(8, Math.min(mapPlayerAction.y, window.innerHeight - 104)) }} onPointerDown={(event) => event.stopPropagation()}>
           <strong>{mapPlayerAction.displayName}</strong>
@@ -2724,7 +2742,7 @@ export function OfficeApp() {
           <label className="map-zone-enclosure-option"><input type="checkbox" checked={mapZoneEnclosureEnabled} onChange={(event) => setMapZoneEnclosureEnabled(event.target.checked)} /> Create enclosing walls and an entrance</label>
           {mapZoneEnclosureEnabled ? <>
             <label>Wall style<select value={mapZoneWallStyle} onChange={(event) => setMapZoneWallStyle(event.target.value as "geometry" | "asset")}><option value="geometry">Geometry wall</option><option value="asset">Asset model</option></select></label>
-            {mapZoneWallStyle === "asset" && <><label>Wall model<select value={mapZoneWallAsset} onChange={(event) => setMapZoneWallAsset(event.target.value as (typeof ROOM_WALL_MODEL_ASSETS)[number])}>{ROOM_WALL_OPTION_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.items.map((item) => <option key={item.asset} value={item.asset}>{item.label}</option>)}</optgroup>)}</select></label>{ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.preview && <img src={ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.preview} alt={`${ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.label ?? "Wall model"} preview`} style={{ width: "100%", height: 78, objectFit: "contain", borderRadius: 10, background: "rgba(255,255,255,.55)" }} />}</>}
+            {mapZoneWallStyle === "asset" && <><label>Wall model<select value={mapZoneWallAsset} onChange={(event) => setMapZoneWallAsset(event.target.value as (typeof ROOM_WALL_MODEL_ASSETS)[number])}>{ROOM_WALL_OPTION_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.items.map((item) => <option key={item.asset} value={item.asset}>{item.label}</option>)}</optgroup>)}</select></label>{selectedWallAssetDefinition?.preview ? <img src={selectedWallAssetDefinition.preview} alt={`${selectedWallAssetDefinition.label} preview`} style={{ width: "100%", height: 78, objectFit: "contain", borderRadius: 10, background: "rgba(255,255,255,.55)" }} /> : selectedWallAssetDefinition ? <PropModelPreview item={selectedWallAssetDefinition} className="wall-asset-model-preview" label={`${selectedWallAssetDefinition.label} preview`} /> : null}</>}
             {mapZoneWallStyle === "geometry" && <label>Wall color<input type="color" value={mapZoneWallColor} onChange={(event) => setMapZoneWallColor(event.target.value)} /></label>}
             {mapZoneEntranceKind === "door" && <label>Door frame<select value={mapZoneDoorStyle} onChange={(event) => setMapZoneDoorStyle(event.target.value as "geometry" | "asset")}><option value="geometry">Geometry frame</option><option value="asset">Kenney doorway · Building Kit</option></select></label>}
             <div className="map-zone-wizard-row"><label>Door wall<select value={mapZoneEntranceSide} onChange={(event) => { const side = event.target.value as "north" | "east" | "south" | "west"; setMapZoneEntranceSide(side); changeMapZoneDoorCount(mapZoneDoorCount, side); }}><option value="north">North wall</option><option value="east">East wall</option><option value="south">South wall</option><option value="west">West wall</option></select></label><label>Entrance<select value={mapZoneEntranceKind} onChange={(event) => setMapZoneEntranceKind(event.target.value as "door" | "opening")}><option value="door">Door</option><option value="opening">Open gap</option></select></label></div>

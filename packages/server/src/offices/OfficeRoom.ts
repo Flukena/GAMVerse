@@ -1,6 +1,6 @@
 import { defineRoom, Room, type AuthContext, type Client } from "@colyseus/core";
 import { createHash } from "node:crypto";
-import { INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidMovementInput, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
+import { INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidJumpInput, isValidMovementInput, JUMP_DURATION_MS, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
 import { getAccountNickname, getSession, markUserActive } from "../auth/service.js";
 import { isCustomCharacterId, userOwnsCharacterModel } from "../auth/characterModels.js";
 import { getOfficeRole, markOfficeActive } from "./repository.js";
@@ -104,6 +104,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   private pendingSitsBySessionId = new Map<string, PendingSit>();
   private activeFollowsBySessionId = new Map<string, ActiveFollow>();
   private lastWaveAtBySessionId = new Map<string, number>();
+  private lastJumpAtBySessionId = new Map<string, number>();
   private lastPacketAt = new Map<string, number>();
   private activityRefreshAtBySessionId = new Map<string, number>();
   private lastBlasterShotAtBySessionId = new Map<string, number>();
@@ -216,6 +217,15 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       const player = this.state.players.get(client.sessionId);
       if (!player || typeof payload !== "object" || payload === null || !("toggle" in payload) || payload.toggle !== true) return;
       player.dancing = !player.dancing && !player.vehicleId && !player.sittingPropId;
+    });
+    this.onMessage("jump", (client: Client, payload: unknown) => {
+      if (!isValidJumpInput(payload)) return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player || player.presence !== "online" || player.vehicleId || player.sittingPropId || player.status === "do-not-disturb" || player.status === "in-meeting") return;
+      const now = performance.now();
+      if (now - (this.lastJumpAtBySessionId.get(client.sessionId) ?? -JUMP_DURATION_MS) < JUMP_DURATION_MS) return;
+      this.lastJumpAtBySessionId.set(client.sessionId, now);
+      this.broadcast("player-jump", { sessionId: client.sessionId });
     });
     this.onMessage("weapon-equip", (client: Client, payload: unknown) => {
       const player = this.state.players.get(client.sessionId);
@@ -748,6 +758,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.pendingSitsBySessionId.delete(client.sessionId);
     this.lastPacketAt.delete(client.sessionId);
     this.ghostModeBySessionId.delete(client.sessionId);
+    this.lastJumpAtBySessionId.delete(client.sessionId);
     this.broadcastGhostMode(client.sessionId, false);
     client.send("proximity", { sessionIds: [] });
     this.updateMeetingMembership();
@@ -784,6 +795,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.ghostModeBySessionId.delete(client.sessionId);
     this.lastBlasterShotAtBySessionId.delete(client.sessionId);
     this.lastWaveAtBySessionId.delete(client.sessionId);
+    this.lastJumpAtBySessionId.delete(client.sessionId);
     if (this.meetingMembersBySessionId.has(client.sessionId)) {
       const identity = this.mediaIdentityBySessionId.get(client.sessionId);
       if (identity) void revokeMeetingParticipant(this.officeId, this.roomKey, identity).catch(() => console.warn("Could not revoke meeting audio participant."));

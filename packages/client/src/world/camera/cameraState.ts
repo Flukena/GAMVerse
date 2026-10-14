@@ -23,8 +23,8 @@ export type CameraEvent =
   | { type: "manual-drag" }
   | { type: "walk-input" }
   | { type: "edit"; active: boolean }
-  | { type: "zoom"; ratio: number }
-  | { type: "distance"; distanceM: number }
+  | { type: "zoom"; ratio: number; distanceM?: number }
+  | { type: "distance"; distanceM: number; maxDistanceM?: number }
   | { type: "elevation"; radians: number };
 
 export function createCameraState(campus: boolean, alignBehind = true): CameraState {
@@ -61,8 +61,8 @@ export function cameraReducer(state: CameraState, event: CameraEvent): CameraSta
     case "manual-drag": return state.mode === "fpp" ? state : resolveMode({ ...state, following: false });
     case "walk-input": return state.mode === "free" && !state.editing ? resolveMode({ ...state, following: true }) : state;
     case "edit": return resolveMode({ ...state, editing: event.active, following: event.active ? false : state.following });
-    case "zoom": return resolveMode({ ...state, zoomRatio: MathUtils.clamp(event.ratio, CAMPUS_MIN_ZOOM_RATIO, CAMPUS_MAX_ZOOM_RATIO) });
-    case "distance": return { ...state, distanceM: MathUtils.clamp(event.distanceM, CAMERA.minZoom, CAMERA.maxZoom) };
+    case "zoom": return resolveMode({ ...state, zoomRatio: MathUtils.clamp(event.ratio, CAMPUS_MIN_ZOOM_RATIO, CAMPUS_MAX_ZOOM_RATIO), ...(event.distanceM === undefined ? {} : { distanceM: Math.max(CAMERA.minZoom, event.distanceM) }) });
+    case "distance": return { ...state, distanceM: MathUtils.clamp(event.distanceM, CAMERA.minZoom, event.maxDistanceM ?? CAMERA.maxZoom) };
     case "elevation": return { ...state, elevationRad: MathUtils.clamp(event.radians, MathUtils.degToRad(TPP_ELEVATION_MIN_DEG), MathUtils.degToRad(TPP_ELEVATION_MAX_DEG)) };
   }
 }

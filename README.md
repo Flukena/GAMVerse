@@ -7,6 +7,7 @@ GAMVerse is a self-hosted virtual office that runs in a browser. Members share a
 - Account registration and sign-in, office invitations, office-scoped owner/admin/member roles, and a separate maintainer portal.
 - Platform operations for maintainers: account recovery and suspension, office-management audit history, and an aggregate system health overview.
 - A server-authoritative multiplayer world with movement, collision, presence, room zones, automatic travel, vehicles, and seats.
+- Spacebar jumps in 3D view; jumps are shared with other players and do not bypass ground collision.
 - A campus map generator driven by total people and team count. Office owners and admins can edit room zones, doors, spawn point, roads, and props. Each member can claim one private workroom.
 - Three.js avatars and a client-controlled 2D overview; Kenney, Quaternius, and Poly Pizza assets are served from the client package.
 - Avatars turn along the shortest angle. First-person aim controls facing while standing or strafing, and switching to third person keeps the view direction; seats and vehicles retain their facing rules.

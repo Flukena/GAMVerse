@@ -10,6 +10,7 @@ const CUSTOM_DISTANCE_M = 20;
 const MAP_WIDTH_M = 200;
 const MAP_DEPTH_M = 250;
 const TEST_ASPECT_RATIO = 1.5;
+const TEST_CAMPUS_FIT_DISTANCE_M = 300;
 const CUSTOM_ELEVATION_RAD = Math.PI / 6;
 const DOOR_STEP_M = 0.1;
 const POSE_TOLERANCE_M = 1e-9;
@@ -92,7 +93,7 @@ test("character focus preserves FPP instead of desynchronizing its mode", () => 
 test("entering and leaving a media zone preserves zoom, elevation and the live camera frame", () => {
   const zoomed = cameraReducer(readyState(), { type: "zoom", ratio: FREE_ZOOM_RATIO });
   const before = cameraReducer(zoomed, { type: "elevation", radians: CUSTOM_ELEVATION_RAD });
-  const input = { panTarget: new Vector3(), width: MAP_WIDTH_M, depth: MAP_DEPTH_M, aspect: TEST_ASPECT_RATIO, yaw: 0, pitch: 0 };
+  const input = { panTarget: new Vector3(), width: MAP_WIDTH_M, depth: MAP_DEPTH_M, aspect: TEST_ASPECT_RATIO, yaw: 0, pitch: 0, campusFitDistanceM: TEST_CAMPUS_FIT_DISTANCE_M };
   const initialFrame = computeCameraFrame({ ...input, state: before, localPosition: new Vector3() });
   let state = before;
   for (const z of [DOOR_STEP_M, 0]) {

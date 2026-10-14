@@ -125,8 +125,8 @@ button:focus-visible { outline: 3px solid #287a59; outline-offset: 3px; }
 .office-delete-confirm > p { margin: 0; color: #7e4942; font-size: 11px; line-height: 1.55; }
 .office-delete-confirm input { width: 100%; height: 40px; padding: 0 11px; border: 1px solid #e4cfcc; border-radius: 8px; background: #fff; color: #293a34; font: inherit; font-size: 12px; }
 .office-delete-confirm > div { display: flex; justify-content: flex-end; gap: 8px; }
-.office-delete-confirm .office-delete-submit { border-color: #a34d42; background: #a34d42; color: #fff; }
-.office-delete-confirm .office-delete-submit:hover:not(:disabled) { border-color: #853a31; background: #853a31; }
+.office-delete-confirm .lobby-button.office-delete-submit { border-color: #a34d42; background: #a34d42; color: #fff; }
+.office-delete-confirm .lobby-button.office-delete-submit:hover:not(:disabled) { border-color: #853a31; background: #853a31; color: #fff; }
 .invite-link-box { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 10px; border-radius: 10px; background: #eef3ef; }
 .invite-link-box code { overflow: hidden; color: #4c6254; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .invite-link-box small { grid-column: 1 / -1; color: #849188; font-size: 9px; }
@@ -1089,6 +1089,13 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .world-control-actions > button,.world-control-actions .focus-character-control,.world-control-actions .camera-view-control,.world-control-actions .modify-props-control,.world-control-actions .edit-map-control,.world-control-actions .weapon-inventory-control { position: static; flex: 0 0 auto; }
 .world-control-actions .overview-zoom-controls { position: static; display: flex; gap: 7px; }
 .world-control-actions .overview-zoom-controls button { width: 46px; height: 42px; }
+.world-control-actions .tpp-zoom-controls { align-items: center; gap: 7px; padding: 5px 7px; border: 1px solid rgba(2,48,71,.12); border-radius: 12px; background: rgba(248,252,253,.88); box-shadow: 0 5px 16px rgba(2,48,71,.12); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.world-control-actions .tpp-zoom-controls .tpp-zoom-nudge { width: 30px; height: 34px; border: 1px solid rgba(2,48,71,.1); border-radius: 9px; background: rgba(255,255,255,.76); color: var(--color-primary); font: 600 17px/1 "DM Sans", sans-serif; }
+.world-control-actions .tpp-zoom-controls .tpp-zoom-nudge:hover:not(:disabled) { border-color: var(--color-secondary); background: #fff; }
+.world-control-actions .tpp-zoom-controls .tpp-zoom-nudge:disabled { opacity: .38; cursor: default; }
+.tpp-zoom-panel { width: auto; min-width: 44px; padding: 0 4px; }
+.tpp-zoom-readout { display: flex; align-items: center; justify-content: center; min-height: 19px; }
+.tpp-zoom-readout output { color: var(--color-primary); font: 700 12px/1 "DM Sans", sans-serif; letter-spacing: 0; }
 .world-control-actions .weapon-inventory-control { display: grid; }
 @keyframes world-control-reveal { from { opacity: 0; transform: translateX(6px) scale(.96); transform-origin: right center; } to { opacity: 1; transform: translateX(0) scale(1); } }
 @media (max-width: 720px) { .world-control-dock { right: 14px; bottom: calc(8px + env(safe-area-inset-bottom)); gap: 7px; } .world-control-trigger { width: 44px; height: 44px; } .world-control-actions .overview-zoom-controls button { width: 44px; height: 40px; } }
