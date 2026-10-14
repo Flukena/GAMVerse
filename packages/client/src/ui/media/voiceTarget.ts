@@ -1,4 +1,4 @@
-export type VoiceTarget = { kind: "meeting" | "private" | "proximity"; id: string; officeId: string; sessionKey: string };
+export type VoiceTarget = { kind: "meeting" | "private" | "proximity" | "spotlight"; id: string; officeId: string; sessionKey: string };
 export interface VoiceTargetInputs {
   officeId: string | null;
   sessionKey: string | null;

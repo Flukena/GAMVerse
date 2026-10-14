@@ -1,14 +1,17 @@
 # GAMVerse
 
-GAMVerse is a self-hosted virtual office that runs in a browser. Members share a 3D campus, claim private workrooms, meet in shared spaces, and talk through room or proximity-based audio. The project is an active prototype; the included production Compose profile has not been validated as a public deployment.
+GAMVerse is a self-hosted virtual office that runs in a browser. Members share a 2D or 3D campus, claim private workrooms, meet in shared spaces, and talk through room or proximity-based audio. The project is an active prototype; the included production Compose profile has not been validated as a public deployment.
 
 ## Features in this repository
 
 - Account registration and sign-in, office invitations, office-scoped owner/admin/member roles, and a separate maintainer portal.
 - Platform operations for maintainers: account recovery and suspension, office-management audit history, and an aggregate system health overview.
 - A server-authoritative multiplayer world with movement, collision, presence, room zones, automatic travel, vehicles, and seats.
-- A campus map generator driven by total people and team count. Office owners and admins can edit room zones, doors, spawn point, roads, and props. Each member can claim one private workroom.
-- Three.js avatars and a client-controlled 2D overview; Kenney, Quaternius, and Poly Pizza assets are served from the client package.
+- A campus map generator driven by total people and team count. Office owners and admins can edit room zones, doors, spawn point, and roads; office members can edit props and their interactions. Each member can claim one private workroom.
+- A full top-down 2D play view alongside Three.js avatars, with minimap and player locate controls. Both views use the same server-owned movement and media membership. Kenney, Quaternius, and Poly Pizza assets are served from the client package.
+- Nearby chat, persisted office and direct-message threads, emoji reactions, and raised hands. Office and direct messages share a 10,000-message retention pool per office.
+- Member-editable prop notes, HTTPS links, and embeds for YouTube, Google Docs/Slides, Figma, Miro, and Excalidraw. Links show their destination hostname before opening.
+- Owner/admin spotlight controls with a separate office-wide media session and explicit speaker publishing consent.
 - Avatars turn along the shortest angle. First-person aim controls facing while standing or strafing, and switching to third person keeps the view direction; seats and vehicles retain their facing rules.
 - Camera follow smooths both position and aim in the orbit frame. Third-person view keeps the selected zoom while walls, doors, and collision props blocking the avatar fade temporarily. Crossing doorways or media zones preserves zoom, elevation and view mode; reduced motion and world/view changes snap. First-person pitch is limited to ±75°.
 - LiveKit audio for meeting rooms, private rooms, and nearby groups with automatic voice recovery, preserved microphone intent, and a manual reconnect control, plus camera and screen sharing controls.
@@ -59,7 +62,7 @@ pnpm build
 pnpm test
 ```
 
-`pnpm dev` starts the three application processes but does not start PostgreSQL, LiveKit, or the Caddy routing/TLS profile. Use Compose for the full office experience. The root `pnpm test` script runs the shared-package and client connection tests; the server package also has its own test script.
+`pnpm dev` starts the three application processes but does not start PostgreSQL, LiveKit, or the Caddy routing/TLS profile. Use Compose for the full office experience. The root `pnpm test` script runs the shared-package and client connection, camera, and Gather feature tests; the server package also has its own test script.
 
 ## Repository layout
 

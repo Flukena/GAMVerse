@@ -1,3 +1,7 @@
+export * from "./chat.js";
+export * from "./reactions.js";
+export * from "./spotlight.js";
+export * from "./propInteraction.js";
 import { zoneAtWithExitMargin } from "./zoneMembership.js";
 export { ZONE_EXIT_MARGIN_M } from "./zoneMembership.js";
 import { roomBoundaryWalls, roomWallSolidSegments } from "./roomWallSegments.js";
@@ -299,6 +303,7 @@ export const PlayerState = schema(
     vehiclePropRotation: t.float32(),
     sittingPropId: t.string(),
     dancing: t.boolean(),
+    handRaised: t.boolean(),
     weaponId: t.string(),
     status: t.string(),
     presence: t.string(),
@@ -309,6 +314,8 @@ export const PlayerState = schema(
 export const OfficeState = schema(
   {
     players: t.map(PlayerState),
+    spotlightUsernames: t.map("boolean"),
+    spotlightEpoch: t.string(),
   },
   "OfficeState",
 );
@@ -498,3 +505,4 @@ export function isValidMovementInput(value: unknown): value is MovementInput {
   );
 }
 
+export { normalizeAccountUsername } from "./accountUsername.js";

@@ -1,6 +1,9 @@
+import { readReconnectAccess, SessionSecurity } from "./sessionSecurity.js";
+import { registerSocialMessages, unregisterSocialMessages, socialPeople } from "./socialMessages.js";
+import { OFFICE_ACCESS_REVOKED_CLOSE_CODE, OFFICE_CLOSED_CLOSE_CODE, Spotlight, spotlightDepartureReason, type SpotlightDeparture } from "./spotlight.js";
 import { defineRoom, Room, type AuthContext, type Client } from "@colyseus/core";
 import { createHash } from "node:crypto";
-import { INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidMovementInput, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
+import { shouldClearHandRaise, INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidMovementInput, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
 import { getAccountNickname, getSession, markUserActive } from "../auth/service.js";
 import { isCustomCharacterId, userOwnsCharacterModel } from "../auth/characterModels.js";
 import { getOfficeRole, markOfficeActive } from "./repository.js";
@@ -14,7 +17,13 @@ import { logServerError, logServerEvent } from "../infra/logger.js";
 const OFFICE_MAX_MESSAGES_PER_SECOND_COUNT = 128;
 const INITIAL_MESSAGE_COUNT = 0;
 const REPLACED_SESSION_CLOSE_CODE = 4001;
+const OFFICE_ACCESS_REVOKED_REASON = "Office access changed. Reopen the office.";
 const REPLACED_SESSION_REASON = "This account connected from another session.";
+const ACCOUNT_SUSPENDED_REASON_LABEL = "Account access was suspended.";
+const OFFICE_DELETED_REASON_LABEL = "This office was deleted.";
+const SECURITY_DEPARTURE_LABEL = "security";
+const SPOTLIGHT_CLOSE_FAILED_EVENT_LABEL = "spotlight.close.failed";
+const RECONNECT_ACCESS_FAILED_EVENT_LABEL = "office.client.reconnect.access.failed";
 
 type DropDiagnosticClient = Client & {
   _numMessagesLastSecond?: number;
@@ -87,6 +96,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     return { activeRoomCount, activeParticipantCount };
   }
 
+  private spotlight?: Spotlight;
   state = new OfficeState();
   private officeId = "";
   private roomKey = "lobby";
@@ -116,9 +126,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   private mediaZoneBySessionId = new Map<string, RoomLayoutZone>();
   private lockedZoneIds = new Set<string>();
   private mediaIdentityBySessionId = new Map<string, string>();
-  private activeClientByUsername = new Map<string, string>();
+  private sessionSecurity = new SessionSecurity();
   private officeRolesBySessionId = new Map<string, string>();
-  private pendingReconnectionsBySessionId = new Map<string, ReturnType<OfficeRoom["allowReconnection"]>>();
   private mapEditorSessionId: string | null = null;
   private mapEditorUsername: string | null = null;
 
@@ -153,7 +162,14 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.maxMessagesPerSecond = OFFICE_MAX_MESSAGES_PER_SECOND_COUNT;
     logServerEvent("realtime", "office.room.created", { roomId: this.roomId, officeId: this.officeId, maxClients });
 
+    this.spotlight = registerSocialMessages(this, this.officeId, {
+      username: id => this.usernamesBySessionId.get(id),
+      player: id => this.state.players.get(id),
+      people: () => socialPeople(this.state.players.entries(), this.mediaZoneBySessionId, this.proximityGroupBySessionId),
+      client: id => this.clients.find(client => client.sessionId === id),
+    });
     this.onMessage("request-spatial-state", (client: Client) => {
+      client.send("spotlight-state", this.spotlight?.snapshot());
       client.send("proximity", { sessionIds: [...(this.proximityBySessionId.get(client.sessionId) ?? [])] });
       client.send("proximity-group", { groupId: this.proximityGroupBySessionId.get(client.sessionId) ?? null });
       client.send("meeting-zone", { meetingId: this.roomKey, active: this.meetingMembersBySessionId.has(client.sessionId) });
@@ -600,11 +616,12 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     await markOfficeActive(options.officeId);
     // One avatar per username in an office room. A fresh connection replaces a
     // stale tab/session; reconnects keep the same Colyseus session id.
+    const activeSessionId = this.sessionSecurity.activeSession(session.username);
     const existingSessionIds = new Set([
-      ...[...this.activeClientByUsername.entries()].filter(([username]) => username === session.username).map(([, sessionId]) => sessionId),
+      ...(activeSessionId ? [activeSessionId] : []),
       ...[...this.state.players.entries()].filter(([sessionId, player]) => sessionId !== client.sessionId && player.username === session.username).map(([sessionId]) => sessionId),
     ]);
-    this.activeClientByUsername.set(session.username, client.sessionId);
+    this.sessionSecurity.activate(session.username, client.sessionId, sessionToken);
     for (const existingSessionId of existingSessionIds) {
       if (existingSessionId !== client.sessionId) this.replaceSession(existingSessionId, client, session.username);
     }
@@ -614,25 +631,16 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   private replaceSession(existingSessionId: string, client: Client, username: string) {
     // Invalidate the reserved token before removing its player. Core owns the
     // seat cleanup; a late resume must not resurrect the replaced session.
-    this.pendingReconnectionsBySessionId.get(existingSessionId)?.reject(new Error(REPLACED_SESSION_REASON));
+    this.revokeSpotlightSession(existingSessionId, "replace");
+    this.sessionSecurity.cancelSeat(existingSessionId, REPLACED_SESSION_REASON);
     logServerEvent("realtime", "office.session.replaced", { roomId: this.roomId, officeId: this.officeId, username, replacedSessionId: existingSessionId, replacementSessionId: client.sessionId });
     this.clients.find((existing) => existing.sessionId === existingSessionId)?.leave(REPLACED_SESSION_CLOSE_CODE, REPLACED_SESSION_REASON);
     this.broadcastGhostMode(existingSessionId, false);
     this.state.players.delete(existingSessionId);
     this.vehicleWorldsBySessionId.delete(existingSessionId);
     this.refreshVehicleCollisionWorlds();
-    this.usernamesBySessionId.delete(existingSessionId);
-    this.officeRolesBySessionId.delete(existingSessionId);
-    this.movementInputs.delete(existingSessionId);
-    this.ghostModeBySessionId.delete(existingSessionId);
-    this.autoRoutes.delete(existingSessionId);
-    this.pendingSitsBySessionId.delete(existingSessionId);
-    this.proximityBySessionId.delete(existingSessionId);
-    this.proximityGroupBySessionId.delete(existingSessionId);
-    this.meetingMembersBySessionId.delete(existingSessionId);
-    this.privateZoneIdBySessionId.delete(existingSessionId);
-    this.mediaZoneBySessionId.delete(existingSessionId);
-    this.mediaIdentityBySessionId.delete(existingSessionId);
+    this.clearSessionState(existingSessionId);
+    this.sessionSecurity.finish(username, existingSessionId);
   }
 
   private broadcastGhostMode(sessionId: string, enabled: boolean) {
@@ -669,7 +677,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.state.players.set(client.sessionId, player);
     this.usernamesBySessionId.set(client.sessionId, auth.username);
     this.officeRolesBySessionId.set(client.sessionId, auth.officeRole);
-    this.activeClientByUsername.set(auth.username, client.sessionId);
+    this.sessionSecurity.activate(auth.username, client.sessionId);
     this.mediaIdentityBySessionId.set(client.sessionId, auth.mediaIdentity);
     this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
     this.ghostModeBySessionId.set(client.sessionId, false);
@@ -685,20 +693,34 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     logServerEvent("realtime", "office.client.joined", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: auth.username, clientCount: this.clients.length });
   }
 
-  onDrop(client: DropDiagnosticClient, code?: number) {
-    const player = this.state.players.get(client.sessionId);
+  private prepareSessionDeparture(sessionId: string, player: PlayerState | undefined) {
+    if (player) {
+      player.presence = "away";
+      if (shouldClearHandRaise(this.mediaZoneBySessionId.get(sessionId)?.id ?? "", "", false)) player.handRaised = false;
+    }
+    this.stopFollowing(sessionId, "stopped");
+    for (const [followerSessionId, follow] of this.activeFollowsBySessionId) {
+      if (follow.targetSessionId === sessionId) this.stopFollowing(followerSessionId, "target-left");
+    }
+  }
+
+  private logSessionDrop(client: DropDiagnosticClient, code?: number) {
     logServerEvent("realtime", "office.client.dropped", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: this.usernamesBySessionId.get(client.sessionId), code, clientCount: this.clients.length,
       messageCount: client._numMessagesLastSecond, messageCountResetsAtMs: client._messageCountResetsAt,
       lastMessageTimeMs: client._lastMessageTime, roomClockTimeMs: this.clock.currentTime, roomClockDeltaMs: this.clock.deltaTime,
       messageLimitPerSecond: this.maxMessagesPerSecond,
       rateLimitExceeded: (client._numMessagesLastSecond ?? INITIAL_MESSAGE_COUNT) > this.maxMessagesPerSecond });
+  }
+
+  onDrop(client: DropDiagnosticClient, code?: number) {
+    const player = this.state.players.get(client.sessionId);
+    this.logSessionDrop(client, code);
     const username = this.usernamesBySessionId.get(client.sessionId);
-    if (!username || this.activeClientByUsername.get(username) !== client.sessionId) return;
-    if (player) player.presence = "away";
-    this.stopFollowing(client.sessionId, "stopped");
-    for (const [followerSessionId, follow] of this.activeFollowsBySessionId) {
-      if (follow.targetSessionId === client.sessionId) this.stopFollowing(followerSessionId, "target-left");
-    }
+    if (!username || this.sessionSecurity.activeSession(username) !== client.sessionId) return;
+    const reason = spotlightDepartureReason(code, "drop");
+    this.revokeSpotlightSession(client.sessionId, reason);
+    if (reason === SECURITY_DEPARTURE_LABEL || !this.sessionSecurity.canReconnect(username, client.sessionId, { accountActive: true, officeMember: true, playerExists: !!player })) return;
+    this.prepareSessionDeparture(client.sessionId, player);
     this.movementInputs.delete(client.sessionId);
     this.autoRoutes.delete(client.sessionId);
     this.pendingSitsBySessionId.delete(client.sessionId);
@@ -710,9 +732,10 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.updateProximity();
     try {
       const reconnection = this.allowReconnection(client, RECONNECTION_SEAT_TIMEOUT_SECONDS);
-      this.pendingReconnectionsBySessionId.set(client.sessionId, reconnection);
+      const seat = { reject: (error: Error) => reconnection.reject(error) };
+      this.sessionSecurity.reserve(username, client.sessionId, seat);
       void reconnection.catch((error) => logServerError("realtime", "office.client.reconnect.failed", error, { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId })).finally(() => {
-        if (this.pendingReconnectionsBySessionId.get(client.sessionId) === reconnection) this.pendingReconnectionsBySessionId.delete(client.sessionId);
+        this.sessionSecurity.releaseSeat(client.sessionId, seat);
       });
     } catch (error) {
       // A room that is already shutting down cannot accept a reconnect. Record
@@ -721,10 +744,16 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     }
   }
 
-  onReconnect(client: Client) {
+  async onReconnect(client: Client) {
     const username = this.usernamesBySessionId.get(client.sessionId);
-    if (!username || this.activeClientByUsername.get(username) !== client.sessionId) {
-      client.leave(REPLACED_SESSION_CLOSE_CODE, REPLACED_SESSION_REASON);
+    const access = await readReconnectAccess(username, this.sessionSecurity.token(client.sessionId), this.officeId, { account: getSession, officeRole: getOfficeRole });
+    if (access.error) logServerError("realtime", RECONNECT_ACCESS_FAILED_EVENT_LABEL, access.error, { officeId: this.officeId, sessionId: client.sessionId });
+    if (!username || !this.sessionSecurity.canReconnect(username, client.sessionId, {
+      ...access,
+      playerExists: this.state.players.has(client.sessionId),
+    })) {
+      this.revokeSpotlightSession(client.sessionId, SECURITY_DEPARTURE_LABEL);
+      client.leave(OFFICE_ACCESS_REVOKED_CLOSE_CODE, OFFICE_ACCESS_REVOKED_REASON);
       return;
     }
     const player = this.state.players.get(client.sessionId);
@@ -762,11 +791,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.releaseMapEditLock(client.sessionId);
     this.broadcastGhostMode(client.sessionId, false);
     const player = this.state.players.get(client.sessionId);
-    if (player) player.presence = "away";
-    this.stopFollowing(client.sessionId, "stopped");
-    for (const [followerSessionId, follow] of this.activeFollowsBySessionId) {
-      if (follow.targetSessionId === client.sessionId) this.stopFollowing(followerSessionId, "target-left");
-    }
+    this.revokeSpotlightSession(client.sessionId, spotlightDepartureReason(code, "leave"));
+    this.prepareSessionDeparture(client.sessionId, player);
     this.updateMeetingMembership();
     // A disconnect is also a room exit. Process it while the departing
     // session is still registered so the remaining room occupants get the
@@ -776,31 +802,57 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.state.players.delete(client.sessionId);
     this.vehicleWorldsBySessionId.delete(client.sessionId);
     this.refreshVehicleCollisionWorlds();
-    this.movementInputs.delete(client.sessionId);
-    this.autoRoutes.delete(client.sessionId);
-    this.pendingSitsBySessionId.delete(client.sessionId);
     this.lastPacketAt.delete(client.sessionId);
     this.activityRefreshAtBySessionId.delete(client.sessionId);
-    this.ghostModeBySessionId.delete(client.sessionId);
     this.lastBlasterShotAtBySessionId.delete(client.sessionId);
     this.lastWaveAtBySessionId.delete(client.sessionId);
     if (this.meetingMembersBySessionId.has(client.sessionId)) {
       const identity = this.mediaIdentityBySessionId.get(client.sessionId);
       if (identity) void revokeMeetingParticipant(this.officeId, this.roomKey, identity).catch(() => console.warn("Could not revoke meeting audio participant."));
     }
-    this.usernamesBySessionId.delete(client.sessionId);
-    this.officeRolesBySessionId.delete(client.sessionId);
     if (username) void recordOfficeActivity(this.officeId, username, "office.leave");
-    if (username && this.activeClientByUsername.get(username) === client.sessionId) this.activeClientByUsername.delete(username);
-    this.mediaIdentityBySessionId.delete(client.sessionId);
-    this.privateZoneIdBySessionId.delete(client.sessionId);
-    this.meetingMembersBySessionId.delete(client.sessionId);
-    this.proximityBySessionId.delete(client.sessionId);
+    this.clearSessionState(client.sessionId);
+    this.sessionSecurity.finish(username, client.sessionId);
     for (const nearby of this.proximityBySessionId.values()) nearby.delete(client.sessionId);
-    this.proximityGroupBySessionId.delete(client.sessionId);
+  }
+
+  private clearSessionState(sessionId: string) {
+    const collections = [
+      this.usernamesBySessionId, this.officeRolesBySessionId, this.movementInputs,
+      this.ghostModeBySessionId, this.autoRoutes, this.pendingSitsBySessionId,
+      this.proximityBySessionId, this.proximityGroupBySessionId, this.meetingMembersBySessionId,
+      this.privateZoneIdBySessionId, this.mediaZoneBySessionId, this.mediaIdentityBySessionId,
+    ];
+    for (const collection of collections) collection.delete(sessionId);
+  }
+
+  private revokeSpotlightSession(sessionId: string, reason: SpotlightDeparture, revokedSpotlights?: Set<Spotlight>) {
+    const username = this.usernamesBySessionId.get(sessionId);
+    if (!username) return;
+    if (reason === SECURITY_DEPARTURE_LABEL ? !this.sessionSecurity.revoke(sessionId) : this.sessionSecurity.isRevoked(sessionId)) return;
+    if (this.spotlight && revokedSpotlights?.has(this.spotlight)) return;
+    if (this.spotlight) revokedSpotlights?.add(this.spotlight);
+    void this.spotlight?.depart(username, reason).catch((error) => {
+      logServerError("realtime", "spotlight.revoke.failed", error, { officeId: this.officeId });
+    });
+  }
+
+  static getSpotlight(officeId: string, username: string, identity: string) {
+    const rooms = [...(OfficeRoom.roomsByOffice.get(officeId) ?? [])];
+    return rooms.find((room) =>
+      [...room.usernamesBySessionId].some(
+        ([sessionId, user]) => user === username && !room.sessionSecurity.isRevoked(sessionId) &&
+          room.sessionSecurity.activeSession(user) === sessionId && room.mediaIdentityBySessionId.get(sessionId) === identity,
+      ),
+    )?.spotlight;
   }
 
   onDispose() {
+    if (this.sessionSecurity.close()) {
+      void this.spotlight?.departSecurity(this.usernamesBySessionId.values()).catch((error) =>
+        logServerError("realtime", SPOTLIGHT_CLOSE_FAILED_EVENT_LABEL, error, { officeId: this.officeId }));
+    }
+    unregisterSocialMessages(this, this.officeId, false);
     logServerEvent("realtime", "office.room.disposed", { roomId: this.roomId, officeId: this.officeId, remainingClients: this.clients.length });
     const rooms = OfficeRoom.roomsByOffice.get(this.officeId);
     rooms?.delete(this);
@@ -814,34 +866,39 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.broadcast("map-edit-lock", { editorUsername: null });
   }
 
-  static kickMember(officeId: string, username: string) {
-    for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) {
-      for (const [sessionId, memberUsername] of room.usernamesBySessionId) {
-        if (memberUsername !== username) continue;
-        room.clients.find((client) => client.sessionId === sessionId)?.leave(4003, "Office access changed. Reopen the office.");
-      }
+  private revokeUsername(username: string, reason: string, revokedSpotlights: Set<Spotlight>) {
+    let kickedClientCount = INITIAL_MESSAGE_COUNT;
+    for (const [sessionId, memberUsername] of this.usernamesBySessionId) {
+      if (memberUsername !== username) continue;
+      this.revokeSpotlightSession(sessionId, SECURITY_DEPARTURE_LABEL, revokedSpotlights);
+      const client = this.clients.find((candidate) => candidate.sessionId === sessionId);
+      if (client) { client.leave(OFFICE_ACCESS_REVOKED_CLOSE_CODE, reason); kickedClientCount += 1; }
     }
+    return kickedClientCount;
+  }
+
+  static kickMember(officeId: string, username: string) {
+    const revokedSpotlights = new Set<Spotlight>();
+    for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) room.revokeUsername(username, OFFICE_ACCESS_REVOKED_REASON, revokedSpotlights);
   }
 
   static kickAccountFromAllOffices(username: string) {
-    let kickedClientCount = 0;
+    const revokedSpotlights = new Set<Spotlight>();
+    let kickedClientCount = INITIAL_MESSAGE_COUNT;
     for (const rooms of OfficeRoom.roomsByOffice.values()) {
-      for (const room of rooms) {
-        for (const [sessionId, memberUsername] of room.usernamesBySessionId) {
-          if (memberUsername !== username) continue;
-          const client = room.clients.find((candidate) => candidate.sessionId === sessionId);
-          if (client) { client.leave(4003, "Account access was suspended."); kickedClientCount += 1; }
-        }
-      }
+      for (const room of rooms) kickedClientCount += room.revokeUsername(username, ACCOUNT_SUSPENDED_REASON_LABEL, revokedSpotlights);
     }
     return kickedClientCount;
   }
 
   static closeOffice(officeId: string) {
+    const spotlights = new Set<Spotlight>();
     for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) {
-      for (const client of [...room.clients]) {
-        client.leave(4004, "This office was deleted.");
-      }
+      if (room.sessionSecurity.close() && room.spotlight) spotlights.add(room.spotlight);
+      for (const client of [...room.clients]) client.leave(OFFICE_CLOSED_CLOSE_CODE, OFFICE_DELETED_REASON_LABEL);
+    }
+    for (const spotlight of spotlights) {
+      void spotlight.close().catch((error) => logServerError("realtime", SPOTLIGHT_CLOSE_FAILED_EVENT_LABEL, error, { officeId }));
     }
   }
 
@@ -1006,6 +1063,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     const previous = this.mediaZoneBySessionId.get(sessionId) ?? null;
     const current = player.presence === "online" ? roomLayoutZoneAt({ x: player.x, z: player.z }, this.mapConfig, previous?.id) : null;
     if (previous?.id === current?.id) return [];
+    if (shouldClearHandRaise(previous?.id ?? "", current?.id ?? "", player.presence === "online")) player.handRaised = false;
     const transitions: MediaZoneTransition[] = [];
     if (previous) {
       transitions.push({ sessionId, zone: previous, direction: "exit" });

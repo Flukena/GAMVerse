@@ -1,21 +1,12 @@
-export type RoomLayoutProp = {
-  id: string;
-  asset: string;
-  x: number;
-  z: number;
-  rotation: number;
-  collision: boolean;
-  width: number;
-  depth: number;
-  /** Height above the floor, used for supported tabletop/shelf placement. */
-  elevation?: number;
-};
+import type { RoomLayoutProp, RoomPropDefinition } from "./roomPropTypes.js";
+import { readRoomLayoutProps } from "./roomLayoutProps.js";
+import { EXTERNAL_ROOM_PROP_CATALOG, EXTERNAL_WALL_ASSET_IDS } from "./externalRoomProps.js";
+import { NATURE_ROOM_PROP_CATALOG } from "./natureRoomProps.js";
 /** Office-owned shared props snapshot; configVersion is independent from the admin map version. */
+export type { RoomLayoutProp, RoomPropDefinition } from "./roomPropTypes.js";
 export type OfficePropsSnapshot = { props: RoomLayoutProp[]; configVersion: number };
 
 export type RoomLayoutZone = { id: string; name: string; kind: "private" | "meeting" | "restroom"; ownerUsername?: string; x: number; z: number; width: number; depth: number; color: string };
-import { EXTERNAL_ROOM_PROP_CATALOG, EXTERNAL_WALL_ASSET_IDS } from "./externalRoomProps.js";
-import { NATURE_ROOM_PROP_CATALOG } from "./natureRoomProps.js";
 
 const BUILT_IN_WALL_MODEL_ASSETS = ["kit-building-kit-wall-half", "poly-kitchen-wall-plain", "poly-kitchen-wall-plain-detail", "poly-kitchen-wall-tiles", "poly-kitchen-wall-tiles-w", "quaternius-sushi-wall-normal", "quaternius-sushi-wall-redwood", "quaternius-sushi-wall-shelves", "quaternius-sushi-wall-shoji", "quaternius-sushi-wall-shoji-interior"] as const;
 export const ROOM_WALL_MODEL_ASSETS = [...BUILT_IN_WALL_MODEL_ASSETS, ...EXTERNAL_WALL_ASSET_IDS] as const;
@@ -47,27 +38,6 @@ export function roomPropCollisionClearanceRadius(prop: Pick<RoomLayoutProp, "ass
   const definition = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
   return definition?.interaction === "sit" ? definition.collisionClearanceRadius ?? fallback : fallback;
 }
-
-export type RoomPropDefinition = Pick<RoomLayoutProp, "asset" | "width" | "depth" | "collision"> & {
-  label: string; height: number; model?: string; modelUrl?: string; materialUrl?: string; pack?: string; format?: "gltf"; group?: string; preview?: string; wallAxis?: "x" | "z"; geometry?: "townhall-stage" | "townhall-podium" | "restroom-partition" | "wayfinding-sign" | "wall-picture" | "wall-shelf";
-  /** Wall-mounted props save their vertical offset without needing a tabletop. */
-  wallMounted?: boolean;
-  /** Natural model footprint used by movement collision when editor cells are larger. */
-  collisionWidth?: number; collisionDepth?: number;
-  /** Seat collision is slightly inset from decorative edges, with a smaller movement clearance. */
-  collisionScale?: number; collisionClearanceRadius?: number;
-  /** A surface that can support small items when vertical placement is implemented. */
-  supportsPlacement?: "tabletop" | "shelf-top";
-  /** This item is small enough to be placed on a supporting surface. */
-  placementClass?: "floor" | "small" | "shelf" | "surface" | "seat";
-  /** Shelving units can be stacked; seat props can offer a sit interaction. */
-  stackable?: boolean;
-  interaction?: "sit";
-  /** Approximate height of the usable seat surface above the prop base. */
-  seatHeight?: number;
-  /** Vehicles are driveable when placed as office props. */
-  vehicleId?: string;
-};
 
 /** Every prop occupies at least one 1 m map cell in each horizontal dimension. */
 const MIN_ROOM_PROP_FOOTPRINT = 1;
@@ -983,20 +953,7 @@ export function readRoomLayout(config: unknown): RoomLayout {
   const spawnPoint = spawn && Number.isFinite(spawn.x) && Number.isFinite(spawn.z) && Math.abs(Number(spawn.x)) <= halfWidth && Math.abs(Number(spawn.z)) <= halfDepth
     ? { x: Number(spawn.x), z: Number(spawn.z) }
     : undefined;
-  const props = Array.isArray(record.props) ? record.props.flatMap((item): RoomLayoutProp[] => {
-    if (typeof item !== "object" || item === null) return [];
-    const p = item as Partial<RoomLayoutProp>;
-    const catalog = ROOM_PROP_CATALOG.find((entry) => entry.asset === p.asset);
-    if (!catalog || typeof p.id !== "string" || !Number.isFinite(p.x) || !Number.isFinite(p.z)) return [];
-    const elevation = Number.isFinite(p.elevation) && Math.abs(Number(p.elevation)) <= 15 ? Number(p.elevation) : 0;
-    // Generated floor accents scale the existing floor tile to a room-sized
-    // panel. Keep that bounded authored footprint when saving/loading so its
-    // visual size and coverage calculation survive the server round trip.
-    const canScaleFloorTile = catalog.group === "Floor tiles";
-    const width = canScaleFloorTile && Number.isFinite(p.width) ? Math.min(catalog.width * 1.5, Math.max(catalog.width, Number(p.width))) : catalog.width;
-    const depth = canScaleFloorTile && Number.isFinite(p.depth) ? Math.min(catalog.depth * 1.5, Math.max(catalog.depth, Number(p.depth))) : catalog.depth;
-    return [{ id: p.id, asset: catalog.asset, x: Number(p.x), z: Number(p.z), rotation: Number.isFinite(p.rotation) ? Number(p.rotation) : 0, collision: typeof p.collision === "boolean" ? p.collision : catalog.collision, width, depth, ...(elevation > 0.001 ? { elevation } : {}) }];
-  }) : [];
+  const props = readRoomLayoutProps(record.props, ROOM_PROP_CATALOG);
   const zones = Array.isArray(record.zones) ? record.zones.flatMap((item): RoomLayoutZone[] => {
     if (typeof item !== "object" || item === null) return [];
     const z = item as Partial<RoomLayoutZone>;

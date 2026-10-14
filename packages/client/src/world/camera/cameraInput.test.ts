@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CAMERA } from "@gammyverse/shared";
 import { MathUtils, Vector3 } from "three";
-import { createCameraState } from "./cameraState";
-import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, panEditorCamera } from "./cameraInput";
-import { FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL } from "./constants";
+import { cameraReducer, createCameraState } from "./cameraState";
+import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, cameraZoomButtonEvent, panEditorCamera } from "./cameraInput";
+import { CAMPUS_2D_ZOOM_THRESHOLD_RATIO, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL } from "./constants";
 
 const EXPECTED_LIMIT_DEG = 75;
 const LARGE_DRAG_PIXEL = 100_000;
@@ -55,4 +55,19 @@ test("wheel events select campus ratio zoom or live-office distance zoom", () =>
   if (event.type === "zoom") assert.ok(event.ratio > campus.zoomRatio);
   const live = createCameraState(false);
   assert.deepEqual(cameraWheelEvent(live, DRAG_PIXEL), { type: "distance", distanceM: live.distanceM + LIVE_ZOOM_STEP_M });
+});
+
+test("map2d zoom controls change independent scale instead of 3D framing", () => {
+  const state = { ...createCameraState(true), mode: "map2d" as const, view: "2d" as const };
+  assert.deepEqual(cameraZoomButtonEvent(state, 2), { type: "map2d-scale", pxPerM: state.map2dScalePxPerM * 2 });
+});
+
+const ZOOM_IN_FACTOR = 2;
+test("threshold overview wheel and buttons return to 3D zoom", () => {
+  const overview = cameraReducer(createCameraState(true), { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO });
+  assert.equal(overview.view, "3d");
+  for (const event of [cameraWheelEvent(overview, -DRAG_PIXEL), cameraZoomButtonEvent(overview, ZOOM_IN_FACTOR)]) {
+    assert.equal(event.type, "zoom");
+    assert.equal(cameraReducer(overview, event).mode, "tpp");
+  }
 });

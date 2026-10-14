@@ -1,7 +1,7 @@
 import type { VoiceTarget } from "./voiceTarget";
 
 const VOICE_TOKEN_ERROR_LABEL = "Could not authorize voice.";
-const VOICE_TOKEN_PATHS = { meeting: "/media/meeting-token", private: "/media/private-token", proximity: "/media/proximity-token" };
+const VOICE_TOKEN_PATHS = { meeting: "/media/meeting-token", private: "/media/private-token", proximity: "/media/proximity-token", spotlight: "/media/spotlight-token" };
 const HTTP_UNAUTHORIZED_STATUS = 401;
 const HTTP_FORBIDDEN_STATUS = 403;
 export function isVoiceDeniedStatus(status: number | undefined): boolean {

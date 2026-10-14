@@ -53,6 +53,7 @@ export async function initializeDatabase() {
     { version: 19, file: "019_user_nickname.sql" },
     { version: 20, file: "020_maintainer_audit.sql" },
     { version: 21, file: "021_account_suspension.sql" },
+    { version: 22, file: "022_office_chat_messages.sql" },
   ];
   const client = await database.connect();
   try {

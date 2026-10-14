@@ -1,0 +1,218 @@
+import { createOfficeMediaSession } from "../media/officeMediaSession";
+import { useEffect, useRef, useState } from "react";
+import type { RemoteAudioTrack, RemoteTrack, Room } from "livekit-client";
+import { createVoiceRoom } from "../media/voiceRoomSdk";
+import { VoiceRoomSession } from "../media/voiceRoomSession";
+import { voiceParticipantUsername } from "../media/mediaIdentity";
+import { VoiceTokenError } from "../media/voiceToken";
+import {
+  canPublishSpotlight,
+  isSpotlightConsentCurrent,
+  type SpotlightConsent,
+  mediaTileKey,
+  spotlightAudioVolume,
+  spotlightSessionKey,
+  shouldRestoreSpotlightCamera,
+} from "./socialState";
+
+interface SpotlightProps {
+  endpoint: string;
+  officeId: string;
+  sessionKey: string;
+  epoch: string;
+  usernames: readonly string[];
+  spotlighted: boolean;
+  doNotDisturb: boolean;
+  zoneUsernames: ReadonlySet<string>;
+  paused: boolean;
+}
+interface SpotlightTrack {
+  key: string;
+  track: RemoteTrack;
+  username: string;
+}
+const SPOTLIGHT_TOKEN_ERROR_LABEL = "Could not authorize spotlight.";
+export function SpotlightSession({
+  endpoint,
+  officeId,
+  sessionKey,
+  epoch,
+  usernames,
+  spotlighted,
+  doNotDisturb,
+  zoneUsernames,
+  paused,
+}: SpotlightProps) {
+  const [consent, setConsent] = useState<SpotlightConsent | null>(null);
+  const consentedEpoch = isSpotlightConsentCurrent(
+    consent,
+    officeId,
+    sessionKey,
+  )
+    ? (consent?.epoch ?? null)
+    : null;
+  const consented = canPublishSpotlight(consentedEpoch, epoch, spotlighted);
+  const teardownRef = useRef<Promise<void>>(Promise.resolve());
+  const [camera, setCamera] = useState(false);
+  const cameraIntentRef = useRef(false);
+  cameraIntentRef.current = shouldRestoreSpotlightCamera(
+    consentedEpoch,
+    epoch,
+    spotlighted,
+    camera,
+  );
+  const [tracks, setTracks] = useState<SpotlightTrack[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const sessionRef = useRef<VoiceRoomSession<Room> | null>(null);
+  const consentRef = useRef(false);
+  consentRef.current = consented && spotlighted;
+  useEffect(() => {
+    if (!spotlighted) {
+      setConsent(null);
+      setCamera(false);
+    }
+  }, [spotlighted]);
+  const connectKey = spotlightSessionKey(epoch, usernames, paused);
+  useEffect(() => {
+    if (connectKey === null) return;
+    const session = createOfficeMediaSession<Room>(
+      {
+        initialMuted: true,
+        previousTeardown: teardownRef.current,
+        createRoom: createVoiceRoom,
+        fetchToken: async (_target, signal) => {
+          const response = await fetch(`${endpoint}/media/spotlight-token`, {
+            method: "POST",
+            credentials: "include",
+            signal,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ officeId, publish: consentRef.current }),
+          });
+          if (!response.ok)
+            throw new VoiceTokenError(
+              SPOTLIGHT_TOKEN_ERROR_LABEL,
+              response.status,
+            );
+          return (await response.json()) as { url: string; token: string };
+        },
+      },
+      {
+        stateChanged: (state) => {
+          setError(state.error?.message ?? null);
+          if (state.connected && state.muted && consentRef.current)
+            void session.setMuted(false);
+        },
+        roomChanged: (room) => {
+          if (!room) setTracks([]);
+          else if (cameraIntentRef.current)
+            void session.control((activeRoom) =>
+              activeRoom.localParticipant.setCameraEnabled(true),
+            );
+        },
+        trackSubscribed: (room, track, publication, participant) => {
+          const username = voiceParticipantUsername(participant);
+          const key = mediaTileKey(
+            room.name,
+            participant.identity,
+            publication.source,
+          );
+          setTracks((current) => [
+            ...current.filter((item) => item.key !== key),
+            { key, track, username },
+          ]);
+        },
+        trackUnsubscribed: (_room, track) =>
+          setTracks((current) =>
+            current.filter((item) => item.track !== track),
+          ),
+      },
+    );
+    sessionRef.current = session;
+    session.setTarget({ kind: "spotlight", id: connectKey, officeId, sessionKey });
+    return () => {
+      sessionRef.current = null;
+      teardownRef.current = session.dispose();
+    };
+  }, [
+    endpoint,
+    officeId,
+    sessionKey,
+    connectKey,
+    consented,
+  ]);
+  return (
+    <section className="gather-spotlight" aria-label="Spotlight media">
+      {spotlighted && !consented && (
+        <p>
+          You are spotlighted.{" "}
+          <button
+            type="button"
+            onClick={() => setConsent({ epoch, officeId, sessionKey })}
+          >
+            Allow microphone publishing to office
+          </button>
+        </p>
+      )}
+      {spotlighted && consented && (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setConsent(null);
+              setCamera(false);
+            }}
+          >
+            Stop publishing
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !camera;
+              setCamera(next);
+              void sessionRef.current?.control((room) =>
+                room.localParticipant.setCameraEnabled(next),
+              );
+            }}
+          >
+            {camera
+              ? "Stop spotlight camera"
+              : "Allow spotlight camera publishing"}
+          </button>
+        </>
+      )}
+      {error && <p role="status">{error}</p>}
+      {tracks.map((item) => (
+        <SpotlightMedia
+          key={item.key}
+          item={item}
+          volume={spotlightAudioVolume(
+            doNotDisturb,
+            zoneUsernames.has(item.username),
+          )}
+        />
+      ))}
+    </section>
+  );
+}
+function SpotlightMedia({
+  item,
+  volume,
+}: {
+  item: SpotlightTrack;
+  volume: number;
+}) {
+  const elementRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = item.track.attach();
+    elementRef.current?.append(element);
+    return () => {
+      item.track.detach(element);
+      element.remove();
+    };
+  }, [item.track]);
+  useEffect(() => {
+    if (item.track.kind === "audio")
+      (item.track as RemoteAudioTrack).setVolume(volume);
+  }, [item.track, volume]);
+  return <div ref={elementRef} aria-label={item.username} />;
+}

@@ -1,3 +1,4 @@
+import { spotlightTokenEndpoint } from "./spotlightEndpoint.js";
 import { defineServer } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { getSession } from "../auth/service.js";
@@ -84,6 +85,7 @@ const server = defineServer({
       logServerEvent("realtime", "office.member.kick.requested", { officeId, username });
       kickOfficeMember(officeId, username); response.sendStatus(204);
     });
+      app.post("/media/spotlight-token", spotlightTokenEndpoint);
       app.post("/media/meeting-token", async (request: AuthRequest, response: AuthResponse) => {
         const sessionToken = sessionFromCookie(request.header("cookie"));
         const session = await getSession(sessionToken);

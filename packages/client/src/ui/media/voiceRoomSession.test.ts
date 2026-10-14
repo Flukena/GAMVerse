@@ -3,6 +3,7 @@ import test from "node:test";
 import { ConnectionError, DisconnectReason, RoomEvent, type RoomEventCallbacks } from "livekit-client";
 import { VoiceRoomSession, VOICE_RETRY_BASE_MS, VOICE_RETRY_MAX_ATTEMPTS, VOICE_RETRY_MAX_DELAY_MS, type VoiceRoom, type VoiceRoomAdapter, type VoiceSessionState } from "./voiceRoomSession.ts";
 import { VoiceTokenError } from "./voiceToken.ts";
+import * as officeMedia from "./officeMediaSession.ts";
 import type { VoiceTarget } from "./voiceTarget.ts";
 
 const FLUSH_MICROTASK_COUNT = 40;
@@ -50,14 +51,14 @@ function adapter(room: FakeRoom): VoiceRoomAdapter<FakeRoom> {
   };
 }
 async function flush() { for (let index = 0; index < FLUSH_MICROTASK_COUNT; index++) await Promise.resolve(); }
-function fixture() {
+function fixture(createSession = (dependencies: ConstructorParameters<typeof VoiceRoomSession<FakeRoom>>[0], listener: ConstructorParameters<typeof VoiceRoomSession<FakeRoom>>[1]) => new VoiceRoomSession(dependencies, listener)) {
   const rooms: FakeRoom[] = [];
   const states: VoiceSessionState[] = [];
   const tokens: string[] = [];
   const notices: string[] = [];
   const timers: Array<{ callback: () => void; delay: number }> = [];
   let tokenError: Error | null = null;
-  const session = new VoiceRoomSession({
+  const session = createSession({
     createRoom: async () => { const room = new FakeRoom(); rooms.push(room); return adapter(room); },
     fetchToken: async (_target, signal) => {
       if (tokenError) throw tokenError;
@@ -254,4 +255,41 @@ test("preservation: current stale-proximity token response clears busy without j
   }, { stateChanged: state => states.push(state) });
   session.setTarget({ ...target, kind: "proximity" }); await flush();
   assert.equal(roomCount, 0); assert.equal(states.at(-1)?.busy, false); assert.equal(states.at(-1)?.error, null);
+});
+
+test('a second spotlight session keeps its room and microphone during zone transitions', async () => {
+  const zone = fixture();
+  const spotlight = fixture();
+  zone.session.setTarget(target);
+  spotlight.session.setTarget({ ...target, kind: 'spotlight', id: 'spotlight-epoch' });
+  await flush();
+  zone.rooms[0].ready(); spotlight.rooms[0].ready();
+  await flush();
+  await spotlight.session.setMuted(false);
+  zone.session.setTarget({ ...target, id: 'meeting-b' });
+  await flush();
+  assert.equal(spotlight.rooms.length, 1);
+  assert.equal(spotlight.rooms[0].disconnectCount, 0);
+  assert.equal(spotlight.rooms[0].microphone.at(-1), true);
+  assert.equal(spotlight.states.at(-1)?.connected, true);
+  await zone.session.dispose(); await spotlight.session.dispose();
+});
+
+test("office media sessions isolate zone target changes from spotlight teardown", async () => {
+  const zone = fixture(officeMedia.createOfficeMediaSession);
+  const spotlight = fixture(officeMedia.createOfficeMediaSession);
+  assert.notEqual(zone.session, spotlight.session);
+  await join(zone);
+  spotlight.session.setTarget({ ...target, kind: "spotlight", id: "epoch" });
+  await flush();
+  spotlight.rooms[0]!.ready();
+  await flush();
+  zone.session.setTarget({ ...target, id: "B" });
+  await flush();
+  assert.equal(spotlight.rooms[0]!.disconnectCount, 0);
+  assert.equal(spotlight.states.at(-1)?.target?.id, "epoch");
+  assert.equal(spotlight.states.at(-1)?.connected, true);
+  assert.notEqual(zone.session, spotlight.session);
+  await zone.session.dispose();
+  await spotlight.session.dispose();
 });

@@ -3,6 +3,7 @@ import { ROOM_PROP_CATALOG, type RoomLayoutProp } from "@gammyverse/shared";
 import { preloadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
 import { classifyModifyProp, MODIFY_PROPS_CATEGORIES } from "./modifyPropsCategories";
+import { PropInteractionEditor } from "./social/PropInteractionPanel";
 import { PropThumbnail } from "./PropThumbnail";
 import "./ModifyPropsEditor.css";
 
@@ -83,6 +84,7 @@ export function ModifyPropsEditor({ open, officeName, dimension, props, catalog 
             <span>Click <b>Rotate</b> in that prop’s action buttons to turn it 90°.</span>
           </section>
           {selectedDefinition && <div className="modify-props-selected-hint"><span>Selected on map: <strong>{selectedDefinition.label}</strong></span>{onRotateProp && <button type="button" onClick={() => onRotateProp(selectedPropId!)}>Rotate 90°</button>}</div>}
+          {draft.filter(prop => prop.id === selectedPropId).map(prop => <PropInteractionEditor key={prop.id} prop={prop} onChange={interaction => setDraft(current => current.map(item => item.id === prop.id ? { ...item, interaction } : item))} />)}
           <div className="modify-props-catalog">{filteredCatalog.map((item) => <button type="button" key={item.asset} aria-label={item.label} title={item.label} className={`modify-props-catalog-card ${placingAsset === item.asset ? "is-selected" : ""}`} onMouseEnter={() => scheduleCatalogAssetPreload(item)} onFocus={() => preloadCatalogAsset(item)} onClick={() => { if (!item.geometry && !item.vehicleId) void preloadRoomPropAsset(roomPropAssetPaths(item)).catch(() => undefined); onSelectProp?.(null); onRequestPlacement?.(item.asset); }}>
             <span className="modify-props-thumb"><PropThumbnail item={item} preview={item.preview} packPreview={Boolean(item.preview && isPackPreview(item.preview))} /></span>
           </button>)}</div>

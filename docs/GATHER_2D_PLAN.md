@@ -1,6 +1,6 @@
 # Gather-style 2D mode plan
 
-Status: draft for owner approval (2026-10-14), revised after the Codex plan review. Review: `~/basedata/gamverse/gather-2d-plan-20261014/codex-plan-review.md`. Nothing here is implemented yet.
+Status: implemented on feat/gather-2d (pending browser checks).
 
 Goal: make 2D a full play mode with the core Gather Town features, while keeping 3D. The owner chose:
 - a 2D/3D toggle that works anywhere on the campus, with walking and interaction in 2D;

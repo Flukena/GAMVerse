@@ -27,7 +27,7 @@ test("manual drag detaches; walking resumes TPP follow", () => {
   assert.equal(walking.following, true);
 });
 
-test("walking preserves FPP, map2d, and editing views", () => {
+test("walking preserves FPP, followed map2d, and editing views", () => {
   const ready = readyState();
   const protectedStates = [
     cameraReducer(ready, { type: "toggle-fpp" }),
@@ -117,4 +117,43 @@ test("media-zone crossings preserve FPP, detached, 2D and editor views", () => {
   for (const state of states) {
     assert.equal(cameraReducer(state, { type: "room-change", campus: true, alignBehind: true, preserveFraming: true }), state);
   }
+});
+
+
+test("explicit 2D survives arrival, FPP toggle exits and 3D toggle resets overview", () => {
+  const map = cameraReducer(readyState(), { type: "toggle-2d" });
+  assert.equal(map.view, "2d");
+  assert.equal(map.mode, "map2d");
+  assert.equal(cameraReducer(cameraReducer(map, { type: "room-change", campus: false, alignBehind: false }), { type: "avatar-ready" }).mode, "map2d");
+  const free = cameraReducer(map, { type: "manual-drag" });
+  assert.equal(cameraReducer(free, { type: "walk-input" }).following, true);
+  assert.equal(cameraReducer(map, { type: "edit", active: true }).mode, "free");
+  const fpp = cameraReducer(readyState(), { type: "toggle-fpp" });
+  assert.equal(cameraReducer(fpp, { type: "toggle-2d" }).mode, "map2d");
+  const zoomed = cameraReducer(map, { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO });
+  const three = cameraReducer(zoomed, { type: "toggle-2d" });
+  assert.equal(three.view, "3d");
+  assert.equal(three.mode, "tpp");
+  assert.equal(three.zoomRatio, CAMPUS_MIN_ZOOM_RATIO);
+});
+
+test("set-view is idempotent across StrictMode restoration and Locate requests", () => {
+  const fpp = cameraReducer(readyState(), { type: "toggle-fpp" });
+  const first = cameraReducer(fpp, { type: "set-view", view: "2d" });
+  assert.equal(first.view, "2d");
+  assert.equal(first.mode, "map2d");
+  assert.equal(cameraReducer(first, { type: "set-view", view: "2d" }), first);
+  const third = cameraReducer(first, { type: "set-view", view: "3d" });
+  assert.equal(third.view, "3d");
+  assert.equal(third.mode, "tpp");
+  assert.equal(cameraReducer(third, { type: "set-view", view: "3d" }), third);
+});
+
+test("toolbar 3D request exits threshold overview even when stored view is 3D", () => {
+  const overview = cameraReducer(readyState(), { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO });
+  assert.equal(overview.view, "3d");
+  const returned = cameraReducer(overview, { type: "set-view", view: "3d" });
+  assert.equal(returned.mode, "tpp");
+  assert.equal(returned.zoomRatio, CAMPUS_MIN_ZOOM_RATIO);
+  assert.equal(cameraReducer(overview, { type: "toggle-2d" }).mode, "tpp");
 });

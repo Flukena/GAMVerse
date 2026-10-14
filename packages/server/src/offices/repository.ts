@@ -1,8 +1,15 @@
+import type { Pool } from "pg";
 import { database } from "../infra/db.js";
 import { recordAuditEvent } from "../infra/audit.js";
 import { createHash, randomBytes } from "node:crypto";
 import { MAX_OFFICE_PROPS } from "./limits.js";
-import { campusWorldFromConfig, isPositionWalkable, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type OfficePropsSnapshot, type RoomLayout, type RoomLayoutProp } from "@gammyverse/shared";
+import { campusWorldFromConfig, isPositionWalkable, isValidPropInteraction, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type OfficePropsSnapshot, type RoomLayout, type RoomLayoutProp } from "@gammyverse/shared";
+
+export type OfficePersistenceDependencies = {
+  store: Pool | null;
+  role: (username: string, officeId: string, isMaintainer: boolean) => Promise<string | null>;
+};
+const officePersistenceDependencies = (): OfficePersistenceDependencies => ({ store: database, role: getOfficeRole });
 
 export const EMPTY_OFFICE_MAP = { version: 1, layout: { version: 1, props: [], zones: [], walls: [], doors: [] } } as const;
 
@@ -47,16 +54,26 @@ export async function getOfficeProps(username: string, officeId: string, isMaint
   return { props: readRoomLayout(legacy.rows[0]?.config).props, configVersion: 1 };
 }
 
-export async function saveOfficeProps(username: string, officeId: string, value: unknown, isMaintainer = false): Promise<OfficePropsSnapshot> {
-  if (!database) throw new Error("Office props require PostgreSQL.");
-  if (!(await getOfficeRole(username, officeId, isMaintainer))) throw new Error("Office not found or access denied.");
+export function validateOfficePropInteractions(props: unknown[]) {
+  for (const prop of props) {
+    if (typeof prop === "object" && prop !== null && "interaction" in prop && prop.interaction !== undefined && !isValidPropInteraction(prop.interaction)) {
+      throw new Error("Office prop interaction is invalid.");
+    }
+  }
+}
+
+export async function saveOfficeProps(username: string, officeId: string, value: unknown, isMaintainer = false, dependencies = officePersistenceDependencies()): Promise<OfficePropsSnapshot> {
+  const storage = dependencies.store;
+  if (!storage) throw new Error("Office props require PostgreSQL.");
+  if (!(await dependencies.role(username, officeId, isMaintainer))) throw new Error("Office not found or access denied.");
   if (typeof value !== "object" || value === null) throw new Error("Office props are invalid.");
   const body = value as { props?: unknown; configVersion?: unknown };
   if (!Number.isInteger(body.configVersion) || Number(body.configVersion) < 1) throw new Error("Office props version is invalid.");
   if (!Array.isArray(body.props) || body.props.length > MAX_OFFICE_PROPS) throw new Error(`Office props limit exceeded (maximum ${MAX_OFFICE_PROPS.toLocaleString()}).`);
+  validateOfficePropInteractions(body.props);
   const props = readRoomLayout({ layout: { props: body.props } }).props;
   if (props.length !== body.props.length) throw new Error("Office props contain unsupported or malformed items.");
-  const mapConfigResult = await database.query<{ config: unknown }>("SELECT config FROM app_office_map_layouts WHERE office_id = $1", [officeId]);
+  const mapConfigResult = await storage.query<{ config: unknown }>("SELECT config FROM app_office_map_layouts WHERE office_id = $1", [officeId]);
   const dimensions = readRoomLayout(mapConfigResult.rows[0]?.config).dimensions ?? { width: 200, depth: 250 };
   const ids = new Set<string>();
   for (let index = 0; index < props.length; index += 1) {
@@ -90,7 +107,7 @@ export async function saveOfficeProps(username: string, officeId: string, value:
     }
   }
 
-  const client = await database.connect();
+  const client = await storage.connect();
   try {
     await client.query("BEGIN");
     // Create the row once, then serialize saves through its row lock.
@@ -224,9 +241,10 @@ export async function getOfficeMapLayout(username: string, officeId: string, isM
   };
 }
 
-export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, officeId: string, value: unknown) {
-  if (!database) throw new Error("Office maps require PostgreSQL.");
-  const role = await getOfficeRole(actor, officeId, isMaintainer);
+export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, officeId: string, value: unknown, dependencies = officePersistenceDependencies()) {
+  const storage = dependencies.store;
+  if (!storage) throw new Error("Office maps require PostgreSQL.");
+  const role = await dependencies.role(actor, officeId, isMaintainer);
   if (!role) throw new Error("Office not found or access denied.");
   if (!["owner", "admin"].includes(role)) throw new Error("Only office owners and admins can edit the map.");
   if (typeof value !== "object" || value === null || !("layout" in value)) throw new Error("Map layout is invalid.");
@@ -267,7 +285,7 @@ export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, 
   const deskOwners = layout.zones.filter((zone) => zone.kind === "private" && zone.ownerUsername).map((zone) => zone.ownerUsername!);
   if (new Set(deskOwners).size !== deskOwners.length) throw new Error("Each user can own only one desk zone per office.");
   for (const owner of deskOwners) {
-    if (!await getOfficeRole(owner, officeId, isMaintainer)) throw new Error("Desk zones can only be assigned to office members.");
+    if (!await dependencies.role(owner, officeId, isMaintainer)) throw new Error("Desk zones can only be assigned to office members.");
   }
   const mapWidth = layout.dimensions?.width ?? 200;
   const mapDepth = layout.dimensions?.depth ?? 250;
@@ -278,7 +296,7 @@ export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, 
   if (layout.walls.some((wall) => !inside(wall.x, wall.z, wall.axis === "horizontal" ? wall.length : wall.thickness, wall.axis === "vertical" ? wall.length : wall.thickness))) throw new Error(`A wall is outside the ${mapWidth} × ${mapDepth} m office boundary.`);
   if (layout.roadways?.some((road) => !inside(road.x, road.z, road.width, road.depth))) throw new Error(`A road is outside the ${mapWidth} × ${mapDepth} m office boundary.`);
   if (layout.doors.some((door) => { const wall = layout.walls.find((entry) => entry.id === door.wallId); return !wall || Math.abs(door.offset) + door.width / 2 > wall.length / 2; })) throw new Error("A doorway must fit entirely within its wall.");
-  const previousResult = await database.query<{ config: unknown }>("SELECT config FROM app_office_map_layouts WHERE office_id = $1", [officeId]);
+  const previousResult = await storage.query<{ config: unknown }>("SELECT config FROM app_office_map_layouts WHERE office_id = $1", [officeId]);
   const previousLayout = readRoomLayout(previousResult.rows[0]?.config);
   const changedZoneIds = new Set(layout.zones.filter((zone) => {
     const previousZone = previousLayout.zones.find((entry) => entry.id === zone.id);
@@ -292,7 +310,7 @@ export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, 
   const blockedEntrance = roomZoneEntranceIssues(layout, changedZoneIds)[0];
   if (blockedEntrance) throw new Error("This room entrance is blocked. Move the zone away from the map edge or another wall, or choose a different door wall.");
   if (layout.spawnPoint && !isPositionWalkable(layout.spawnPoint, campusWorldFromConfig(config))) throw new Error("The spawn point must be placed on walkable ground.");
-  const client = await database.connect();
+  const client = await storage.connect();
   try {
     await client.query("BEGIN");
     // Materialize the default version under the same transaction so concurrent
