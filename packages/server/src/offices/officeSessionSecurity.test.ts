@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { mock, after } from "node:test";
 import type { AuthContext, Client } from "@colyseus/core";
 import { DEFAULT_CHARACTER_ID, PlayerState } from "@gammyverse/shared";
+import { getRecentServerErrorCount } from "../infra/logger.js";
 import { Spotlight, OFFICE_ACCESS_REVOKED_CLOSE_CODE } from "./spotlight.js";
 
 // Load the database boundary in this isolated test process; no connection is made.
@@ -14,6 +15,10 @@ const SESSION_ID = "original-session";
 const REPLACEMENT_SESSION_ID = "replacement-session";
 const SESSION_TOKEN = "test-session-token";
 const TRANSPORT_DROP_CLOSE_CODE = 1006;
+const KICK_REJECTION_LABEL = "kick";
+const CLOSE_REJECTION_LABEL = "close";
+const REPLACE_REJECTION_LABEL = "replace";
+const RECONNECT_REJECTED_EVENT_LABEL = "office.client.reconnect.rejected";
 const MEMBERSHIP_SQL_LABEL = "SELECT offices.owner_username";
 const SESSION_SQL_LABEL = "FROM app_sessions";
 const ACTIVE_ACCOUNT_ROW = { username: USERNAME, character_id: DEFAULT_CHARACTER_ID, is_maintainer: false };
@@ -23,9 +28,8 @@ interface RoomInternals {
   officeId: string;
   spotlight: Spotlight;
   usernamesBySessionId: Map<string, string>;
-  activeClientByUsername?: Map<string, string>;
   movementInputs: Map<string, unknown>;
-  sessionSecurity?: { activate(username: string, id: string, token?: string): void };
+  sessionSecurity: { activate(username: string, id: string, token?: string): void; activeSession(username: string): string | undefined };
 }
 interface Registry { roomsByOffice: Map<string, Set<InstanceType<typeof OfficeRoom>>> }
 const registry = OfficeRoom as unknown as Registry;
@@ -36,8 +40,7 @@ function fixture() {
   const internals = room as unknown as RoomInternals;
   internals.officeId = OFFICE_ID;
   internals.usernamesBySessionId.set(SESSION_ID, USERNAME);
-  internals.activeClientByUsername?.set(USERNAME, SESSION_ID);
-  internals.sessionSecurity?.activate(USERNAME, SESSION_ID, SESSION_TOKEN);
+  internals.sessionSecurity.activate(USERNAME, SESSION_ID, SESSION_TOKEN);
   const player = new PlayerState();
   player.username = USERNAME;
   player.presence = "online";
@@ -69,6 +72,12 @@ function fixture() {
     cleanup: () => { room.clock.stop(); registry.roomsByOffice.delete(OFFICE_ID); mock.restoreAll(); },
   };
 }
+function authContext(): AuthContext {
+  return { headers: new Headers({
+    origin: "http://localhost:5173", cookie: `gv_session=${SESSION_TOKEN}`,
+  }) } as AuthContext;
+}
+
 function queryBoundary(accountActive = true, membership?: Promise<unknown>) {
   assert.ok(database);
   mock.method(database, "query", async (sql: string) => {
@@ -116,23 +125,35 @@ test("OfficeRoom replacement while membership query waits cannot restore stale s
   let membershipStarted!: () => void;
   const started = new Promise<void>(resolve => { membershipStarted = resolve; });
   const membership = new Promise(resolve => { resolveMembership = resolve; });
+  let membershipReadCount = 0;
   try {
     assert.ok(database);
     mock.method(database, "query", async (sql: string) => {
       if (sql.includes(SESSION_SQL_LABEL)) return { rows: [ACTIVE_ACCOUNT_ROW] };
-      if (sql.includes(MEMBERSHIP_SQL_LABEL)) { membershipStarted(); return membership; }
+      if (sql.includes(MEMBERSHIP_SQL_LABEL)) {
+        membershipReadCount += 1;
+        if (membershipReadCount === 1) { membershipStarted(); return membership; }
+        return { rows: [MEMBERSHIP_ROW] };
+      }
       return { rows: [] };
     });
     f.room.onDrop(f.client, TRANSPORT_DROP_CLOSE_CODE);
     const reconnect = f.room.onReconnect(f.client);
     await started;
-    f.internals.activeClientByUsername?.set(USERNAME, REPLACEMENT_SESSION_ID);
-    f.internals.sessionSecurity?.activate(USERNAME, REPLACEMENT_SESSION_ID, SESSION_TOKEN);
-    f.room.state.players.delete(SESSION_ID);
+    const replacement = { ...f.client, sessionId: REPLACEMENT_SESSION_ID } as Client;
+    const context = authContext();
+    const auth = await f.room.onAuth(replacement, { officeId: OFFICE_ID }, context);
+    f.room.onJoin(replacement, {}, auth);
+    const rotationsAfterReplacement = f.rotations();
     resolveMembership({ rows: [MEMBERSHIP_ROW] });
     await reconnect;
     assert.equal(f.player.presence, "away");
     assert.equal(f.internals.movementInputs.has(SESSION_ID), false);
+    assert.equal(f.internals.sessionSecurity.activeSession(USERNAME), REPLACEMENT_SESSION_ID);
+    assert.equal(f.room.state.players.get(REPLACEMENT_SESSION_ID)?.presence, "online");
+    assert.equal(f.internals.movementInputs.has(REPLACEMENT_SESSION_ID), true);
+    assert.equal(f.seatRejected(), true);
+    assert.equal(f.rotations(), rotationsAfterReplacement);
     assert.deepEqual(f.leaveCodes, [OFFICE_ACCESS_REVOKED_CLOSE_CODE]);
   } finally { f.cleanup(); }
 });
@@ -154,9 +175,7 @@ test("OfficeRoom rechecks suspension using token retained by real onAuth and onJ
   const f = fixture();
   try {
     queryBoundary();
-    const context = { headers: new Headers({
-      origin: "http://localhost:5173", cookie: `gv_session=${SESSION_TOKEN}`,
-    }) } as AuthContext;
+    const context = authContext();
     const auth = await f.room.onAuth(f.client, { officeId: OFFICE_ID }, context);
     f.room.onJoin(f.client, {}, auth);
     queryBoundary(false);
@@ -238,3 +257,55 @@ test("OfficeRoom suspension covers connected and dropped rooms sharing one spotl
     assert.equal(connected.rotations(), 1);
   } finally { connected.cleanup(); dropped.cleanup(); }
 });
+
+test("OfficeRoom disposal preserves shared spotlight until the last room closes", async () => {
+  const first = fixture();
+  const second = fixture();
+  second.internals.spotlight = first.spotlight;
+  registry.roomsByOffice.set(OFFICE_ID, new Set([first.room, second.room]));
+  try {
+    await first.spotlight.command(USERNAME, { targetUsername: USERNAME, on: true });
+    const before = first.rotations();
+    first.room.onDrop(first.client, TRANSPORT_DROP_CLOSE_CODE);
+    first.room.onDispose();
+    assert.equal(first.seatRejected(), true);
+    assert.equal(first.rotations(), before);
+    assert.deepEqual(first.spotlight.snapshot().usernames, [USERNAME]);
+    second.room.onDrop(second.client, TRANSPORT_DROP_CLOSE_CODE);
+    second.room.onDispose();
+    assert.equal(second.seatRejected(), true);
+    assert.equal(first.rotations() - before, 1);
+    assert.deepEqual(first.spotlight.snapshot().usernames, []);
+  } finally { first.cleanup(); second.cleanup(); }
+});
+
+async function deliberatelyRejectSeat(f: ReturnType<typeof fixture>, action: string) {
+  if (action === KICK_REJECTION_LABEL) { OfficeRoom.kickMember(OFFICE_ID, USERNAME); return; }
+  if (action === CLOSE_REJECTION_LABEL) { OfficeRoom.closeOffice(OFFICE_ID); return; }
+  queryBoundary();
+  const replacement = { ...f.client, sessionId: REPLACEMENT_SESSION_ID } as Client;
+  const context = authContext();
+  await f.room.onAuth(replacement, { officeId: OFFICE_ID }, context);
+}
+
+for (const action of [KICK_REJECTION_LABEL, CLOSE_REJECTION_LABEL, REPLACE_REJECTION_LABEL]) {
+  test(`OfficeRoom ${action} seat rejection logs info and leaves error metric unchanged`, async () => {
+    const f = fixture();
+    const errors: string[] = [];
+    const events: string[] = [];
+    mock.method(console, "error", (message: string) => { errors.push(message); });
+    mock.method(console, "info", (message: string) => { events.push(message); });
+    try {
+      const errorsBefore = getRecentServerErrorCount();
+      f.room.onDrop(f.client, TRANSPORT_DROP_CLOSE_CODE);
+      await deliberatelyRejectSeat(f, action);
+      await Promise.resolve();
+      assert.deepEqual(errors, []);
+      assert.equal(getRecentServerErrorCount(), errorsBefore);
+      const rejected = events.map(message => JSON.parse(message)).filter(event => event.event === RECONNECT_REJECTED_EVENT_LABEL);
+      assert.equal(rejected.length, 1);
+      assert.equal(rejected[0].level, "info");
+      assert.equal(f.seatRejected(), true);
+    } finally { f.cleanup(); }
+  });
+}

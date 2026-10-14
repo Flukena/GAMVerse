@@ -4,6 +4,8 @@ export interface CampusMapGeneratorInputs {
   totalPeople: number;
   peoplePerTeam: number;
   teamCount: number;
+  /** Optional seed for repeatable map previews and tests. */
+  seed?: number;
 }
 
 export interface GeneratedCampusMap {
@@ -24,6 +26,53 @@ const MEETING_EDGE_ROAD_Z = 108;
 const MAX_GENERATED_PROPS = 10_000;
 const OUTDOOR_FLOOR_COVERAGE = 0.05;
 const COLORS = ["#ffb703", "#fb8500", "#219ebc", "#8ecae6", "#70c1b3", "#b8a1d9", "#e5989b", "#84a59d", "#f6bd60", "#90be6d"];
+// Lightened tints of brand palette colors 2–5 for generated room walls.
+const TEMPLATE_WALL_COLORS = ["#63bbd0", "#acd8ec", "#ffcf5c", "#fcaa4d"];
+// Simple structural assets are suitable for private offices. The more
+// distinctive themed walls remain exclusive to meeting rooms.
+export const TEMPLATE_PRIVATE_WALL_ASSETS = [
+  "kit-building-kit-wall-half",
+  "poly-kitchen-wall-plain",
+  "poly-kitchen-wall-plain-detail",
+  "external-pixel-modern-office-pixel-modern-office-wall-bay-plain-0439b504",
+  "external-pixel-modern-office-pixel-modern-office-wall-bay-window-84074f90",
+  "external-pixel-modern-office-pixel-modern-office-glass-partition-bay-9eb53e0c",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-straight-1m-36e278fd",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-straight-2m-c96dba78",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-straight-3m-761deb7a",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-window-2m-c5997f2f",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-window-1m-8154ce2d",
+] as const satisfies readonly NonNullable<RoomLayoutWall["asset"]>[];
+
+/** Stable wall asset assignment for a generated private room, if it gets one. */
+export function templatePrivateWallAsset(privateRoomIndex: number) {
+  return privateRoomIndex % 2 === 0
+    ? TEMPLATE_PRIVATE_WALL_ASSETS[Math.floor(privateRoomIndex / 2) % TEMPLATE_PRIVATE_WALL_ASSETS.length]
+    : undefined;
+}
+
+// Themed walls can be visually busy when repeated across private offices;
+// use them only in meeting rooms where a stronger identity helps.
+const TEMPLATE_MEETING_WALL_ASSETS = [
+  "kit-building-kit-wall-half",
+  "poly-kitchen-wall-plain",
+  "poly-kitchen-wall-plain-detail",
+  "poly-kitchen-wall-tiles",
+  "poly-kitchen-wall-tiles-w",
+  "quaternius-sushi-wall-normal",
+  "quaternius-sushi-wall-redwood",
+  "quaternius-sushi-wall-shelves",
+  "quaternius-sushi-wall-shoji",
+  "quaternius-sushi-wall-shoji-interior",
+  "external-pixel-modern-office-pixel-modern-office-wall-bay-plain-0439b504",
+  "external-pixel-modern-office-pixel-modern-office-wall-bay-window-84074f90",
+  "external-pixel-modern-office-pixel-modern-office-glass-partition-bay-9eb53e0c",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-straight-1m-36e278fd",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-straight-2m-c96dba78",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-straight-3m-761deb7a",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-window-2m-c5997f2f",
+  "external-cozy-home-interiors-cozy-home-interiors-wall-window-1m-8154ce2d",
+] as const satisfies readonly NonNullable<RoomLayoutWall["asset"]>[];
 
 function seededRandom(seed: number) {
   let state = seed >>> 0;
@@ -34,17 +83,33 @@ function seededRandom(seed: number) {
 }
 
 function addZone(layout: RoomLayout, zone: RoomLayoutZone, doorSide: "north" | "east" | "south" | "west" = "south") {
+  const wallColor = TEMPLATE_WALL_COLORS[layout.zones.length % TEMPLATE_WALL_COLORS.length]!;
+  const privateRoomIndex = layout.zones.filter((item) => item.kind === "private").length;
+  const meetingWallAsset = zone.kind === "meeting"
+    ? TEMPLATE_MEETING_WALL_ASSETS[layout.zones.length % TEMPLATE_MEETING_WALL_ASSETS.length]!
+    : undefined;
+  // Alternate private offices between a single fitted asset accent wall and
+  // the soft color palette. The other three walls stay simple and light.
+  const privateWallAsset = zone.kind === "private" ? templatePrivateWallAsset(privateRoomIndex) : undefined;
+  const oppositeDoorSide = { north: "south", east: "west", south: "north", west: "east" } as const;
+  const accentSide = oppositeDoorSide[doorSide];
   layout.zones.push(zone);
   const halfW = zone.width / 2;
   const halfD = zone.depth / 2;
   const inset = 0.09;
   const wallBase = zone.id;
   const entranceWallId = `${wallBase}-wall-${doorSide[0]}`;
+  const makeWall = (side: "n" | "e" | "w" | "s", axis: RoomLayoutWall["axis"], x: number, z: number, length: number): RoomLayoutWall => {
+    const asset = zone.kind === "private"
+      ? (side === accentSide[0] ? privateWallAsset : undefined)
+      : meetingWallAsset;
+    return { id: `${wallBase}-wall-${side}`, axis, x, z, length, thickness: 0.18, height: 2.5, color: wallColor, ...(asset ? { asset } : {}) };
+  };
   const walls: RoomLayoutWall[] = [
-    { id: `${wallBase}-wall-n`, axis: "horizontal", x: zone.x, z: zone.z - halfD + inset, length: zone.width, thickness: 0.18, height: 2.5, color: "#023047" },
-    { id: `${wallBase}-wall-e`, axis: "vertical", x: zone.x + halfW - inset, z: zone.z, length: zone.depth, thickness: 0.18, height: 2.5, color: "#023047" },
-    { id: `${wallBase}-wall-w`, axis: "vertical", x: zone.x - halfW + inset, z: zone.z, length: zone.depth, thickness: 0.18, height: 2.5, color: "#023047" },
-    { id: `${wallBase}-wall-s`, axis: "horizontal", x: zone.x, z: zone.z + halfD - inset, length: zone.width, thickness: 0.18, height: 2.5, color: "#023047" },
+    makeWall("n", "horizontal", zone.x, zone.z - halfD + inset, zone.width),
+    makeWall("e", "vertical", zone.x + halfW - inset, zone.z, zone.depth),
+    makeWall("w", "vertical", zone.x - halfW + inset, zone.z, zone.depth),
+    makeWall("s", "horizontal", zone.x, zone.z + halfD - inset, zone.width),
   ];
   if (doorSide === "east") walls[1]!.id = entranceWallId;
   else if (doorSide === "north") walls[0]!.id = entranceWallId;
@@ -257,7 +322,7 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
 
   // Cars are parked on the wide roads with enough room between them to drive through.
   // A seeded shuffle gives variety while keeping the saved layout reproducible.
-  const random = seededRandom(totalPeople * 31 + peoplePerTeam * 17 + teamCount);
+  const random = seededRandom(input.seed ?? (totalPeople * 31 + peoplePerTeam * 17 + teamCount));
   const vehicleAssets = ["vehicle-speedster", "vehicle-racer", "vehicle-suv", "vehicle-monster-truck", "vehicle-truck", "car-sedan", "car-hatchback-sports", "car-taxi", "car-kart-oopi"];
   const vehicleSpots = compactFivePerHalf ? [
     { x: -24, z: -78, rotation: 0 }, { x: 24, z: -78, rotation: 0 },
@@ -284,14 +349,17 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
   const streetLight = ROOM_PROP_CATALOG.find((item) => item.asset === "kenney-city-kit-roads-light-curved");
   const streetBin = ROOM_PROP_CATALOG.find((item) => item.asset === "external-city-park-and-playground-33675")
     ?? ROOM_PROP_CATALOG.find((item) => item.asset === "kit:trashcan");
+  const inFootprint = (x: number, z: number, centerX: number, centerZ: number, footprintWidth: number, footprintDepth: number) => Math.abs(x - centerX) < footprintWidth / 2 && Math.abs(z - centerZ) < footprintDepth / 2;
   const canPlaceStreetProp = (x: number, z: number, definition: NonNullable<typeof streetLight>) => {
     const halfW = definition.width / 2 + 0.7;
     const halfD = definition.depth / 2 + 0.7;
+    // Cars are the only props allowed on a road. Keep all street furniture on
+    // the sidewalk, including at road intersections.
+    if (roads.some((road) => inFootprint(x, z, road.x, road.z, road.width + definition.width + 0.2, road.depth + definition.depth + 0.2))) return false;
     if (layout.zones.some((zone) => Math.abs(x - zone.x) < zone.width / 2 + halfW && Math.abs(z - zone.z) < zone.depth / 2 + halfD)) return false;
     if (layout.props.some((prop) => Math.abs(x - prop.x) < (prop.width + definition.width) / 2 + 0.7 && Math.abs(z - prop.z) < (prop.depth + definition.depth) / 2 + 0.7)) return false;
     return Math.abs(x) + definition.width / 2 <= width / 2 && Math.abs(z) + definition.depth / 2 <= depth / 2;
   };
-  const inFootprint = (x: number, z: number, centerX: number, centerZ: number, footprintWidth: number, footprintDepth: number) => Math.abs(x - centerX) < footprintWidth / 2 && Math.abs(z - centerZ) < footprintDepth / 2;
   if (streetLight) {
     let placedLights = 0;
     const avenues = compactFivePerHalf ? [-24, 24] : [0];
@@ -308,12 +376,6 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
   }
   if (streetBin) {
     let placedBins = 0;
-    for (const [index, point] of [{ x: -90, z: 0 }, { x: -18, z: -18 }, { x: 18, z: 18 }, { x: 90, z: 0 }].entries()) {
-      if (canPlaceStreetProp(point.x, point.z, streetBin)) {
-        placedBins += 1;
-        addProp(layout, `campus-street-bin-${placedBins}`, streetBin.asset, point.x, point.z);
-      }
-    }
     const roadsideBinSpots: Array<{ x: number; z: number }> = [];
     for (const road of roads.filter((item) => item.kind === "major")) {
       if (road.width >= road.depth) {
@@ -333,8 +395,7 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
     const desiredBins = Math.max(4, Math.ceil(teamCount / 2));
     for (const point of roadsideBinSpots) {
       if (placedBins >= desiredBins) break;
-      const clearOfRoads = roads.every((road) => !inFootprint(point.x, point.z, road.x, road.z, road.width + streetBin.width + 0.2, road.depth + streetBin.depth + 0.2));
-      if (!clearOfRoads || !canPlaceStreetProp(point.x, point.z, streetBin)) continue;
+      if (!canPlaceStreetProp(point.x, point.z, streetBin)) continue;
       placedBins += 1;
       addProp(layout, `campus-street-bin-${placedBins}`, streetBin.asset, point.x, point.z);
     }
@@ -350,8 +411,7 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
     for (const avenueX of avenues) for (const crossZ of crossStreets) for (const sideX of [-1, 1]) for (const sideZ of [-1, 1]) {
       const x = avenueX + sideX * (CENTRAL_ROAD / 2 + trafficLight.width / 2 + 0.7);
       const z = crossZ + sideZ * (CENTRAL_ROAD / 2 + trafficLight.depth / 2 + 0.7);
-      const clearOfRoads = roads.every((road) => !inFootprint(x, z, road.x, road.z, road.width + trafficLight.width + 0.2, road.depth + trafficLight.depth + 0.2));
-      if (!clearOfRoads || !canPlaceStreetProp(x, z, trafficLight)) continue;
+      if (!canPlaceStreetProp(x, z, trafficLight)) continue;
       signalIndex += 1;
       addProp(layout, `campus-traffic-signal-${signalIndex}`, trafficLight.asset, x, z, sideX > 0 ? Math.PI : 0);
     }
@@ -367,6 +427,20 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
     "external-city-park-and-playground-33685", // Shrub
     "kenney-city-kit-suburban-tree-small",
     "kit-mini-forest-rocks-low",
+    // New nature packs: vary the street canopy, flowering shrubs and rock beds.
+    "nature-kaykit-forest-nature-tree-1-a-color1",
+    "nature-kaykit-forest-nature-tree-2-a-color1",
+    "nature-kaykit-forest-nature-tree-3-a-color1",
+    "nature-kaykit-forest-nature-tree-4-a-color1",
+    "nature-kaykit-forest-nature-bush-2-c-color1",
+    "nature-kaykit-forest-nature-rock-1-d-color1",
+    "nature-quaternius-stylized-nature-megakit-commontree-1",
+    "nature-quaternius-stylized-nature-megakit-commontree-3",
+    "nature-quaternius-stylized-nature-megakit-bush-common-flowers",
+    "nature-quaternius-stylized-nature-megakit-flower-3-group",
+    "nature-quaternius-stylized-nature-megakit-flower-4-group",
+    "nature-quaternius-stylized-nature-megakit-plant-1",
+    "nature-quaternius-stylized-nature-megakit-rock-medium-1",
   ].map((asset) => ROOM_PROP_CATALOG.find((item) => item.asset === asset)).filter((item): item is (typeof ROOM_PROP_CATALOG)[number] => Boolean(item));
   if (landscapingAssets.length) {
     const cellSize = 1;

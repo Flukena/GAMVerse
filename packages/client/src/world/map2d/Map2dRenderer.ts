@@ -82,7 +82,7 @@ export class Map2dRenderer {
     private readonly listener: Map2dListener,
   ) {
     canvas.tabIndex = 0;
-    canvas.setAttribute("aria-label", "2D office map; V toggles view");
+    canvas.setAttribute("aria-label", "2D office map; M toggles view");
     canvas.style.touchAction = "none";
     canvas.addEventListener("pointerdown", this.pointerDown);
     canvas.addEventListener("pointermove", this.pointerMove);

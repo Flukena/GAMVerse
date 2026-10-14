@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { arePlayersNearby, CAMPUS_LAYOUT, CAMPUS_WORLD, campusPropPlacements, campusWorldFromConfig, isPositionWalkable, isValidMovementInput, movePlayer, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomWorldFromConfig, screenMovementToWorld, WORLD } from "./index.ts";
+import { arePlayersNearby, CAMPUS_LAYOUT, CAMPUS_WORLD, campusPropPlacements, campusWorldFromConfig, isPositionWalkable, isValidMovementInput, movePlayer, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomWorldFromConfig, screenMovementToWorld, WORLD } from "./index.ts";
+import { generateCampusMap } from "./campusMapGenerator.ts";
 
 test("normalizes diagonal movement to the configured walk speed", () => {
   const result = movePlayer({ x: 0, z: 0 }, { x: 1, z: 1 }, 0.1);
@@ -78,6 +79,51 @@ test("empty campus layout does not create phantom furniture collision", () => {
   assert.equal(CAMPUS_LAYOUT.rooms.length, 0);
   assert.equal(CAMPUS_WORLD.obstacles.length, 0);
   assert.equal(isPositionWalkable({ x: 0, z: 0 }, CAMPUS_WORLD), true);
+});
+
+test("every wall model id resolves to one catalog asset", () => {
+  assert.equal(new Set(ROOM_WALL_MODEL_ASSETS).size, ROOM_WALL_MODEL_ASSETS.length);
+  for (const asset of ROOM_WALL_MODEL_ASSETS) {
+    const definition = ROOM_PROP_CATALOG.find((item) => item.asset === asset);
+    assert.ok(definition, `missing wall model catalog entry ${asset}`);
+    assert.ok(definition.modelUrl || definition.model || definition.geometry, `wall model ${asset} has no source model`);
+  }
+});
+
+test("generated campus maps use varied nature assets and accept repeatable seeds", () => {
+  const inputs = { totalPeople: 150, peoplePerTeam: 15, teamCount: 10 };
+  const first = generateCampusMap({ ...inputs, seed: 1234 });
+  const repeat = generateCampusMap({ ...inputs, seed: 1234 });
+  const different = generateCampusMap({ ...inputs, seed: 5678 });
+  const natureProps = first.layout.props.filter((prop) => prop.asset.startsWith("nature-"));
+  const wallAssets = new Set(first.layout.walls.flatMap((wall) => wall.asset ? [wall.asset] : []));
+
+  assert.ok(natureProps.length > 0, "generated street landscaping includes assets from the new nature packs");
+  assert.ok(new Set(natureProps.map((prop) => prop.asset)).size >= 4, "one map should mix multiple natural asset types");
+  assert.ok(wallAssets.size >= 10, "generated rooms use a broad set of structural wall models");
+  assert.ok([...wallAssets].every((asset) => ROOM_WALL_MODEL_ASSETS.includes(asset)), "generated wall models are registered as wall assets");
+  assert.ok([...wallAssets].every((asset) => ROOM_PROP_CATALOG.some((item) => item.asset === asset)), "generated wall models resolve to catalog entries");
+  assert.deepEqual(first.layout.props, repeat.layout.props, "the same seed should reproduce the same generated props");
+  assert.notDeepEqual(first.layout.props, different.layout.props, "a new seed should produce a different decoration layout");
+});
+
+test("all generated roads connect to one continuous network", () => {
+  for (const [teamCount, peoplePerTeam] of [[10, 15], [4, 15], [2, 15], [1, 15], [15, 15], [10, 10]] as const) {
+    const { layout } = generateCampusMap({ totalPeople: teamCount * peoplePerTeam, peoplePerTeam, teamCount, seed: 1 });
+    const roads = layout.roadways ?? [];
+    const neighbors = roads.map(() => [] as number[]);
+    for (let first = 0; first < roads.length; first += 1) for (let second = first + 1; second < roads.length; second += 1) {
+      const a = roads[first]!;
+      const b = roads[second]!;
+      const touches = Math.abs(a.x - b.x) <= (a.width + b.width) / 2 + 0.001
+        && Math.abs(a.z - b.z) <= (a.depth + b.depth) / 2 + 0.001;
+      if (touches) { neighbors[first]!.push(second); neighbors[second]!.push(first); }
+    }
+    const connected = new Set<number>([0]);
+    const pending = [0];
+    while (pending.length) for (const next of neighbors[pending.pop()!]!) if (!connected.has(next)) { connected.add(next); pending.push(next); }
+    assert.equal(connected.size, roads.length, `disconnected road segments for ${teamCount} teams × ${peoplePerTeam} people`);
+  }
 });
 
 test("saved room prop layout drives server collision and supports non-blocking decor", () => {

@@ -59,25 +59,7 @@ test("Locate and toolbar view requests leave FPP, persist view, and preserve orb
 const WHEEL_IN_DELTA_PX = -10;
 const TEST_MAP_DIMENSION_M = 100;
 test("threshold map canvas forwards wheel to overview ratio zoom only", () => {
-  const handlers = new Map<string, EventListener>();
-  const canvas = {
-    style: {},
-    width: 0,
-    height: 0,
-    addEventListener(type: string, handler: EventListener) {
-      handlers.set(type, handler);
-    },
-    removeEventListener(type: string) {
-      handlers.delete(type);
-    },
-    setAttribute() {},
-    getContext() {
-      return null;
-    },
-    getBoundingClientRect() {
-      return { left: 0, top: 0 };
-    },
-  } as unknown as HTMLCanvasElement;
+  const { canvas, handlers } = createTestCanvas();
   const originalDocument = globalThis.document;
   globalThis.document = { createElement: () => canvas } as unknown as Document;
   const overviewDeltas: number[] = [];
@@ -125,4 +107,50 @@ test("threshold map canvas forwards wheel to overview ratio zoom only", () => {
   } finally {
     globalThis.document = originalDocument;
   }
+});
+
+function createTestCanvas() {
+  const handlers = new Map<string, EventListener>();
+  const canvas = {
+    style: {},
+    width: 0,
+    height: 0,
+    addEventListener(type: string, handler: EventListener) {
+      handlers.set(type, handler);
+    },
+    removeEventListener(type: string) {
+      handlers.delete(type);
+    },
+    setAttribute() {},
+    getContext() {
+      return null;
+    },
+    getBoundingClientRect() {
+      return { left: 0, top: 0 };
+    },
+  } as unknown as HTMLCanvasElement;
+  return { canvas, handlers };
+}
+
+test("M toggles 2D, V does not, and repeated M is ignored", () => {
+  const { canvas, handlers } = createTestCanvas();
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => canvas } as unknown as Document;
+  const toggles: string[] = [];
+  try {
+    const renderer = new Map2dRenderer(canvas, {
+      pan() {}, walk() {}, selectPlayer() {}, zoom() {}, zoomOverview() {},
+      toggle() { toggles.push("toggle"); },
+    });
+    const keydown = handlers.get("keydown");
+    assert.ok(keydown);
+    const press = (code: string, repeat = false) => keydown({ code, repeat, preventDefault() {} } as unknown as KeyboardEvent);
+    press("KeyV");
+    assert.deepEqual(toggles, []);
+    press("KeyM");
+    assert.deepEqual(toggles, ["toggle"]);
+    press("KeyM", true);
+    assert.deepEqual(toggles, ["toggle"]);
+    renderer.dispose();
+  } finally { globalThis.document = originalDocument; }
 });

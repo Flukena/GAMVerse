@@ -11,6 +11,8 @@ const MAINTAINER_ROLE_LABEL = "maintainer";
 const SECURITY_REVOKED_REASON_LABEL = "Session access was revoked.";
 const OFFICE_CLOSED_REASON_LABEL = "Office session was closed.";
 
+export class ReconnectionSeatRejectedError extends Error {}
+
 export interface ReconnectionSeat {
   reject(error: Error): unknown;
 }
@@ -39,7 +41,7 @@ export class SessionSecurity {
 
   reserve(username: string, sessionId: string, seat: ReconnectionSeat) {
     if (this.closed || this.revokedSessionIds.has(sessionId) || this.activeSession(username) !== sessionId) {
-      seat.reject(new Error(SECURITY_REVOKED_REASON_LABEL));
+      seat.reject(new ReconnectionSeatRejectedError(SECURITY_REVOKED_REASON_LABEL));
       return false;
     }
     this.seatsBySessionId.set(sessionId, seat);
@@ -53,7 +55,7 @@ export class SessionSecurity {
   cancelSeat(sessionId: string, reason: string) {
     const seat = this.seatsBySessionId.get(sessionId);
     this.seatsBySessionId.delete(sessionId);
-    seat?.reject(new Error(reason));
+    seat?.reject(new ReconnectionSeatRejectedError(reason));
   }
 
   revoke(sessionId: string) {

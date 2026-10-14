@@ -59,6 +59,7 @@ Each phase is one PR and leaves the game playable. The server stays authoritativ
 - `Map2dRenderer` class: owns the canvases, dirty state and disposal. `WorldCanvas` calls only `renderer.frame(state)`. WebGL rendering is skipped in 2D.
 
 **Input in 2D**
+- M toggles explicit 2D/3D. V retains the 3D TPP/FPP toggle and is ignored in explicit 2D.
 - The overlay receives pointer events while in `map2d`. Every 2D pointer action goes through `map2dProjection`, never the 3D camera:
   - **click empty floor:** `onAutoMove({x, z}, randomVehicle=false)`, with a destination marker until `auto-move-status`;
   - **click a player:** the existing menu. Overlapping players are resolved by picking the nearest one within `MAP2D_PICK_RADIUS_PX`;

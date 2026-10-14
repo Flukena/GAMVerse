@@ -10,6 +10,7 @@ const CUSTOM_DISTANCE_M = 20;
 const MAP_WIDTH_M = 200;
 const MAP_DEPTH_M = 250;
 const TEST_ASPECT_RATIO = 1.5;
+const TEST_CAMPUS_FIT_DISTANCE_M = 300;
 const CUSTOM_ELEVATION_RAD = Math.PI / 6;
 const DOOR_STEP_M = 0.1;
 const POSE_TOLERANCE_M = 1e-9;
@@ -92,7 +93,7 @@ test("character focus preserves FPP instead of desynchronizing its mode", () => 
 test("entering and leaving a media zone preserves zoom, elevation and the live camera frame", () => {
   const zoomed = cameraReducer(readyState(), { type: "zoom", ratio: FREE_ZOOM_RATIO });
   const before = cameraReducer(zoomed, { type: "elevation", radians: CUSTOM_ELEVATION_RAD });
-  const input = { panTarget: new Vector3(), width: MAP_WIDTH_M, depth: MAP_DEPTH_M, aspect: TEST_ASPECT_RATIO, yaw: 0, pitch: 0 };
+  const input = { panTarget: new Vector3(), width: MAP_WIDTH_M, depth: MAP_DEPTH_M, aspect: TEST_ASPECT_RATIO, yaw: 0, pitch: 0, campusFitDistanceM: TEST_CAMPUS_FIT_DISTANCE_M };
   const initialFrame = computeCameraFrame({ ...input, state: before, localPosition: new Vector3() });
   let state = before;
   for (const z of [DOOR_STEP_M, 0]) {
@@ -120,7 +121,7 @@ test("media-zone crossings preserve FPP, detached, 2D and editor views", () => {
 });
 
 
-test("explicit 2D survives arrival, FPP toggle exits and 3D toggle resets overview", () => {
+test("explicit 2D survives arrival, ignores FPP toggle and 3D toggle resets overview", () => {
   const map = cameraReducer(readyState(), { type: "toggle-2d" });
   assert.equal(map.view, "2d");
   assert.equal(map.mode, "map2d");
@@ -156,4 +157,12 @@ test("toolbar 3D request exits threshold overview even when stored view is 3D", 
   assert.equal(returned.mode, "tpp");
   assert.equal(returned.zoomRatio, CAMPUS_MIN_ZOOM_RATIO);
   assert.equal(cameraReducer(overview, { type: "toggle-2d" }).mode, "tpp");
+});
+
+test("V preserves explicit 2D, while threshold overview can enter FPP", () => {
+  const ready = readyState();
+  const map = cameraReducer(ready, { type: "toggle-2d" });
+  assert.equal(cameraReducer(map, { type: "toggle-fpp" }), map);
+  const overview = cameraReducer(ready, { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO });
+  assert.equal(cameraReducer(overview, { type: "toggle-fpp" }).mode, "fpp");
 });

@@ -76,6 +76,7 @@
 .prop-model-preview { position: relative; overflow: hidden; }
 .prop-model-preview canvas { display: block; width: 100%; height: 100%; }
 .prop-model-preview-status { position: absolute; inset: 0; display: grid; place-items: center; color: #718892; font-size: 10px; pointer-events: none; }
+.wall-asset-model-preview { width: 100%; height: 78px; border-radius: 10px; background: rgba(255,255,255,.55); }
 .modify-props-preview { width: 100%; height: 145px; border-radius: 13px; background: #e7eff0; }
 .modify-props-footprint-diagram { display: flex; align-items: center; justify-content: center; min-height: 42px; margin: 9px 0 12px; overflow: hidden; border: 1px solid rgba(2,48,71,.1); border-radius: 9px; background-image: linear-gradient(to right, rgba(2,48,71,.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(2,48,71,.08) 1px, transparent 1px); background-size: 10px 10px; }
 .modify-props-footprint-diagram span { display: block; max-height: 32px; border: 2px solid #fb8500; background: rgba(255,183,3,.28); }

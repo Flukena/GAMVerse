@@ -6,7 +6,7 @@ import { useOfficeSocial } from "./social/useOfficeSocial";
 import { OfficeSocialOverlay } from "./social/OfficeSocialOverlay";
 import "./social/social.css";
 import { Client, type Room } from "@colyseus/sdk";
-import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, screenMovementToWorld, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
+import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -19,10 +19,12 @@ import { CharacterPreview3D } from "../world/CharacterPreview3D";
 import { QUATERNIUS_CHARACTERS } from "../assets/characterAssets";
 import { Minimap } from "./Minimap";
 import type { Map2dLocateRequest } from "../world/map2d/map2dInput";
-import { MAP2D_SCREEN_YAW_RAD } from "../world/map2d/constants";
 import { WorldCanvas } from "../world/WorldCanvas";
+import type { LockedTurnState } from "../world/camera/lockedMovement";
+import { resolveHeldMovement } from "../world/camera/heldMovement";
 import { FullScreenLoading } from "./FullScreenLoading";
 import { ModifyPropsEditor } from "./ModifyPropsEditor";
+import { PropModelPreview } from "./PropModelPreview";
 import { PageTutorial } from "./PageTutorial";
 import { MaintainerAuditPanel } from "./MaintainerAuditPanel";
 import { MaintainerAccountSafety, type MaintainerAccount } from "./MaintainerAccountSafety";
@@ -177,12 +179,14 @@ function TouchMoveButton({
   label,
   code,
   heldKeysRef,
+  onInputChange,
   disabled = false,
   children,
 }: {
   label: string;
   code: string;
   heldKeysRef: MutableRefObject<Set<string>>;
+  onInputChange?: () => void;
   disabled?: boolean;
   children: string;
 }) {
@@ -190,17 +194,20 @@ function TouchMoveButton({
     if (disabled) return;
     event.preventDefault();
     heldKeysRef.current.add(code);
+    onInputChange?.();
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const release = (event?: ReactPointerEvent<HTMLButtonElement> | ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event && "preventDefault" in event) event.preventDefault();
     heldKeysRef.current.delete(code);
+    onInputChange?.();
   };
   const onKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return;
     if (event.code === "Enter" || event.code === "Space") {
       event.preventDefault();
       heldKeysRef.current.add(code);
+      if (!event.repeat) onInputChange?.();
     }
   };
   const onKeyUp = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -219,7 +226,7 @@ function TouchMoveButton({
       onLostPointerCapture={release}
       onKeyDown={onKeyDown}
       onKeyUp={onKeyUp}
-      onBlur={() => heldKeysRef.current.delete(code)}
+      onBlur={() => { heldKeysRef.current.delete(code); onInputChange?.(); }}
     >
       {children}
     </button>
@@ -299,8 +306,12 @@ export function OfficeApp() {
   const appPausedRef = useRef(false);
   const playersRef = useRef<Map<string, PlayerSnapshot>>(new Map());
   const blasterEventsRef = useRef<BlasterShotEvent[]>([]);
+  const jumpStartedAtRef = useRef(new Map<string, number>());
   const localSessionIdRef = useRef<string | null>(null);
   const cameraYawRef = useRef(DEFAULT_CAMERA_YAW);
+  const cameraBehindCharacterRef = useRef(true);
+  const lockedMovementRef = useRef<LockedTurnState | null>(null);
+  const sendHeldMovementRef = useRef<() => void>(() => {});
   const firstPersonViewRef = useRef(false);
   const map2dViewRef = useRef(false);
   const autoMoveStatusRevisionRef = useRef(0);
@@ -385,6 +396,7 @@ export function OfficeApp() {
   const [mapZoneDoorOffsets, setMapZoneDoorOffsets] = useState<number[]>([0]);
   const [mapZoneWallStyle, setMapZoneWallStyle] = useState<"geometry" | "asset">("geometry");
   const [mapZoneWallAsset, setMapZoneWallAsset] = useState<(typeof ROOM_WALL_MODEL_ASSETS)[number]>(ROOM_WALL_MODEL_ASSETS[0]);
+  const selectedWallAssetDefinition = ROOM_WALL_OPTIONS.find((item) => item.asset === mapZoneWallAsset);
   const [mapZoneWallColor, setMapZoneWallColor] = useState("#023047");
   const [mapZoneDoorStyle, setMapZoneDoorStyle] = useState<"geometry" | "asset">("geometry");
   const [ghostModeEnabled, setGhostModeEnabled] = useState(false);
@@ -1332,9 +1344,10 @@ export function OfficeApp() {
 
   const createOfficeAction = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    let createdOffice: Office | null = null;
     let generatedLayout: RoomLayout;
     try {
-      generatedLayout = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: createOfficePeoplePerTeam, teamCount: generatorTeamCount }).layout;
+      generatedLayout = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: createOfficePeoplePerTeam, teamCount: generatorTeamCount, seed: Math.floor(Math.random() * 0x1_0000_0000) }).layout;
     } catch (cause) {
       setLobbyError(cause instanceof Error ? cause.message : "Check the team and people counts.");
       return;
@@ -1348,6 +1361,7 @@ export function OfficeApp() {
       });
       const result = await response.json() as { office?: Office; error?: string };
       if (!response.ok || !result.office) throw new Error(result.error ?? "Could not create office.");
+      createdOffice = result.office;
       setOfficeName("");
       setOffices((current) => [result.office!, ...current]);
       const mapResponse = await fetch(`${endpoint}/offices/${result.office.id}/map`, {
@@ -1363,8 +1377,17 @@ export function OfficeApp() {
       const propsResult = await propsResponse.json() as { error?: string };
       if (!propsResponse.ok) throw new Error(`Office created and map saved, but its generated props could not be saved: ${propsResult.error ?? "Please open Edit map and save the props again."}`);
       setCreateOfficeDialogOpen(false);
+      selectOffice(result.office);
     } catch (cause) {
       setLobbyError(cause instanceof Error ? cause.message : "Could not create office.");
+      // The office record is already durable after the first request. If map
+      // generation or persistence fails, still take the owner into that office
+      // so they can inspect and repair it instead of leaving an orphaned office
+      // behind in the lobby.
+      if (createdOffice) {
+        setCreateOfficeDialogOpen(false);
+        selectOffice(createdOffice);
+      }
     } finally { setLobbyBusy(false); }
   };
 
@@ -1777,7 +1800,7 @@ export function OfficeApp() {
   const applyGeneratedCampusLayout = async () => {
     if (!officeMapLayout || !activeOffice) return;
     try {
-      const generated = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: generatorPeoplePerTeam, teamCount: generatorTeamCount });
+      const generated = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: generatorPeoplePerTeam, teamCount: generatorTeamCount, seed: Math.floor(Math.random() * 0x1_0000_0000) });
       const propsResponse = await fetch(`${endpoint}/offices/${activeOffice.id}/props`, { credentials: "include" });
       const propsResult = await propsResponse.json() as { props?: RoomLayoutProp[]; configVersion?: number; error?: string };
       if (!propsResponse.ok || !Array.isArray(propsResult.props)) throw new Error(propsResult.error ?? "Could not load existing office props.");
@@ -1949,12 +1972,19 @@ export function OfficeApp() {
     const sendHeldMovement = () => {
       const room = roomRef.current;
       if (!room) return;
-      if (appPausedRef.current || mapEditModeRef.current || modifyPropsOpenRef.current) { sendMovementInput({ x: 0, z: 0, sprint: false }); return; }
-      const heldKeys = heldKeysRef.current;
-      const right = Number(heldKeys.has("KeyD") || heldKeys.has("ArrowRight")) - Number(heldKeys.has("KeyA") || heldKeys.has("ArrowLeft"));
-      const forward = Number(heldKeys.has("KeyW") || heldKeys.has("ArrowUp")) - Number(heldKeys.has("KeyS") || heldKeys.has("ArrowDown"));
-      sendMovementInput({ ...screenMovementToWorld({ x: right, z: forward }, map2dViewRef.current ? MAP2D_SCREEN_YAW_RAD : cameraYawRef.current), sprint: heldKeys.has("ShiftLeft") || heldKeys.has("ShiftRight"), facingYaw: firstPersonViewRef.current ? cameraYawRef.current + Math.PI : undefined });
+      if (appPausedRef.current || mapEditModeRef.current || modifyPropsOpenRef.current) { lockedMovementRef.current = null; sendMovementInput({ x: 0, z: 0, sprint: false }); return; }
+      const localSessionId = localSessionIdRef.current;
+      const localPlayer = localSessionId ? playersRef.current.get(localSessionId) : undefined;
+      const movement = resolveHeldMovement({
+        keys: heldKeysRef.current, map2d: map2dViewRef.current, firstPerson: firstPersonViewRef.current,
+        behindCharacter: cameraBehindCharacterRef.current, cameraYawRad: cameraYawRef.current,
+        playerRotationRad: localPlayer?.rotation, driving: Boolean(localPlayer?.vehicleId),
+        nowMs: performance.now(), lockedTurn: lockedMovementRef.current,
+      });
+      lockedMovementRef.current = movement.lockedTurn;
+      sendMovementInput(movement.input);
     };
+    sendHeldMovementRef.current = sendHeldMovement;
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
@@ -1977,7 +2007,7 @@ export function OfficeApp() {
       if (!heldKeysRef.current.delete(event.code)) return;
       sendHeldMovement();
     };
-    const onBlur = () => { heldKeysRef.current.clear(); sendHeldMovement(); };
+    const onBlur = () => { heldKeysRef.current.clear(); lockedMovementRef.current = null; sendHeldMovement(); };
     // Capture movement keys before buttons or other UI elements can consume
     // them, so WASD continues to drive while the world or HUD has focus.
     window.addEventListener("keydown", onKeyDown, true);
@@ -1999,6 +2029,7 @@ export function OfficeApp() {
         localSessionIdRef.current = room.sessionId;
         setVoiceRealtimeSessionKey(room.sessionId);
         blasterEventsRef.current.length = 0;
+        jumpStartedAtRef.current.clear();
         room.send("weapon-equip", "");
         const storedPet = window.localStorage.getItem(`gammyverse.pet.${connectionUsername}`) ?? "";
         room.send("pet", KENNEY_PET_IDS.includes(storedPet as KenneyPetId) ? storedPet : "");
@@ -2061,6 +2092,9 @@ export function OfficeApp() {
           if (typeof shot.shooterSessionId !== "string" || !vectorIsFinite(shot.start) || !vectorIsFinite(shot.end)) return;
           blasterEventsRef.current.push(shot);
           if (blasterEventsRef.current.length > 24) blasterEventsRef.current.splice(0, blasterEventsRef.current.length - 24);
+        });
+        room.onMessage("player-jump", (payload: unknown) => {
+          if (isValidJumpEvent(payload)) jumpStartedAtRef.current.set(payload.sessionId, performance.now());
         });
         room.onMessage("blaster-hit", (payload: unknown) => {
           if (typeof payload !== "object" || payload === null || !("shooterName" in payload) || typeof payload.shooterName !== "string") return;
@@ -2351,6 +2385,8 @@ export function OfficeApp() {
       disposeReconnection?.();
       if (inputTimer !== undefined) window.clearInterval(inputTimer);
       if (rejoinTimer !== undefined) window.clearTimeout(rejoinTimer);
+      sendHeldMovementRef.current = () => {};
+      lockedMovementRef.current = null;
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
       window.removeEventListener("blur", onBlur);
@@ -2573,7 +2609,7 @@ export function OfficeApp() {
     <main className={`app-shell${characterPanelOpen ? " character-panel-open" : ""}`}>
       <PageTutorial page={meetingEntry ? "meeting" : "office"} username={authUser.username} />
       {profileDialog}
-      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} firstPersonViewRef={firstPersonViewRef} map2dViewRef={map2dViewRef} autoMoveStatusRevisionRef={autoMoveStatusRevisionRef} locateRequestRef={locateRequestRef} propsConfigVersion={modifyPropsOpen ? modifyPropsVersion : mapPropsConfigVersion} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused || Boolean(social.interaction)} map2dDecorationsRef={social.decorationsRef} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} onSelectPlayer={(sessionId, x, y) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") setMapPlayerAction({ sessionId, displayName: player.displayName, x, y }); }} onGhostModeChange={setGhostMode} />
+      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} cameraBehindCharacterRef={cameraBehindCharacterRef} firstPersonViewRef={firstPersonViewRef} map2dDecorationsRef={social.decorationsRef} map2dViewRef={map2dViewRef} locateRequestRef={locateRequestRef} autoMoveStatusRevisionRef={autoMoveStatusRevisionRef} propsConfigVersion={modifyPropsOpen ? modifyPropsVersion : mapPropsConfigVersion} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused || Boolean(social.interaction)} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} jumpStartedAtRef={jumpStartedAtRef} onJump={() => roomRef.current?.send("jump", true)} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); lockedMovementRef.current = null; roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} onSelectPlayer={(sessionId, x, y) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") setMapPlayerAction({ sessionId, displayName: player.displayName, x, y }); }} onGhostModeChange={setGhostMode} />
       <OfficeSocialOverlay social={social} room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} endpoint={endpoint} officeId={activeOffice.id} username={authUser.username} sessionKey={localSessionIdRef.current} chatTarget={chatTarget} chatContainer={chatContainer} chatVisible={activeLeftTab === "chat" && workspacePanelOpen} onUnread={setChatUnread} raised={playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ?? false} doNotDisturb={userStatus === "do-not-disturb"} zoneUsernames={zoneAudioUsernames} />
       <Minimap layout={displayedOfficeMapLayout} configVersion={mapPropsConfigVersion} playersRef={playersRef} firstPersonViewRef={firstPersonViewRef} hidden={mapEditMode || modifyPropsOpen} onPan={(center) => { locateRequestRef.current = { center, requestId: performance.now() }; }} />
       {mapPlayerAction && <div className="map-player-action-backdrop" role="presentation" onPointerDown={() => setMapPlayerAction(null)}>
@@ -2752,7 +2788,7 @@ export function OfficeApp() {
           <label className="map-zone-enclosure-option"><input type="checkbox" checked={mapZoneEnclosureEnabled} onChange={(event) => setMapZoneEnclosureEnabled(event.target.checked)} /> Create enclosing walls and an entrance</label>
           {mapZoneEnclosureEnabled ? <>
             <label>Wall style<select value={mapZoneWallStyle} onChange={(event) => setMapZoneWallStyle(event.target.value as "geometry" | "asset")}><option value="geometry">Geometry wall</option><option value="asset">Asset model</option></select></label>
-            {mapZoneWallStyle === "asset" && <><label>Wall model<select value={mapZoneWallAsset} onChange={(event) => setMapZoneWallAsset(event.target.value as (typeof ROOM_WALL_MODEL_ASSETS)[number])}>{ROOM_WALL_OPTION_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.items.map((item) => <option key={item.asset} value={item.asset}>{item.label}</option>)}</optgroup>)}</select></label>{ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.preview && <img src={ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.preview} alt={`${ROOM_PROP_CATALOG.find((item) => item.asset === mapZoneWallAsset)?.label ?? "Wall model"} preview`} style={{ width: "100%", height: 78, objectFit: "contain", borderRadius: 10, background: "rgba(255,255,255,.55)" }} />}</>}
+            {mapZoneWallStyle === "asset" && <><label>Wall model<select value={mapZoneWallAsset} onChange={(event) => setMapZoneWallAsset(event.target.value as (typeof ROOM_WALL_MODEL_ASSETS)[number])}>{ROOM_WALL_OPTION_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.items.map((item) => <option key={item.asset} value={item.asset}>{item.label}</option>)}</optgroup>)}</select></label>{selectedWallAssetDefinition?.preview ? <img src={selectedWallAssetDefinition.preview} alt={`${selectedWallAssetDefinition.label} preview`} style={{ width: "100%", height: 78, objectFit: "contain", borderRadius: 10, background: "rgba(255,255,255,.55)" }} /> : selectedWallAssetDefinition ? <PropModelPreview item={selectedWallAssetDefinition} className="wall-asset-model-preview" label={`${selectedWallAssetDefinition.label} preview`} /> : null}</>}
             {mapZoneWallStyle === "geometry" && <label>Wall color<input type="color" value={mapZoneWallColor} onChange={(event) => setMapZoneWallColor(event.target.value)} /></label>}
             {mapZoneEntranceKind === "door" && <label>Door frame<select value={mapZoneDoorStyle} onChange={(event) => setMapZoneDoorStyle(event.target.value as "geometry" | "asset")}><option value="geometry">Geometry frame</option><option value="asset">Kenney doorway · Building Kit</option></select></label>}
             <div className="map-zone-wizard-row"><label>Door wall<select value={mapZoneEntranceSide} onChange={(event) => { const side = event.target.value as "north" | "east" | "south" | "west"; setMapZoneEntranceSide(side); changeMapZoneDoorCount(mapZoneDoorCount, side); }}><option value="north">North wall</option><option value="east">East wall</option><option value="south">South wall</option><option value="west">West wall</option></select></label><label>Entrance<select value={mapZoneEntranceKind} onChange={(event) => setMapZoneEntranceKind(event.target.value as "door" | "opening")}><option value="door">Door</option><option value="opening">Open gap</option></select></label></div>
@@ -2775,10 +2811,10 @@ export function OfficeApp() {
       </div>}
 
       <section className="touch-controls" aria-label="Touch movement controls">
-        <TouchMoveButton label="Move forward" code="KeyW" heldKeysRef={heldKeysRef} disabled={appPaused}>↑</TouchMoveButton>
-        <TouchMoveButton label="Move left" code="KeyA" heldKeysRef={heldKeysRef} disabled={appPaused}>←</TouchMoveButton>
-        <TouchMoveButton label="Move backward" code="KeyS" heldKeysRef={heldKeysRef} disabled={appPaused}>↓</TouchMoveButton>
-        <TouchMoveButton label="Move right" code="KeyD" heldKeysRef={heldKeysRef} disabled={appPaused}>→</TouchMoveButton>
+        <TouchMoveButton label="Move forward" code="KeyW" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={appPaused}>↑</TouchMoveButton>
+        <TouchMoveButton label="Left / turn left" code="KeyA" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={appPaused}>←</TouchMoveButton>
+        <TouchMoveButton label="Move backward" code="KeyS" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={appPaused}>↓</TouchMoveButton>
+        <TouchMoveButton label="Right / turn right" code="KeyD" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={appPaused}>→</TouchMoveButton>
       </section>
 
       {focusedVideoTile && videoPopupOpen && createPortal(
@@ -2885,7 +2921,7 @@ export function OfficeApp() {
           }}>Rejoin office</button>
         </div>
       )}
-      <p className="screen-reader-only">Use W, A, S, and D or arrow keys to move. Hold Shift while moving to run. Double-click the ground to travel automatically by a randomly selected vehicle. The camera stays focused on your character.</p>
+      <p className="screen-reader-only">With the camera locked behind your character, W and S walk forward and backward; hold A or D to turn in 15 degree steps. Right-drag to free the camera, and use Focus character to lock it again. Hold Shift while moving to run. Double-click the ground to travel automatically by a randomly selected vehicle.</p>
       {modifyPropsOpen && officeMapLayout && <ModifyPropsEditor open={modifyPropsOpen} officeName={activeOffice.name} dimension={{ width: mapDimensions.width, depth: mapDimensions.depth, gridSize: 1 }} props={modifyPropsDraft} selectedPropId={selectedModifyPropId} placingAsset={selectedModifyPropAsset} error={modifyPropsError} onDraftChange={setModifyPropsDraft} onRequestPlacement={(asset) => setSelectedModifyPropAsset(asset as RoomLayoutProp["asset"] | null)} onSelectProp={setSelectedModifyPropId} onRotateProp={rotateOfficeProp} onSave={saveModifyProps} onCancel={() => { setModifyPropsOpen(false); setSelectedModifyPropAsset(null); setSelectedModifyPropId(null); setModifyPropsError(null); }} />}
       {modifyPropsBusy && <FullScreenLoading label="Loading office props…" />}
     </main>

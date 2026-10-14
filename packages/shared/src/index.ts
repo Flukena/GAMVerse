@@ -15,7 +15,7 @@ export { roomBoundaryWalls, roomWallSolidSegments } from "./roomWallSegments.js"
 export { CAMPUS_COUNTS, CAMPUS_LAYOUT, campusPropPlacements, legacyPortalToCampus } from "./campusLayout.js";
 export type { CampusPropPlacement, CampusRoom, CampusRoomKind } from "./campusLayout.js";
 export { ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, parseRoomPropSeatReference, readRoomLayout, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropPlacementSupport, roomPropSeatAnchors, roomPropSeatReference, type RoomLayoutRoadway, type RoomPropSeatAnchor } from "./roomLayout.js";
-export { generateCampusMap, type CampusMapGeneratorInputs, type GeneratedCampusMap } from "./campusMapGenerator.js";
+export { generateCampusMap, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, type CampusMapGeneratorInputs, type GeneratedCampusMap } from "./campusMapGenerator.js";
 export type { RoomPropDefinition } from "./roomLayout.js";
 export type { OfficePropsSnapshot, RoomLayout, RoomLayoutDoor, RoomLayoutProp, RoomLayoutWall, RoomLayoutZone } from "./roomLayout.js";
 
@@ -23,6 +23,7 @@ export { INPUT_MIN_INTERVAL_MS, INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, RECO
 export type { MovementInput } from "./inputDelivery.js";
 export { FULL_TURN_RAD, shortestAngleDelta, lerpAngle } from "./angles.js";
 export { resolvePlayerFacing } from "./playerFacing.js";
+export { JUMP_DURATION_MS, JUMP_HEIGHT_M, isValidJumpInput, isValidJumpEvent, jumpHeightAt } from "./jump.js";
 
 export const KENNEY_CHARACTER_IDS = [
   "character-female-a", "character-female-b", "character-female-c", "character-female-d", "character-female-e", "character-female-f",
@@ -267,9 +268,9 @@ export const CAMERA = {
   offsetY: 10.5,
   offsetZ: 12.5,
   dragSensitivity: 0.006,
-  zoomStep: 1.5,
-  minZoom: 10,
-  maxZoom: 28,
+  zoomStep: 10,
+  minZoom: 30,
+  maxZoom: 35,
 } as const;
 
 export const DEFAULT_CAMERA_YAW = Math.atan2(CAMERA.offsetX, CAMERA.offsetZ);

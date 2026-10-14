@@ -12,7 +12,7 @@ export const MAP2D_SCALE_BUCKETS_PER_UNIT = 4;
 export const MAP2D_BITMAP_MAX_EDGE_PX = 4096;
 export const LOCATE_PULSE_MS = 3000;
 export const MAP2D_VIEW_STORAGE_KEY = "gammyverse.camera.view";
-export const MAP2D_TOGGLE_KEY_CODE = "KeyV";
+export const MAP2D_TOGGLE_KEY_CODE = "KeyM";
 export const MAP2D_COLORS = {
   outside: "#e9f0ed",
   floor: "#f7f8f4",

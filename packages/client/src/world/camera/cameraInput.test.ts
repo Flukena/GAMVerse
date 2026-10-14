@@ -20,7 +20,7 @@ const EDIT_DEPTH_M = 100;
 const EDIT_CENTER_M = 50;
 const EDIT_STEP_SEC = 1 / 18;
 const EXPECTED_EDIT_STEP_M = 1;
-const LIVE_ZOOM_STEP_M = 1.5;
+const LIVE_ZOOM_STEP_M = 10;
 
 
 test("drag and pointer-lock use the same conservative 75 degree pitch limit", () => {
