@@ -22,6 +22,8 @@ type DropDiagnosticClient = Client & {
   _lastMessageTime?: number;
 };
 
+type MediaZoneTransition = { sessionId: string; zone: RoomLayoutZone; direction: "enter" | "exit" };
+
 type InputState = MovementInput & { sprint: boolean; receivedAt: number };
 type Position = { x: number; z: number };
 type AutoRoute = { points: Position[]; index: number; stalledTicks: number; followTargetSessionId?: string; sitOnArrivalPropId?: string; sitOnArrivalZoneId?: string; destination?: Position; fastWalkFallback?: boolean };
@@ -987,68 +989,79 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private updatePrivateMembership() {
-    const roomTransitions: Array<{ sessionId: string; zone: RoomLayoutZone; direction: "enter" | "exit" }> = [];
+    const roomTransitions: MediaZoneTransition[] = [];
     for (const [sessionId, player] of this.state.players) {
-      const previous = this.mediaZoneBySessionId.get(sessionId) ?? null;
-      const current = player.presence === "online" ? roomLayoutZoneAt({ x: player.x, z: player.z }, this.mapConfig) : null;
-      if (previous?.id === current?.id) continue;
-      if (previous) roomTransitions.push({ sessionId, zone: previous, direction: "exit" });
-      if (current) roomTransitions.push({ sessionId, zone: current, direction: "enter" });
-      const username = this.usernamesBySessionId.get(sessionId);
-      const identity = this.mediaIdentityBySessionId.get(sessionId);
-      if (previous) {
-        this.meetingMembersBySessionId.delete(sessionId);
-        this.privateZoneIdBySessionId.delete(sessionId);
-        if (identity) {
-          if (previous.kind === "meeting") void revokeMeetingParticipant(this.officeId, previous.id, identity).catch(() => console.warn("Could not revoke zone media participant."));
-          else void revokePrivateVoiceParticipant(this.officeId, previous.id, identity).catch(() => console.warn("Could not revoke zone media participant."));
-        }
-        if (username) void recordOfficeActivity(this.officeId, username, previous.kind === "meeting" ? "meeting.leave" : "private.leave", previous.name);
-      }
-      if (current) {
-        this.mediaZoneBySessionId.set(sessionId, current);
-        if (current.kind === "meeting") this.meetingMembersBySessionId.add(sessionId);
-        else this.privateZoneIdBySessionId.set(sessionId, current.id);
-        if (username) void recordOfficeActivity(this.officeId, username, current.kind === "meeting" ? "meeting.enter" : "private.enter", current.name);
-      } else {
-        this.mediaZoneBySessionId.delete(sessionId);
-        this.meetingMembersBySessionId.delete(sessionId);
-        this.privateZoneIdBySessionId.delete(sessionId);
-      }
-      const client = this.clients.find((entry) => entry.sessionId === sessionId);
-      if (client) this.sendMediaZone(client, sessionId);
+      roomTransitions.push(...this.updatePlayerMediaZone(sessionId, player));
     }
-    // Notify current occupants after membership updates so people who already
-    // left are not alerted. The entrant also gets their own arrival cue.
-    for (const transition of roomTransitions) {
-      // The person entering should hear the arrival cue too. They were
-      // previously excluded from the occupant broadcast below, and may be the
-      // only person in a newly entered room.
-      if (transition.direction === "enter") {
-        const enteringClient = this.clients.find((client) => client.sessionId === transition.sessionId);
-        enteringClient?.send("room-presence", {
-          direction: "enter",
-          displayName: this.state.players.get(transition.sessionId)?.displayName ?? "Someone",
-          zoneId: transition.zone.id,
-        });
-      }
-      for (const [occupantSessionId, occupantZone] of this.mediaZoneBySessionId) {
-        if (occupantSessionId === transition.sessionId || occupantZone.id !== transition.zone.id) continue;
-        const occupant = this.clients.find((client) => client.sessionId === occupantSessionId);
-        occupant?.send("room-presence", {
-          direction: transition.direction,
-          displayName: this.state.players.get(transition.sessionId)?.displayName ?? "Someone",
-          zoneId: transition.zone.id,
-        });
-      }
-    }
-    // A lock belongs to the active occupants. Clear it once the last occupant
-    // leaves so a zone cannot become permanently inaccessible.
+    for (const transition of roomTransitions) this.notifyMediaZoneTransition(transition);
+    // A lock belongs to active occupants; clear it once the last occupant leaves.
     const previousLocks = this.lockedZoneIds.size;
     this.lockedZoneIds = new Set([...this.lockedZoneIds].filter((zoneId) =>
       [...this.mediaZoneBySessionId.values()].some((zone) => zone.id === zoneId),
     ));
     if (this.lockedZoneIds.size !== previousLocks) this.broadcast("zone-locks", { zoneIds: [...this.lockedZoneIds] });
+  }
+
+  private updatePlayerMediaZone(sessionId: string, player: PlayerState): MediaZoneTransition[] {
+    const previous = this.mediaZoneBySessionId.get(sessionId) ?? null;
+    const current = player.presence === "online" ? roomLayoutZoneAt({ x: player.x, z: player.z }, this.mapConfig, previous?.id) : null;
+    if (previous?.id === current?.id) return [];
+    const transitions: MediaZoneTransition[] = [];
+    if (previous) {
+      transitions.push({ sessionId, zone: previous, direction: "exit" });
+      this.exitMediaZone(sessionId, previous);
+    }
+    this.meetingMembersBySessionId.delete(sessionId);
+    this.privateZoneIdBySessionId.delete(sessionId);
+    if (current) {
+      transitions.push({ sessionId, zone: current, direction: "enter" });
+      this.mediaZoneBySessionId.set(sessionId, current);
+      if (current.kind === "meeting") this.meetingMembersBySessionId.add(sessionId);
+      else this.privateZoneIdBySessionId.set(sessionId, current.id);
+      this.recordMediaZoneActivity(sessionId, current, "enter");
+    } else this.mediaZoneBySessionId.delete(sessionId);
+    const client = this.clients.find((entry) => entry.sessionId === sessionId);
+    if (client) this.sendMediaZone(client, sessionId);
+    return transitions;
+  }
+
+  private exitMediaZone(sessionId: string, zone: RoomLayoutZone) {
+    const identity = this.mediaIdentityBySessionId.get(sessionId);
+    if (identity) {
+      const revocation = zone.kind === "meeting"
+        ? revokeMeetingParticipant(this.officeId, zone.id, identity)
+        : revokePrivateVoiceParticipant(this.officeId, zone.id, identity);
+      void revocation.catch(() => console.warn("Could not revoke zone media participant."));
+    }
+    this.recordMediaZoneActivity(sessionId, zone, "exit");
+  }
+
+  private recordMediaZoneActivity(sessionId: string, zone: RoomLayoutZone, direction: "enter" | "exit") {
+    const username = this.usernamesBySessionId.get(sessionId);
+    if (!username) return;
+    const activityType = zone.kind === "meeting"
+      ? direction === "enter" ? "meeting.enter" : "meeting.leave"
+      : direction === "enter" ? "private.enter" : "private.leave";
+    void recordOfficeActivity(this.officeId, username, activityType, zone.name);
+  }
+
+  private notifyMediaZoneTransition(transition: MediaZoneTransition) {
+    // Notify after membership updates. Entrants hear their own arrival too.
+    if (transition.direction === "enter") {
+      this.clients.find((client) => client.sessionId === transition.sessionId)?.send("room-presence", {
+        direction: "enter",
+        displayName: this.state.players.get(transition.sessionId)?.displayName ?? "Someone",
+        zoneId: transition.zone.id,
+      });
+    }
+    for (const [occupantSessionId, occupantZone] of this.mediaZoneBySessionId) {
+      if (occupantSessionId === transition.sessionId || occupantZone.id !== transition.zone.id) continue;
+      this.clients.find((client) => client.sessionId === occupantSessionId)?.send("room-presence", {
+        direction: transition.direction,
+        displayName: this.state.players.get(transition.sessionId)?.displayName ?? "Someone",
+        zoneId: transition.zone.id,
+      });
+    }
   }
 
   private sendMediaZone(client: Client, sessionId: string) {

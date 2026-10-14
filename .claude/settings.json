@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$HOME/.claude/hooks/require-custom-agent.sh\"; [ -x \"$f\" ] || exit 0; exec \"$f\""
+          }
+        ]
+      }
+    ]
+  }
+}

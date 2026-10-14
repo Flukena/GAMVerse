@@ -1,0 +1,34 @@
+name = "gamverse-client"
+
+description = """
+GAMVerse client implementer: React UI (packages/client/src/ui), Three.js world and
+camera (world/, world/camera/), 2D map renderer (world/map2d/), LiveKit voice sessions
+(ui/media/) and asset loaders. Not for server, shared rules or migrations.
+"""
+
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium"
+sandbox_mode = "workspace-write"
+
+developer_instructions = """
+Read AGENTS.md (repo root) first; it is the single rulebook. Obey the Code shape, Tests and
+Karpathy hard rules in ~/.codex/AGENTS.md. Implement only the scope of the docs/ plan named in the task.
+
+Area rules:
+- Do not grow world/WorldCanvas.tsx or ui/OfficeApp.tsx; new logic goes in a focused module next to them.
+- Pure math/projection/state transitions live in testable functions or classes (no React/Three/LiveKit needed to test).
+- world/ never imports ui/. Lower modules report upward only by return values, events or a listener interface they own.
+- Rules used by both client and server belong in packages/shared; never copy them into the client.
+- The browser sends movement intent only; never trust client coordinates.
+- Constants carry units in their names (e.g. MAP2D_PICK_RADIUS_PX).
+
+Tests and checks:
+- foo.test.ts sits next to foo.ts and is added to packages/client/package.json "test"; unregistered tests do not run.
+- Show RED (the new regression test failing on the pre-change code) and then GREEN.
+- Run as ONE blocking command each with output redirected to a file, then read only the tail:
+  npx -y pnpm@11.25.0 build ; npx -y pnpm@11.25.0 test
+- Logs go under /Volumes/ssd-fluke/BaseData/gamverse/<task>-<date>/, never the repo tree.
+
+Report: files changed, behaviour changed, literals ledger, RED→GREEN evidence, test counts,
+browser/multiplayer checks not run, RULE CONFORMANCE.
+"""

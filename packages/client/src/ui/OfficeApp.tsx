@@ -3,6 +3,10 @@ import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import { createVoiceRoom } from "./media/voiceRoomSdk";
+import { VoiceRoomSession, VOICE_MEDIA_STOPPED_LABEL, type VoiceSessionListener } from "./media/voiceRoomSession";
+import { resolveVoiceTarget, type VoiceTargetInputs } from "./media/voiceTarget";
+import { fetchVoiceToken } from "./media/voiceToken";
 import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance } from "livekit-client";
 import { CharacterPreview3D } from "../world/CharacterPreview3D";
 import { QUATERNIUS_CHARACTERS } from "../assets/characterAssets";
@@ -15,7 +19,7 @@ import { MaintainerAccountSafety, type MaintainerAccount } from "./MaintainerAcc
 import { MaintainerSystemPanel } from "./MaintainerSystemPanel";
 import { playSocialNotificationSound, unlockSocialNotificationAudio } from "../audio/notificationSounds";
 import { setNoiseReduction, type NoiseReductionResult } from "../audio/noiseReduction";
-import { DROP_EVENT_LABEL, LEAVE_EVENT_LABEL, CONSENTED_CLOSE_CODE, FRESH_JOIN_DELAY_MS, FRESH_JOIN_MAX_DELAY_MS, FRESH_JOIN_MAX_RETRIES_COUNT, RECONNECT_INITIAL_DELAY_MS, REMOVED_CLOSE_CODE, RETRY_BACKOFF_MULTIPLIER, installOfficeReconnection, shouldFreshJoin } from "./connection/officeReconnection";
+import { DROP_EVENT_LABEL, LEAVE_EVENT_LABEL, CONSENTED_CLOSE_CODE, REPLACED_CLOSE_CODE, FRESH_JOIN_DELAY_MS, FRESH_JOIN_MAX_DELAY_MS, FRESH_JOIN_MAX_RETRIES_COUNT, RECONNECT_INITIAL_DELAY_MS, REMOVED_CLOSE_CODE, RETRY_BACKOFF_MULTIPLIER, installOfficeReconnection, shouldFreshJoin } from "./connection/officeReconnection";
 
 const ROOM_WALL_OPTIONS = ROOM_WALL_MODEL_ASSETS.map((asset) => ROOM_PROP_CATALOG.find((item) => item.asset === asset)).filter((item): item is (typeof ROOM_PROP_CATALOG)[number] => item !== undefined);
 const ROOM_WALL_OPTION_GROUPS = ROOM_WALL_OPTIONS.reduce<Array<{ label: string; items: typeof ROOM_WALL_OPTIONS }>>((groups, item) => {
@@ -25,6 +29,10 @@ const ROOM_WALL_OPTION_GROUPS = ROOM_WALL_OPTIONS.reduce<Array<{ label: string; 
   else groups.push({ label, items: [item] });
   return groups;
 }, []);
+
+const VOICE_MICROPHONE_SOURCE = "microphone";
+const VOICE_AUDIO_KIND = "audio";
+const VOICE_VIDEO_KIND = "video";
 
 type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 type CharacterSelectionId = KenneyCharacterId | `custom-${string}`;
@@ -80,7 +88,12 @@ type VideoTileItem = { key: string; track: LocalVideoTrack | RemoteVideoTrack; l
 type ManagedAccount = MaintainerAccount;
 
 const movementKeys = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"];
-const VOICE_AUDIO_CAPTURE_OPTIONS = { autoGainControl: true, echoCancellation: true, noiseSuppression: true, voiceIsolation: true };
+const CAMERA_MAX_BITRATE_BPS = 1_500_000;
+const SCREEN_MAX_BITRATE_BPS = 4_000_000;
+const MEDIA_MAX_FRAMERATE_FPS = 30;
+const MEDIA_DEGRADATION_PREFERENCE = "maintain-resolution";
+const RECONNECT_VOICE_LABEL = "Reconnect voice";
+const DISMISS_MEDIA_NOTICE_LABEL = "Dismiss";
 
 function usePanelPresence(isOpen: boolean, exitDuration = 260) {
   const [isMounted, setIsMounted] = useState(isOpen);
@@ -260,15 +273,19 @@ export function OfficeApp() {
   const meetingLinkOfficeId = getMeetingRouteOfficeId(routePath);
   const client = useMemo(() => new Client(endpoint), []);
   const roomRef = useRef<Room<OfficeStateType> | null>(null);
+  const [voiceRealtimeSessionKey, setVoiceRealtimeSessionKey] = useState<string | null>(null);
+  const voiceTeardownRef = useRef<Promise<void>>(Promise.resolve());
+  const voiceMutedIntentRef = useRef(true);
+  const voiceSessionRef = useRef<VoiceRoomSession<LiveKitRoomInstance> | null>(null);
+  const voiceTargetInputsRef = useRef<VoiceTargetInputs>({ officeId: null, sessionKey: null, paused: true, meetingZoneId: null, privateZoneId: null, proximityGroupId: null });
+  const [voiceRetryExhausted, setVoiceRetryExhausted] = useState(false);
+  const [voiceMediaNotice, setVoiceMediaNotice] = useState<string | null>(null);
   const liveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
   const privateLiveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
-  const privateRoomZoneIdRef = useRef<string | null>(null);
   const proximityLiveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
-  const proximityRoomGroupRef = useRef<string | null>(null);
   const proximityAudioTracksRef = useRef(new Map<string, ProximityAudioTrack>());
   const speakingUsernamesRef = useRef(new Set<string>());
   const speakingByVoiceRoomRef = useRef(new Map<LiveKitRoomInstance, Set<string>>());
-  const proximityJoiningGroupRef = useRef<string | null>(null);
   const audioOutputRef = useRef<HTMLDivElement>(null);
   const inboundAudioMutedRef = useRef(false);
   const appPausedRef = useRef(false);
@@ -817,40 +834,6 @@ export function OfficeApp() {
     }
   };
 
-  const leaveMeetingVoice = () => {
-    const room = liveKitRoomRef.current;
-    liveKitRoomRef.current = null;
-    if (room) clearVoiceRoomSpeakers(room);
-    setVoiceConnected(false); setVoiceMuted(false);
-    setCameraEnabled(false); setScreenShareEnabled(false);
-    setVideoTiles((tiles) => tiles.filter((tile) => !tile.local));
-    if (room) void room.disconnect();
-  };
-
-  const leaveProximityVoice = () => {
-    const room = proximityLiveKitRoomRef.current;
-    proximityLiveKitRoomRef.current = null;
-    if (room) clearVoiceRoomSpeakers(room);
-    proximityRoomGroupRef.current = null;
-    proximityJoiningGroupRef.current = null;
-    proximityAudioTracksRef.current.clear();
-    setProximityVoiceConnected(false); setProximityVoiceMuted(false);
-    setCameraEnabled(false); setScreenShareEnabled(false);
-    setVideoTiles((tiles) => tiles.filter((tile) => !tile.local));
-    if (room) void room.disconnect();
-  };
-
-  const leavePrivateVoice = () => {
-    const room = privateLiveKitRoomRef.current;
-    privateLiveKitRoomRef.current = null;
-    if (room) clearVoiceRoomSpeakers(room);
-    privateRoomZoneIdRef.current = null;
-    setPrivateVoiceConnected(false); setPrivateVoiceMuted(false);
-    setCameraEnabled(false); setScreenShareEnabled(false);
-    setVideoTiles((tiles) => tiles.filter((tile) => !tile.local));
-    if (room) void room.disconnect();
-  };
-
   const rebuildSpeakingUsernames = () => {
     const next = new Set<string>();
     for (const usernames of speakingByVoiceRoomRef.current.values()) {
@@ -867,22 +850,25 @@ export function OfficeApp() {
     rebuildSpeakingUsernames();
   };
 
-  const clearVoiceRoomSpeakers = (room: LiveKitRoomInstance) => {
-    speakingByVoiceRoomRef.current.delete(room);
-    rebuildSpeakingUsernames();
-  };
+  const isCurrentVoiceRoom = (room: LiveKitRoomInstance) => [liveKitRoomRef.current, privateLiveKitRoomRef.current, proximityLiveKitRoomRef.current].includes(room);
 
-  const configureNoiseReductionForTrack = async (track: LocalAudioTrack) => {
-    const requestedEnabled = noiseReductionEnabledRef.current;
-    if (requestedEnabled) { setNoiseReductionStatus("checking"); setNoiseReductionDetails(""); }
-    try {
-      const result = await setNoiseReduction(track, requestedEnabled);
+  const reportNoiseReductionResult = (result: NoiseReductionResult) => {
       if (noiseReductionEnabledRef.current) {
         setNoiseReductionStatus(result.supported === false ? "fallback" : result.enabled ? "enabled" : "checking");
         if (result.supported === false) setNoiseReductionDetails(result.reason ?? "RNNoise is unavailable. Built-in browser noise reduction remains active.");
       }
       else setNoiseReductionStatus("disabled");
+  };
+
+  const configureNoiseReductionForTrack = async (room: LiveKitRoomInstance, track: LocalAudioTrack) => {
+    const requestedEnabled = noiseReductionEnabledRef.current;
+    if (requestedEnabled) { setNoiseReductionStatus("checking"); setNoiseReductionDetails(""); }
+    try {
+      const result = await setNoiseReduction(track, requestedEnabled);
+      if (!isCurrentVoiceRoom(room)) return;
+      reportNoiseReductionResult(result);
     } catch (cause) {
+      if (!isCurrentVoiceRoom(room)) return;
       console.warn("Could not apply microphone noise reduction; keeping browser audio processing enabled.", cause);
       setNoiseReductionStatus(noiseReductionEnabledRef.current ? "fallback" : "disabled");
       setNoiseReductionDetails(cause instanceof Error ? cause.message : String(cause));
@@ -919,17 +905,6 @@ export function OfficeApp() {
     }
     else if (results.some((result) => result.enabled)) { setNoiseReductionStatus("enabled"); setNoiseReductionDetails(""); }
     else setNoiseReductionStatus("checking");
-  };
-
-  const resetLocalMediaForVoiceRoom = async (room: LiveKitRoomInstance) => {
-    // Joining a voice room subscribes to other people, but must not request or publish local media.
-    await Promise.all([
-      room.localParticipant.setMicrophoneEnabled(false),
-      room.localParticipant.setCameraEnabled(false),
-      room.localParticipant.setScreenShareEnabled(false),
-    ]);
-    setCameraEnabled(false);
-    setScreenShareEnabled(false);
   };
 
   const syncLocalVideoTiles = (room: LiveKitRoomInstance) => {
@@ -974,190 +949,6 @@ export function OfficeApp() {
       const fade = Math.max(0, Math.min(1, (CAMPUS_WORLD.proximityRadius - distance) / (CAMPUS_WORLD.proximityRadius - CAMPUS_WORLD.voiceFullVolumeRadius)));
       track.setVolume(fade * fade * (3 - 2 * fade));
     }
-  };
-
-  const joinProximityVoice = async (groupId: string) => {
-    if (appPausedRef.current || !activeOffice || meetingZoneActiveRef.current || proximityLiveKitRoomRef.current || proximityJoiningGroupRef.current === groupId) return;
-    proximityJoiningGroupRef.current = groupId;
-    setProximityVoiceBusy(true); setVoiceError(null);
-    let room: LiveKitRoomInstance | null = null;
-    try {
-      const response = await fetch(`${endpoint}/media/proximity-token`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ officeId: activeOffice.id }) });
-      const result = await response.json() as { url?: string; token?: string; groupId?: string; error?: string };
-      if (!response.ok || !result.url || !result.token || !result.groupId) throw new Error(result.error ?? "Could not authorize nearby voice.");
-      if (appPausedRef.current || meetingZoneActiveRef.current || result.groupId !== groupId || proximityGroupIdRef.current !== groupId) return;
-      const { Room: LiveKitRoom, RoomEvent, Track } = await import("livekit-client");
-      room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
-      proximityLiveKitRoomRef.current = room;
-      proximityRoomGroupRef.current = groupId;
-      room.on(RoomEvent.ActiveSpeakersChanged, () => updateVoiceRoomSpeakers(room!));
-      room.on(RoomEvent.LocalTrackPublished, (publication) => {
-        syncLocalVideoTiles(room!);
-        if (String(publication.source).toLowerCase() === "microphone" && publication.track) void configureNoiseReductionForTrack(publication.track as LocalAudioTrack);
-      });
-      room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideoTiles(room!));
-      room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-        const username = participant.name || participant.identity.replace(/-[a-f0-9]{16}$/i, "");
-        if (track.kind === Track.Kind.Audio) {
-          proximityAudioTracksRef.current.set(participant.identity, { track: track as RemoteAudioTrack, username });
-          updateProximityAudioVolumes();
-          attachRemoteAudio(track as RemoteAudioTrack);
-        } else if (track.kind === Track.Kind.Video) {
-          const screen = String(track.source).toLowerCase().includes("screen");
-          addRemoteVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false });
-        }
-      });
-      room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
-        const subscribedAudio = proximityAudioTracksRef.current.get(participant.identity);
-        if (subscribedAudio?.track === track) proximityAudioTracksRef.current.delete(participant.identity);
-        track.detach().forEach((element) => element.remove());
-        setVideoTiles((tiles) => tiles.filter((tile) => tile.track !== track));
-      });
-      room.on(RoomEvent.Disconnected, () => {
-        if (proximityLiveKitRoomRef.current === room) {
-          proximityLiveKitRoomRef.current = null;
-          proximityRoomGroupRef.current = null;
-          proximityAudioTracksRef.current.clear();
-          clearVoiceRoomSpeakers(room!);
-          setProximityVoiceConnected(false); setProximityVoiceMuted(false);
-        }
-      });
-      await room.connect(result.url, result.token);
-      updateVoiceRoomSpeakers(room);
-      if (appPausedRef.current || meetingZoneActiveRef.current || proximityGroupIdRef.current !== groupId) { await room.disconnect(); return; }
-      await resetLocalMediaForVoiceRoom(room);
-      if (appPausedRef.current) { await room.disconnect(); return; }
-      setProximityVoiceConnected(true); setProximityVoiceMuted(true);
-    } catch (cause) {
-      room?.disconnect();
-      if (proximityLiveKitRoomRef.current === room) leaveProximityVoice();
-      setVoiceError(cause instanceof Error ? cause.message : "Could not connect to nearby voice.");
-    } finally {
-      if (proximityJoiningGroupRef.current === groupId) proximityJoiningGroupRef.current = null;
-      setProximityVoiceBusy(false);
-    }
-  };
-
-  const toggleProximityMute = async () => {
-    if (appPausedRef.current) return;
-    const room = proximityLiveKitRoomRef.current;
-    if (!room) return;
-    const nextMuted = !proximityVoiceMuted;
-    try { await room.localParticipant.setMicrophoneEnabled(!nextMuted, VOICE_AUDIO_CAPTURE_OPTIONS); setProximityVoiceMuted(nextMuted); }
-    catch (cause) { setVoiceError(cause instanceof Error ? cause.message : "Could not change microphone state."); }
-  };
-
-  const joinPrivateVoice = async (zoneId: string) => {
-    if (appPausedRef.current || !activeOffice || meetingZoneActiveRef.current || privateLiveKitRoomRef.current) return;
-    setPrivateVoiceBusy(true); setVoiceError(null);
-    let room: LiveKitRoomInstance | null = null;
-    try {
-      const response = await fetch(`${endpoint}/media/private-token`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ officeId: activeOffice.id, zoneId }) });
-      const result = await response.json() as { url?: string; token?: string; error?: string };
-      if (!response.ok || !result.url || !result.token) throw new Error(result.error ?? "Could not authorize private voice.");
-      if (appPausedRef.current || meetingZoneActiveRef.current || privateZoneIdRef.current !== zoneId) return;
-      const { Room: LiveKitRoom, RoomEvent, Track } = await import("livekit-client");
-      room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
-      privateLiveKitRoomRef.current = room;
-      privateRoomZoneIdRef.current = zoneId;
-      room.on(RoomEvent.ActiveSpeakersChanged, () => updateVoiceRoomSpeakers(room!));
-      room.on(RoomEvent.LocalTrackPublished, (publication) => {
-        syncLocalVideoTiles(room!);
-        if (String(publication.source).toLowerCase() === "microphone" && publication.track) void configureNoiseReductionForTrack(publication.track as LocalAudioTrack);
-      });
-      room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideoTiles(room!));
-      room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-        const username = participant.name || participant.identity.replace(/-[a-f0-9]{16}$/i, "");
-        if (track.kind === Track.Kind.Audio) {
-          attachRemoteAudio(track as RemoteAudioTrack);
-        } else if (track.kind === Track.Kind.Video) {
-          const screen = String(track.source).toLowerCase().includes("screen");
-          addRemoteVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false });
-        }
-      });
-      room.on(RoomEvent.TrackUnsubscribed, (track) => { track.detach().forEach((element) => element.remove()); setVideoTiles((tiles) => tiles.filter((tile) => tile.track !== track)); });
-      room.on(RoomEvent.Disconnected, () => {
-        clearVoiceRoomSpeakers(room!);
-        if (privateLiveKitRoomRef.current === room) privateLiveKitRoomRef.current = null;
-        setPrivateVoiceConnected(false); setPrivateVoiceMuted(false);
-      });
-      await room.connect(result.url, result.token);
-      updateVoiceRoomSpeakers(room);
-      if (appPausedRef.current || meetingZoneActiveRef.current || privateZoneIdRef.current !== zoneId) { await room.disconnect(); return; }
-      await resetLocalMediaForVoiceRoom(room);
-      if (appPausedRef.current) { await room.disconnect(); return; }
-      setPrivateVoiceConnected(true); setPrivateVoiceMuted(true);
-    } catch (cause) {
-      room?.disconnect();
-      if (privateLiveKitRoomRef.current === room) leavePrivateVoice();
-      setVoiceError(cause instanceof Error ? cause.message : "Could not connect to private voice.");
-    } finally { setPrivateVoiceBusy(false); }
-  };
-
-  const togglePrivateMute = async () => {
-    if (appPausedRef.current) return;
-    const room = privateLiveKitRoomRef.current;
-    if (!room) return;
-    const nextMuted = !privateVoiceMuted;
-    try { await room.localParticipant.setMicrophoneEnabled(!nextMuted, VOICE_AUDIO_CAPTURE_OPTIONS); setPrivateVoiceMuted(nextMuted); }
-    catch (cause) { setVoiceError(cause instanceof Error ? cause.message : "Could not change microphone state."); }
-  };
-
-  const joinMeetingVoice = async () => {
-    if (appPausedRef.current || !activeOffice || !meetingZoneActive || liveKitRoomRef.current) return;
-    setVoiceBusy(true); setVoiceError(null);
-    let room: LiveKitRoomInstance | null = null;
-    try {
-      const response = await fetch(`${endpoint}/media/meeting-token`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ officeId: activeOffice.id, roomKey: meetingZoneId ?? "lobby" }) });
-      const result = await response.json() as { url?: string; token?: string; error?: string };
-      if (!response.ok || !result.url || !result.token) throw new Error(result.error ?? "Could not authorize meeting audio.");
-      if (appPausedRef.current) return;
-      const { Room: LiveKitRoom, RoomEvent, Track } = await import("livekit-client");
-      room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
-      liveKitRoomRef.current = room;
-      room.on(RoomEvent.ActiveSpeakersChanged, () => updateVoiceRoomSpeakers(room!));
-      room.on(RoomEvent.LocalTrackPublished, (publication) => {
-        syncLocalVideoTiles(room!);
-        if (String(publication.source).toLowerCase() === "microphone" && publication.track) void configureNoiseReductionForTrack(publication.track as LocalAudioTrack);
-      });
-      room.on(RoomEvent.LocalTrackUnpublished, () => syncLocalVideoTiles(room!));
-      room.on(RoomEvent.TrackSubscribed, (track) => {
-        if (track.kind === Track.Kind.Audio) {
-          attachRemoteAudio(track as RemoteAudioTrack);
-        } else if (track.kind === Track.Kind.Video) {
-          const participant = [...room!.remoteParticipants.values()].find((candidate) => [...candidate.trackPublications.values()].some((publication) => publication.track === track));
-          if (participant) {
-            const screen = String(track.source).toLowerCase().includes("screen");
-            addRemoteVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${participant.name || participant.identity} · Screen` : participant.name || participant.identity, local: false });
-          }
-        }
-      });
-      room.on(RoomEvent.TrackUnsubscribed, (track) => { track.detach().forEach((element) => element.remove()); setVideoTiles((tiles) => tiles.filter((tile) => tile.track !== track)); });
-      room.on(RoomEvent.Disconnected, () => {
-        clearVoiceRoomSpeakers(room!);
-        if (liveKitRoomRef.current === room) liveKitRoomRef.current = null;
-        setVoiceConnected(false); setVoiceMuted(false);
-      });
-      await room.connect(result.url, result.token);
-      updateVoiceRoomSpeakers(room);
-      if (appPausedRef.current) { await room.disconnect(); return; }
-      await resetLocalMediaForVoiceRoom(room);
-      if (appPausedRef.current) { await room.disconnect(); return; }
-      setVoiceConnected(true); setVoiceMuted(true);
-    } catch (cause) {
-      room?.disconnect();
-      if (liveKitRoomRef.current === room) liveKitRoomRef.current = null;
-      setVoiceConnected(false);
-      setVoiceError(cause instanceof Error ? cause.message : "Could not connect to meeting audio.");
-    } finally { setVoiceBusy(false); }
-  };
-const toggleMeetingMute = async () => {
-    if (appPausedRef.current) return;
-    const room = liveKitRoomRef.current;
-    if (!room) return;
-    const nextMuted = !voiceMuted;
-    try { await room.localParticipant.setMicrophoneEnabled(!nextMuted, VOICE_AUDIO_CAPTURE_OPTIONS); setVoiceMuted(nextMuted); }
-    catch (cause) { setVoiceError(cause instanceof Error ? cause.message : "Could not change microphone state."); }
   };
 
   const selectOffice = (office: Office, syncUrl = true) => {
@@ -1269,63 +1060,103 @@ const toggleMeetingMute = async () => {
     return () => { cancelled = true; };
   }, [authUser?.username, activeOffice?.id]);
 
-  const activeVoiceRoom = () => meetingZoneActive ? liveKitRoomRef.current : privateZoneId ? privateLiveKitRoomRef.current : proximityLiveKitRoomRef.current;
-  const toggleCamera = async () => {
-    if (appPausedRef.current) return;
-    const room = activeVoiceRoom();
-    if (!room) return;
-    try {
-      await room.localParticipant.setCameraEnabled(!cameraEnabled, CAMERA_CAPTURE_720P30, {
-        videoEncoding: { maxBitrate: 1_500_000, maxFramerate: 30 },
-        degradationPreference: "maintain-resolution",
-      });
-      setCameraEnabled(!cameraEnabled);
+  const toggleMicrophone = () => voiceSessionRef.current?.setMuted(!selectedMicMuted);
+  const toggleCamera = () => voiceSessionRef.current?.control(async (room) => {
+    await room.localParticipant.setCameraEnabled(!cameraEnabled, CAMERA_CAPTURE_720P30, {
+      videoEncoding: { maxBitrate: CAMERA_MAX_BITRATE_BPS, maxFramerate: MEDIA_MAX_FRAMERATE_FPS },
+      degradationPreference: MEDIA_DEGRADATION_PREFERENCE,
+    });
+  });
+  const toggleScreenShare = () => voiceSessionRef.current?.control(async (room) => {
+    await room.localParticipant.setScreenShareEnabled(!screenShareEnabled, SCREEN_CAPTURE_1080P30, {
+      screenShareEncoding: { maxBitrate: SCREEN_MAX_BITRATE_BPS, maxFramerate: MEDIA_MAX_FRAMERATE_FPS },
+      degradationPreference: MEDIA_DEGRADATION_PREFERENCE,
+    });
+  });
+
+  const voiceListener: VoiceSessionListener<LiveKitRoomInstance> = {
+    stateChanged: (state) => {
+      voiceMutedIntentRef.current = state.muted;
+      setVoiceConnected(state.connected && state.target?.kind === "meeting");
+      setPrivateVoiceConnected(state.connected && state.target?.kind === "private");
+      setProximityVoiceConnected(state.connected && state.target?.kind === "proximity");
+      setVoiceMuted(state.muted); setPrivateVoiceMuted(state.muted); setProximityVoiceMuted(state.muted);
+      setVoiceBusy(state.busy); setPrivateVoiceBusy(state.busy); setProximityVoiceBusy(state.busy);
+      setVoiceError(state.error?.message ?? null);
+      setVoiceRetryExhausted(state.retryExhausted);
+    },
+    roomChanged: (room, target) => {
+      speakingByVoiceRoomRef.current.clear();
+      speakingUsernamesRef.current.clear();
+      proximityAudioTracksRef.current.clear();
+      audioOutputRef.current?.replaceChildren();
+      liveKitRoomRef.current = target?.kind === "meeting" ? room : null;
+      privateLiveKitRoomRef.current = target?.kind === "private" ? room : null;
+      proximityLiveKitRoomRef.current = target?.kind === "proximity" ? room : null;
+      setVideoTiles([]); setCameraEnabled(false); setScreenShareEnabled(false);
+    },
+    speakersChanged: updateVoiceRoomSpeakers,
+    localTracksChanged: (room, publication) => {
       syncLocalVideoTiles(room);
-    } catch (cause) { setVoiceError(cause instanceof Error ? cause.message : "Could not access the camera."); }
+      if (publication?.source === VOICE_MICROPHONE_SOURCE && publication.audioTrack) void configureNoiseReductionForTrack(room, publication.audioTrack);
+    },
+    trackSubscribed: (_room, track, _publication, participant, target) => {
+      const username = voiceParticipantUsername(participant);
+      if (track.kind === VOICE_AUDIO_KIND) {
+        const audioTrack = track as RemoteAudioTrack;
+        if (target.kind === "proximity") {
+          proximityAudioTracksRef.current.set(participant.identity, { track: audioTrack, username });
+          updateProximityAudioVolumes();
+        }
+        attachRemoteAudio(audioTrack);
+      } else if (track.kind === VOICE_VIDEO_KIND) {
+        const screen = String(track.source).toLowerCase().includes("screen");
+        addRemoteVideoTile({ key: `${participant.identity}:${String(track.source)}`, track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false });
+      }
+    },
+    trackUnsubscribed: (_room, track, participant) => {
+      if (proximityAudioTracksRef.current.get(participant.identity)?.track === track) proximityAudioTracksRef.current.delete(participant.identity);
+      track.detach().forEach(element => element.remove());
+      setVideoTiles(tiles => tiles.filter(tile => tile.track !== track));
+    },
+    mediaStopped: () => setVoiceMediaNotice(VOICE_MEDIA_STOPPED_LABEL),
   };
-  const toggleScreenShare = async () => {
-    if (appPausedRef.current) return;
-    const room = activeVoiceRoom();
-    if (!room) return;
-    try {
-      await room.localParticipant.setScreenShareEnabled(!screenShareEnabled, SCREEN_CAPTURE_1080P30, {
-        screenShareEncoding: { maxBitrate: 4_000_000, maxFramerate: 30 },
-        degradationPreference: "maintain-resolution",
-      });
-      setScreenShareEnabled(!screenShareEnabled);
-      syncLocalVideoTiles(room);
-    } catch (cause) { setVoiceError(cause instanceof Error ? cause.message : "Could not share the screen."); }
-  };
 
   useEffect(() => {
-    if (appPaused || !meetingZoneActive) {
-      leaveMeetingVoice();
-    } else {
-      leaveProximityVoice();
-      leavePrivateVoice();
-      if (!liveKitRoomRef.current) void joinMeetingVoice();
-    }
-  }, [appPaused, meetingZoneActive]);
+    if (!activeOffice || !authUser) return;
+    const session = new VoiceRoomSession({
+      initialMuted: voiceMutedIntentRef.current, previousTeardown: voiceTeardownRef.current,
+      createRoom: createVoiceRoom,
+      fetchToken: (target, signal) => fetchVoiceToken(endpoint, target, signal),
+    }, voiceListener);
+    voiceSessionRef.current = session;
+    const suspend = () => session.suspend("browser");
+    const resume = () => {
+      roomRef.current?.send("request-spatial-state");
+      session.resume(resolveVoiceTarget(voiceTargetInputsRef.current), "browser");
+    };
+    document.addEventListener("freeze", suspend);
+    document.addEventListener("resume", resume);
+    window.addEventListener("pagehide", suspend);
+    window.addEventListener("pageshow", resume);
+    return () => {
+      document.removeEventListener("freeze", suspend);
+      document.removeEventListener("resume", resume);
+      window.removeEventListener("pagehide", suspend);
+      window.removeEventListener("pageshow", resume);
+      voiceTeardownRef.current = session.dispose();
+      if (voiceSessionRef.current === session) voiceSessionRef.current = null;
+    };
+  }, [activeOffice?.id, authUser?.username, voiceRealtimeSessionKey]);
 
   useEffect(() => {
-    if (appPaused || meetingZoneActive || !privateZoneId) {
-      leavePrivateVoice();
-      return;
-    }
-    leaveProximityVoice();
-    if (privateLiveKitRoomRef.current && privateRoomZoneIdRef.current !== privateZoneId) leavePrivateVoice();
-    if (!privateLiveKitRoomRef.current) void joinPrivateVoice(privateZoneId);
-  }, [appPaused, meetingZoneActive, privateZoneId]);
-
-  useEffect(() => {
-    if (appPaused || meetingZoneActive || privateZoneId || !proximityGroupId) {
-      leaveProximityVoice();
-      return;
-    }
-    if (proximityRoomGroupRef.current === proximityGroupId || proximityJoiningGroupRef.current === proximityGroupId) return;
-    leaveProximityVoice();
-    void joinProximityVoice(proximityGroupId);
-  }, [appPaused, meetingZoneActive, privateZoneId, proximityGroupId]);
+    voiceTargetInputsRef.current = {
+      officeId: activeOffice?.id ?? null, sessionKey: voiceRealtimeSessionKey,
+      paused: appPaused || status !== "connected", meetingZoneId: meetingZoneActive ? meetingZoneId : null,
+      privateZoneId, proximityGroupId,
+    };
+    voiceSessionRef.current?.setTarget(resolveVoiceTarget(voiceTargetInputsRef.current));
+  }, [activeOffice?.id, authUser?.username, voiceRealtimeSessionKey, status, appPaused, meetingZoneActive, meetingZoneId, privateZoneId, proximityGroupId]);
 
   useEffect(() => {
     if (!appPaused) return;
@@ -1334,15 +1165,11 @@ const toggleMeetingMute = async () => {
     roomRef.current?.send("auto-move-cancel", {});
     roomRef.current?.send("follow-stop", {});
     setVideoPopupOpen(false);
-    leaveMeetingVoice();
-    leavePrivateVoice();
-    leaveProximityVoice();
+    voiceSessionRef.current?.leave();
   }, [appPaused]);
 
   const signOut = () => {
-    leaveMeetingVoice();
-    leaveProximityVoice();
-    leavePrivateVoice();
+    voiceSessionRef.current?.dispose();
     privateZoneIdRef.current = null; setPrivateZoneId(null);
     proximityGroupIdRef.current = null;
     setProximityGroupId(null);
@@ -1357,9 +1184,7 @@ const toggleMeetingMute = async () => {
   };
 
   const returnToSignIn = () => {
-    leaveMeetingVoice();
-    leaveProximityVoice();
-    leavePrivateVoice();
+    voiceSessionRef.current?.dispose();
     privateZoneIdRef.current = null; setPrivateZoneId(null);
     proximityGroupIdRef.current = null;
     setProximityGroupId(null);
@@ -2154,6 +1979,7 @@ const toggleMeetingMute = async () => {
         inputSendGateRef.current = new InputSendGate();
         disposeReconnection = installOfficeReconnection(room);
         localSessionIdRef.current = room.sessionId;
+        setVoiceRealtimeSessionKey(room.sessionId);
         blasterEventsRef.current.length = 0;
         room.send("weapon-equip", "");
         const storedPet = window.localStorage.getItem(`gammyverse.pet.${connectionUsername}`) ?? "";
@@ -2408,9 +2234,8 @@ const toggleMeetingMute = async () => {
           meetingZoneActiveRef.current = false;
           privateZoneIdRef.current = null;
           setPrivateZoneId(null);
-          leaveMeetingVoice();
-          leaveProximityVoice();
-          leavePrivateVoice();
+          voiceTargetInputsRef.current = { ...voiceTargetInputsRef.current, paused: true };
+          voiceSessionRef.current?.suspend("realtime");
           setMeetingZoneActive(false);
           proximityGroupIdRef.current = null;
           setProximityGroupId(null);
@@ -2421,6 +2246,7 @@ const toggleMeetingMute = async () => {
           if (disposed) return;
           reconnectingRef.current = false;
           inputSendGateRef.current = new InputSendGate();
+          voiceSessionRef.current?.resume(null, "realtime");
           room.send("request-spatial-state");
           setStatus("connected");
           setError(null);
@@ -2428,6 +2254,8 @@ const toggleMeetingMute = async () => {
         room.onLeave((code, reason) => {
           console.info(LEAVE_EVENT_LABEL, { roomId: room.roomId, sessionId: room.sessionId, code, reason });
           if (disposed) return;
+          if ([CONSENTED_CLOSE_CODE, REPLACED_CLOSE_CODE, REMOVED_CLOSE_CODE].includes(code)) voiceSessionRef.current?.dispose();
+          else voiceSessionRef.current?.suspend("realtime");
           const shouldRejoin = shouldFreshJoin(code, reconnectingRef.current) && !intentionalLeaveRef.current;
           reconnectingRef.current = false;
           meetingZoneActiveRef.current = false;
@@ -2931,7 +2759,7 @@ const toggleMeetingMute = async () => {
           <div className="video-popup-stage"><VideoTile key={focusedVideoTile.key} track={focusedVideoTile.track} label={focusedVideoTile.label} local={focusedVideoTile.local} focused onFocus={() => setFocusedVideoKey(focusedVideoTile.key)} /></div>
           {miniVideoTiles.length > 0 && <section className="video-mini-strip" aria-label="Camera and screen share previews"><div className="video-mini-strip-scroll">{miniVideoTiles.map((tile) => <VideoTile key={`mini:${tile.key}`} track={tile.track} label={tile.label} local={tile.local} focused={tile.key === focusedVideoTile.key} compact onFocus={() => setFocusedVideoKey(tile.key)} />)}</div></section>}
           <div className="video-popup-controls" aria-label="Media controls">
-            <button type="button" disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void (meetingZoneActive ? toggleMeetingMute() : privateZoneId ? togglePrivateMute() : toggleProximityMute())}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /><span>{selectedMicMuted ? "Mic off" : "Mic on"}</span></button>
+            <button type="button" disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void toggleMicrophone()}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /><span>{selectedMicMuted ? "Mic off" : "Mic on"}</span></button>
             <button type="button" className={cameraEnabled ? "active" : ""} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "videoOff" : "video"} /><span>{cameraEnabled ? "Camera off" : "Camera"}</span></button>
             <button type="button" className={screenShareEnabled ? "active" : ""} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name="screen" /><span>{screenShareEnabled ? "Stop share" : "Share screen"}</span></button>
           </div>
@@ -2940,8 +2768,10 @@ const toggleMeetingMute = async () => {
       )}
       {videoTiles.length > 0 && !videoPopupOpen && <button type="button" className="video-popup-reopen" onClick={() => setVideoPopupOpen(true)}><FeatherIcon name="maximize" size={16} /> Show camera / screen</button>}
 
+      {voiceMediaNotice && <div className="error-banner" role="status">{voiceMediaNotice}<button type="button" onClick={() => setVoiceMediaNotice(null)}>{DISMISS_MEDIA_NOTICE_LABEL}</button></div>}
       <div className="bottom-dock" data-tutorial-target="office-toolbar" aria-label="Office controls">
-        <button data-tutorial-target="office-microphone" type="button" className={`dock-button ${selectedVoiceConnected && !selectedMicMuted ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedVoiceConnected ? (selectedMicMuted ? "Turn microphone on" : "Turn microphone off") : "Voice connects automatically when you enter a voice zone"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void (meetingZoneActive ? toggleMeetingMute() : privateZoneId ? togglePrivateMute() : toggleProximityMute())}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /></button>
+        {voiceRetryExhausted && !appPaused ? <button type="button" className="dock-button" onClick={() => voiceSessionRef.current?.reconnect()}>{RECONNECT_VOICE_LABEL}</button> :
+        <button data-tutorial-target="office-microphone" type="button" className={`dock-button ${selectedVoiceConnected && !selectedMicMuted ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedVoiceConnected ? (selectedMicMuted ? "Turn microphone on" : "Turn microphone off") : "Voice connects automatically when you enter a voice zone"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void toggleMicrophone()}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /></button>}
         <button type="button" className={`dock-button ${cameraEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "videoOff" : "video"} /></button>
         <button type="button" className={`dock-button ${screenShareEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name="screen" /></button>
         <button type="button" className={`dock-button ${userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "active" : ""}`} aria-pressed={userStatus === "do-not-disturb" || userStatus === "in-meeting"} title={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Headphones off · click to set Available" : "Headphones on · click to turn on Do not disturb"} aria-label={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Turn headphones on" : "Turn headphones off"} onClick={toggleHeadphones}><FeatherIcon name={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "headphonesOff" : "headphones"} /></button>
@@ -2965,9 +2795,7 @@ const toggleMeetingMute = async () => {
             const room = roomRef.current;
             roomRef.current = null;
             clearSelectedOffice();
-            leaveMeetingVoice();
-            leaveProximityVoice();
-            leavePrivateVoice();
+            voiceSessionRef.current?.dispose();
             proximityGroupIdRef.current = null;
             setProximityGroupId(null);
             void room?.leave();

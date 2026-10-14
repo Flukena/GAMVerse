@@ -56,6 +56,8 @@ This is the single rulebook for coding agents (Claude, Codex) and contributors. 
 - Current plans:
   - `docs/CAMERA_VIEW_PLAN.md` — character camera, view modes and avatar facing
   - `docs/PERFORMANCE_REVIEW.md` — infrastructure and performance findings
+  - `docs/GATHER_2D_PLAN.md` — Gather-style 2D play mode, chat, reactions, interactive objects, spotlight
+  - `docs/MEDIA_SESSION_PLAN.md` — LiveKit session stability ("Client initiated disconnect", zone/proximity churn)
 - Update `README.md` for setup or public behaviour changes, and the current section of `PROJECT_DOCS.md` for durable architecture decisions. Do not start other project-wide Markdown files outside `docs/`.
 
 ## Verifying work
@@ -63,6 +65,19 @@ This is the single rulebook for coding agents (Claude, Codex) and contributors. 
 - `pnpm build` must pass for any TypeScript change.
 - Behaviour changes need a test that fails when the change is reverted, or a stated browser check.
 - Multiplayer behaviour (movement, facing, presence, voice zones) is verified with two browser sessions on the Compose stack. Say which checks were run and which were not.
+
+## Agents
+
+Project agents live in `.claude/agents/` (Claude) and `.codex/agents/` (Codex). Each one points back to this file for the rules. Delegate to the agent that owns the area; generic Claude agent types are blocked by the hook in `.claude/settings.json`.
+
+| Area | Claude | Codex |
+| --- | --- | --- |
+| Client UI, world, camera, 2D map, voice sessions | `gamverse-client-dev` (sonnet) | `gamverse-client` |
+| Server, shared rules, media grants, migrations | `gamverse-server-dev` (sonnet) | `gamverse-server` |
+| Review | `gamverse-reviewer` (opus) for Codex diffs | `gamverse-reviewer` for plans and Claude diffs |
+| Build/test runs and counts | `gamverse-verifier` (haiku) | — |
+
+Codex implements by default; the Claude dev agents are for when Codex is unavailable or the work needs the live Compose stack. The implementer never reviews its own work.
 
 ## Ask the owner first
 
