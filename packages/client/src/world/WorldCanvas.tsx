@@ -2492,23 +2492,31 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       event.preventDefault();
       toggleCameraViewRef.current();
     };
-    const onJumpKeyDown = (event: KeyboardEvent) => {
-      const target = event.target instanceof Element ? event.target : null;
-      if (event.code !== "Space") return;
+    const isSpaceTextEntry = (target: EventTarget | null) => {
+      if (!(target instanceof Element)) return false;
       const input = target instanceof HTMLInputElement ? target : null;
-      const isTextEntry = target?.closest("textarea, [contenteditable='true']")
-        || (input && ["text", "search", "url", "tel", "email", "password"].includes(input.type));
-      if (isTextEntry) return;
-
+      return Boolean(target.closest("textarea, [contenteditable='true']")
+        || (input && ["text", "search", "url", "tel", "email", "password"].includes(input.type)));
+    };
+    const onJumpKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || isSpaceTextEntry(event.target)) return;
       // Reserve Space for jumping. Prevent native button activation and any
       // lower-level toolbar handlers from turning it into a toggle/action.
       event.preventDefault();
       event.stopImmediatePropagation();
+      const target = event.target instanceof Element ? event.target : null;
       if (event.repeat || appPaused || buildModeRef.current || mapEditModeRef.current || cameraStateRef.current.mode === "map2d" || target?.closest("[role='dialog']")) return;
       const localId = localSessionIdRef.current;
       const player = localId ? playersRef.current.get(localId) : undefined;
       if (!player || player.vehicleId || player.sittingPropId) return;
       buildCallbacksRef.current.onJump?.();
+    };
+    const onJumpKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || isSpaceTextEntry(event.target)) return;
+      // Some browsers synthesize a button click on Space keyup even after the
+      // keydown handler ran, so cancel that activation at both ends.
+      event.preventDefault();
+      event.stopImmediatePropagation();
     };
     const onMapEditKeyDown = (event: KeyboardEvent) => {
       if (!mapEditModeRef.current || !mapEditMovementCodes.has(event.code)) return;
@@ -2537,6 +2545,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     window.addEventListener("keydown", onFirstPersonKeyDown);
     window.addEventListener("keydown", onCameraViewKeyDown);
     window.addEventListener("keydown", onJumpKeyDown, true);
+    window.addEventListener("keyup", onJumpKeyUp, true);
     window.addEventListener("pointerdown", primeBlasterAudio, { once: true, capture: true });
     window.addEventListener("keydown", primeBlasterAudio, { once: true });
     window.addEventListener("keydown", onMapEditKeyDown);
@@ -3498,6 +3507,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       window.removeEventListener("keydown", onFirstPersonKeyDown);
       window.removeEventListener("keydown", onCameraViewKeyDown);
       window.removeEventListener("keydown", onJumpKeyDown, true);
+      window.removeEventListener("keyup", onJumpKeyUp, true);
       window.removeEventListener("pointerdown", primeBlasterAudio, true);
       window.removeEventListener("keydown", primeBlasterAudio);
       window.removeEventListener("keydown", onMapEditKeyDown);
