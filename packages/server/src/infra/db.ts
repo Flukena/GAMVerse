@@ -1,5 +1,9 @@
 import { Pool } from "pg";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+// Resolved from the package root: tsx runs src/ while the esbuild bundle runs from dist/, so a file-relative URL differs between them.
+const MIGRATIONS_DIRECTORY = join(process.cwd(), "migrations");
 
 const databaseUrl = process.env.DATABASE_URL;
 const hasDatabaseConfig = Boolean(databaseUrl || process.env.PGHOST || process.env.PGDATABASE);
@@ -61,7 +65,7 @@ export async function initializeDatabase() {
     for (const migration of migrations) {
       const applied = await client.query("SELECT version FROM app_schema_migrations WHERE version = $1", [migration.version]);
       if (applied.rowCount === 0) {
-        const sql = await readFile(new URL(`../migrations/${migration.file}`, import.meta.url), "utf8");
+        const sql = await readFile(join(MIGRATIONS_DIRECTORY, migration.file), "utf8");
         await client.query(sql);
         await client.query("INSERT INTO app_schema_migrations(version) VALUES ($1)", [migration.version]);
       }
