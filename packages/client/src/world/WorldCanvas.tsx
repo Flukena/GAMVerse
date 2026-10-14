@@ -19,7 +19,7 @@ import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_
 import { WorldSocialOverlay } from "./WorldSocialOverlay";
 import { Map2dRenderer, readMap2dPreference, persistMap2dPreference } from "./map2d/Map2dRenderer";
 import { smoothAvatarPose, avatarPoseBlend } from "./map2d/avatarPoseSmoother";
-import { MAP2D_TOGGLE_KEY_CODE } from "./map2d/constants";
+import { registerMap2dShortcut } from "./map2d/map2dShortcut";
 import { applyCameraView } from "./camera/cameraView";
 import { locateMap2d, type Map2dLocateRequest } from "./map2d/map2dInput";
 import type { Map2dDecoration } from "./map2d/map2dDynamicLayer";
@@ -928,12 +928,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       zoomOverview: (deltaYPx) => dispatchCamera(cameraWheelEvent(cameraStateRef.current, deltaYPx, tppTransitionDistanceMRef.current)),
       walk: (destination) => { map2dDestinationRef.current = destination; buildCallbacksRef.current.onAutoMove?.(destination, false); },
       selectPlayer: (id, x, y) => buildCallbacksRef.current.onSelectPlayer?.(id, x, y),
+    });
+    const removeMap2dShortcut = registerMap2dShortcut(window, {
+      state: () => ({ paused: appPaused, buildMode: buildModeRef.current, mapEditMode: mapEditModeRef.current }),
       toggle: toggleMap2d,
     });
-    const toggle2dKey = (event: KeyboardEvent) => {
-      if (event.code === MAP2D_TOGGLE_KEY_CODE && event.target === renderer.domElement && !event.repeat) { event.preventDefault(); toggleMap2d(); }
-    };
-    renderer.domElement.addEventListener("keydown", toggle2dKey);
     // Compact shooter-style first-person viewmodel. The arms are simple
     // stylized shapes; the blaster itself is Kenney's CC0 model.
     const firstPersonViewModel = new THREE.Group();
@@ -3497,7 +3496,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       }
       renderer.dispose();
       socialOverlay.dispose();
-      map2dRenderer.dispose(); renderer.domElement.removeEventListener("keydown", toggle2dKey);
+      map2dRenderer.dispose(); removeMap2dShortcut();
       map2dCanvas.remove(); map2dCanvasRef.current = null;
       scene.clear();
       deskClaimLayer.remove();

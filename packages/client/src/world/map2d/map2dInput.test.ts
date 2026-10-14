@@ -69,7 +69,6 @@ test("threshold map canvas forwards wheel to overview ratio zoom only", () => {
       pan() {},
       walk() {},
       selectPlayer() {},
-      toggle() {},
       zoom(scale) {
         scaleRequests.push(scale);
       },
@@ -132,25 +131,15 @@ function createTestCanvas() {
   return { canvas, handlers };
 }
 
-test("M toggles 2D, V does not, and repeated M is ignored", () => {
+test("map canvas leaves M to the single window handler", () => {
   const { canvas, handlers } = createTestCanvas();
   const originalDocument = globalThis.document;
   globalThis.document = { createElement: () => canvas } as unknown as Document;
-  const toggles: string[] = [];
   try {
     const renderer = new Map2dRenderer(canvas, {
       pan() {}, walk() {}, selectPlayer() {}, zoom() {}, zoomOverview() {},
-      toggle() { toggles.push("toggle"); },
     });
-    const keydown = handlers.get("keydown");
-    assert.ok(keydown);
-    const press = (code: string, repeat = false) => keydown({ code, repeat, preventDefault() {} } as unknown as KeyboardEvent);
-    press("KeyV");
-    assert.deepEqual(toggles, []);
-    press("KeyM");
-    assert.deepEqual(toggles, ["toggle"]);
-    press("KeyM", true);
-    assert.deepEqual(toggles, ["toggle"]);
+    assert.equal(handlers.has("keydown"), false);
     renderer.dispose();
   } finally { globalThis.document = originalDocument; }
 });

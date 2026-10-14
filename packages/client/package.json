@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "test": "pnpm --filter @gammyverse/shared exec tsx --test ../client/src/ui/connection/officeReconnection.test.ts ../client/src/world/camera/cameraState.test.ts ../client/src/world/camera/cameraPose.test.ts ../client/src/world/camera/heldMovement.test.ts ../client/src/world/camera/cameraInput.test.ts ../client/src/world/camera/cameraOcclusion.test.ts ../client/src/ui/media/voiceTarget.test.ts ../client/src/ui/media/voiceRoomSession.test.ts ../client/src/world/map2d/map2dProjection.test.ts ../client/src/world/map2d/avatarPoseSmoother.test.ts ../client/src/world/map2d/map2dStaticLayer.test.ts ../client/src/world/map2d/map2dInput.test.ts ../client/src/ui/social/socialState.test.ts ../client/src/world/camera/cameraFrame.test.ts ../client/src/world/wallAssetTransform.test.ts"
+    "test": "pnpm --filter @gammyverse/shared exec tsx --test ../client/src/ui/connection/officeReconnection.test.ts ../client/src/world/camera/cameraState.test.ts ../client/src/world/camera/cameraPose.test.ts ../client/src/world/camera/heldMovement.test.ts ../client/src/world/camera/cameraInput.test.ts ../client/src/world/camera/cameraOcclusion.test.ts ../client/src/ui/media/voiceTarget.test.ts ../client/src/ui/media/voiceRoomSession.test.ts ../client/src/world/map2d/map2dProjection.test.ts ../client/src/world/map2d/avatarPoseSmoother.test.ts ../client/src/world/map2d/map2dStaticLayer.test.ts ../client/src/world/map2d/map2dInput.test.ts ../client/src/world/map2d/map2dShortcut.test.ts ../client/src/ui/social/socialState.test.ts ../client/src/world/camera/cameraFrame.test.ts ../client/src/world/wallAssetTransform.test.ts"
   },
   "dependencies": {
     "@colyseus/sdk": "^0.18.1",

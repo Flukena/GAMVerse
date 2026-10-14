@@ -15,11 +15,16 @@ export type HeldMovementFrame = {
 };
 type HeldDirection = { right: -1 | 0 | 1; forward: number; sprint: boolean };
 
+function axis(negative: boolean, positive: boolean): -1 | 0 | 1 {
+  if (negative === positive) return 0;
+  return positive ? 1 : -1;
+}
+
 function heldDirection(keys: ReadonlySet<string>): HeldDirection {
   const left = keys.has("KeyA") || keys.has("ArrowLeft");
   const right = keys.has("KeyD") || keys.has("ArrowRight");
   return {
-    right: left === right ? 0 : right ? 1 : -1,
+    right: axis(left, right),
     forward: Number(keys.has("KeyW") || keys.has("ArrowUp")) - Number(keys.has("KeyS") || keys.has("ArrowDown")),
     sprint: keys.has("ShiftLeft") || keys.has("ShiftRight"),
   };

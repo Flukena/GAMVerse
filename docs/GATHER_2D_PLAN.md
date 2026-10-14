@@ -42,7 +42,7 @@ Each phase is one PR and leaves the game playable. The server stays authoritativ
 - `view` survives `room-change` and `avatar-ready`. Only the user changes it.
 - 2D follows the avatar until the user drags. In `map2d`, `walk-input` sets `following = true`, which is new; `cameraState.test.ts:30` is updated on purpose.
 - 2D zoom is its own `map2dScalePxPerM`, clamped to named min/max constants.
-- Toggle: a toolbar button plus a key from the unused key set (not `Tab`). The key is handled only while the world has focus and never inside inputs or dialogs.
+- Toggle: a toolbar button plus M, handled once at window level. Match the camera-view shortcut guards: ignore repeats, paused gameplay, build/map-edit mode, inputs, textareas, selects and contentEditable targets. Canvas focus is not required.
 - Persist the preference per device in `localStorage`, wrapped in try/catch.
 
 **Renderer** (new `client/src/world/map2d/`, extracted from the god-file)

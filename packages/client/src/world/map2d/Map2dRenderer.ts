@@ -2,7 +2,6 @@ import type { RoomLayout } from "@gammyverse/shared";
 import {
   MAP2D_COLORS,
   MAP2D_DRAG_THRESHOLD_PX,
-  MAP2D_TOGGLE_KEY_CODE,
   MAP2D_VIEW_STORAGE_KEY,
 } from "./constants";
 import {
@@ -32,7 +31,6 @@ export interface Map2dListener {
   zoomOverview(deltaYPx: number): void;
   walk(destination: Map2dPoint): void;
   selectPlayer(sessionId: string, screenX: number, screenY: number): void;
-  toggle(): void;
 }
 export type Map2dFrame = {
   visible: boolean;
@@ -89,7 +87,6 @@ export class Map2dRenderer {
     canvas.addEventListener("pointerup", this.pointerUp);
     canvas.addEventListener("pointercancel", this.pointerCancel);
     canvas.addEventListener("wheel", this.wheel, { passive: false });
-    canvas.addEventListener("keydown", this.keyDown);
   }
   private point(event: PointerEvent | WheelEvent): ScreenPoint {
     const rect = this.canvas.getBoundingClientRect();
@@ -168,12 +165,6 @@ export class Map2dRenderer {
       x: state.projection.center.x + before.x - after.x,
       z: state.projection.center.z + before.z - after.z,
     });
-  };
-  private readonly keyDown = (event: KeyboardEvent): void => {
-    if (event.code === MAP2D_TOGGLE_KEY_CODE && !event.repeat) {
-      event.preventDefault();
-      this.listener.toggle();
-    }
   };
   private smoothPlayers(state: Map2dFrame): {
     players: Map<string, Map2dPlayer>;
@@ -274,6 +265,5 @@ export class Map2dRenderer {
     this.canvas.removeEventListener("pointerup", this.pointerUp);
     this.canvas.removeEventListener("pointercancel", this.pointerCancel);
     this.canvas.removeEventListener("wheel", this.wheel);
-    this.canvas.removeEventListener("keydown", this.keyDown);
   }
 }

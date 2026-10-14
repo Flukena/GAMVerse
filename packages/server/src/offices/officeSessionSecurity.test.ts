@@ -10,6 +10,9 @@ process.env.PGDATABASE = "session-security-test";
 const { database } = await import("../infra/db.js");
 const { OfficeRoom } = await import("./OfficeRoom.js");
 const OFFICE_ID = "session-security-office";
+const VALID_OFFICE_ID = "12345678-1234-1234-1234-123456789abc";
+const PEER_USERNAME = "bob";
+const INVALID_ROOM_MAX_CLIENTS_LABEL = "invalid";
 const USERNAME = "alice";
 const SESSION_ID = "original-session";
 const REPLACEMENT_SESSION_ID = "replacement-session";
@@ -29,7 +32,7 @@ interface RoomInternals {
   spotlight: Spotlight;
   usernamesBySessionId: Map<string, string>;
   movementInputs: Map<string, unknown>;
-  sessionSecurity: { activate(username: string, id: string, token?: string): void; activeSession(username: string): string | undefined };
+  sessionSecurity: { activate(username: string, id: string, token?: string): void; activeSession(username: string): string | undefined; finish(username: string, id: string): void; revoke(id: string): boolean };
 }
 interface Registry { roomsByOffice: Map<string, Set<InstanceType<typeof OfficeRoom>>> }
 const registry = OfficeRoom as unknown as Registry;
@@ -309,3 +312,67 @@ for (const action of [KICK_REJECTION_LABEL, CLOSE_REJECTION_LABEL, REPLACE_REJEC
     } finally { f.cleanup(); }
   });
 }
+
+
+test("OfficeRoom disposal removes a dropped presenter absent from live peer rooms", async () => {
+  const first = fixture();
+  const second = fixture();
+  second.internals.spotlight = first.spotlight;
+  second.internals.sessionSecurity.activate(PEER_USERNAME, SESSION_ID);
+  // Finish Alice's peer session so only the disposing room owns her session.
+  second.internals.sessionSecurity.finish(USERNAME, SESSION_ID);
+  second.internals.usernamesBySessionId.set(SESSION_ID, PEER_USERNAME);
+  registry.roomsByOffice.set(OFFICE_ID, new Set([first.room, second.room]));
+  try {
+    await first.spotlight.command(USERNAME, { targetUsername: USERNAME, on: true });
+    await first.spotlight.command(USERNAME, { targetUsername: PEER_USERNAME, on: true });
+    const before = first.rotations();
+    first.room.onDrop(first.client, TRANSPORT_DROP_CLOSE_CODE);
+    first.room.onDispose();
+    assert.equal(first.seatRejected(), true);
+    assert.equal(first.rotations() - before, 1);
+    assert.deepEqual(first.spotlight.snapshot().usernames, [PEER_USERNAME]);
+    first.room.onLeave(first.client, OFFICE_ACCESS_REVOKED_CLOSE_CODE);
+    assert.equal(first.rotations() - before, 1);
+    assert.deepEqual(first.spotlight.snapshot().usernames, [PEER_USERNAME]);
+  } finally { first.cleanup(); second.cleanup(); }
+});
+
+test("OfficeRoom invalid capacity never registers the room", async () => {
+  const room = new OfficeRoom();
+  const previousCapacity = process.env.ROOM_MAX_CLIENTS;
+  process.env.ROOM_MAX_CLIENTS = INVALID_ROOM_MAX_CLIENTS_LABEL;
+  mock.method(room, "setMetadata", async () => {});
+  queryBoundary();
+  try {
+    await assert.rejects(room.onCreate({ officeId: VALID_OFFICE_ID }), /ROOM_MAX_CLIENTS must be a positive integer/);
+    assert.equal(registry.roomsByOffice.has(VALID_OFFICE_ID), false);
+  } finally {
+    if (previousCapacity === undefined) delete process.env.ROOM_MAX_CLIENTS;
+    else process.env.ROOM_MAX_CLIENTS = previousCapacity;
+    registry.roomsByOffice.delete(VALID_OFFICE_ID);
+    room.clock.stop();
+    mock.restoreAll();
+  }
+});
+
+
+test("OfficeRoom disposal ignores revoked peer ownership of a dropped presenter", async () => {
+  const first = fixture();
+  const second = fixture();
+  second.internals.spotlight = first.spotlight;
+  registry.roomsByOffice.set(OFFICE_ID, new Set([first.room, second.room]));
+  try {
+    await first.spotlight.command(USERNAME, { targetUsername: USERNAME, on: true });
+    const before = first.rotations();
+    assert.equal(second.internals.sessionSecurity.revoke(SESSION_ID), true);
+    assert.equal(second.internals.sessionSecurity.activeSession(USERNAME), SESSION_ID);
+    first.room.onDrop(first.client, TRANSPORT_DROP_CLOSE_CODE);
+    first.room.onDispose();
+    assert.equal(first.seatRejected(), true);
+    assert.equal(first.rotations() - before, 1);
+    assert.deepEqual(first.spotlight.snapshot().usernames, []);
+    first.room.onLeave(first.client, OFFICE_ACCESS_REVOKED_CLOSE_CODE);
+    assert.equal(first.rotations() - before, 1);
+  } finally { first.cleanup(); second.cleanup(); }
+});

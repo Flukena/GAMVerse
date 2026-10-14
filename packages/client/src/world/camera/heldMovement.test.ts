@@ -44,3 +44,12 @@ test("unlocked 3D stays camera-relative and FPP retains aim yaw", () => {
   assert.equal(fpp.input.facingYaw, TEST_CAMERA_YAW_RAD + Math.PI);
   assert.equal(fpp.lockedTurn, null);
 });
+
+
+test("driving stays camera-relative while behind-character mode is enabled", () => {
+  const driving = resolveHeldMovement({ ...FRAME, driving: true, keys: new Set(["KeyD"]) });
+  assert.ok(Math.abs(driving.input.x) < ROTATION_TOLERANCE_RAD);
+  assert.equal(driving.input.z, -1);
+  assert.equal(driving.input.facingYaw, undefined);
+  assert.equal(driving.lockedTurn, null);
+});

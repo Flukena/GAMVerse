@@ -1,3 +1,4 @@
+import { disposedRoomSpotlightUsernames } from "./spotlightRoomDisposal.js";
 import { logReconnectionSeatFailure } from "./reconnectionSeatLog.js";
 import { readReconnectAccess, SessionSecurity } from "./sessionSecurity.js";
 import { registerSocialMessages, unregisterSocialMessages, socialPeople } from "./socialMessages.js";
@@ -154,12 +155,12 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.world = campusWorldFromConfig(this.mapConfig);
     this.worldVersion = 4;
     this.setMetadata({ officeId: this.officeId });
-    const rooms = OfficeRoom.roomsByOffice.get(options.officeId) ?? new Set<OfficeRoom>();
-    rooms.add(this);
-    OfficeRoom.roomsByOffice.set(options.officeId, rooms);
     const maxClients = Number(process.env.ROOM_MAX_CLIENTS ?? 150);
     if (!Number.isInteger(maxClients) || maxClients < 1) throw new Error("ROOM_MAX_CLIENTS must be a positive integer.");
     this.maxClients = maxClients;
+    const rooms = OfficeRoom.roomsByOffice.get(options.officeId) ?? new Set<OfficeRoom>();
+    rooms.add(this);
+    OfficeRoom.roomsByOffice.set(options.officeId, rooms);
     this.patchRate = 50;
     this.maxMessagesPerSecond = OFFICE_MAX_MESSAGES_PER_SECOND_COUNT;
     logServerEvent("realtime", "office.room.created", { roomId: this.roomId, officeId: this.officeId, maxClients });
@@ -863,8 +864,10 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   onDispose() {
     const rooms = OfficeRoom.roomsByOffice.get(this.officeId);
     const lastRoom = rooms?.size === 1 && rooms.has(this);
-    if (this.sessionSecurity.close() && lastRoom) {
-      void this.spotlight?.departSecurity(this.usernamesBySessionId.values()).catch((error) =>
+    const peers = [...(rooms ?? [])].filter(room => room !== this).map(room => room.sessionSecurity);
+    const departingUsernames = disposedRoomSpotlightUsernames(this.usernamesBySessionId.values(), peers);
+    if (this.sessionSecurity.close() && (lastRoom || departingUsernames.length > 0)) {
+      void this.spotlight?.departSecurity(departingUsernames).catch((error) =>
         logServerError("realtime", SPOTLIGHT_CLOSE_FAILED_EVENT_LABEL, error, { officeId: this.officeId }));
     }
     unregisterSocialMessages(this, this.officeId, false);
