@@ -1,3 +1,5 @@
+import { zoneAtWithExitMargin } from "./zoneMembership.js";
+export { ZONE_EXIT_MARGIN_M } from "./zoneMembership.js";
 import { roomBoundaryWalls, roomWallSolidSegments } from "./roomWallSegments.js";
 import type { MovementInput } from "./inputDelivery.js";
 import { schema, t } from "@colyseus/schema";
@@ -252,11 +254,8 @@ export function campusWorldFromConfig(
   return { ...CAMPUS_WORLD, width, depth, spawnPoints, walls: [...boundaryWalls, ...mapWalls], obstacles, collisionGrid: makeBlockerGrid([...boundaryWalls, ...mapWalls, ...obstacles]) };
 }
 
-export function roomLayoutZoneAt(position: Position, config: unknown) {
-  return readRoomLayout(config).zones
-    // Restrooms are navigation destinations, not voice/private media zones.
-    .filter((zone) => zone.kind !== "restroom" && Math.abs(position.x - zone.x) <= zone.width / 2 && Math.abs(position.z - zone.z) <= zone.depth / 2)
-    .sort((a, b) => a.width * a.depth - b.width * b.depth)[0] ?? null;
+export function roomLayoutZoneAt(position: Position, config: unknown, previousZoneId?: string | null) {
+  return zoneAtWithExitMargin(position, readRoomLayout(config).zones, previousZoneId);
 }
 
 export const CAMERA = {

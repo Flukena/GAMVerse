@@ -10,7 +10,7 @@
     "@colyseus/schema": "^5.0.0"
   },
   "scripts": {
-    "test": "tsx --test src/index.test.ts src/inputDelivery.test.ts src/angles.test.ts src/playerFacing.test.ts src/roomWallSegments.test.ts"
+    "test": "tsx --test src/index.test.ts src/inputDelivery.test.ts src/angles.test.ts src/playerFacing.test.ts src/roomWallSegments.test.ts src/zoneMembership.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
