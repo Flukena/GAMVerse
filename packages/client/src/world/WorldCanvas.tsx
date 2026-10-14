@@ -723,6 +723,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     setWeaponInventoryOpen(false);
     if (document.pointerLockElement) document.exitPointerLock();
   };
+  const toggleCameraViewRef = useRef(toggleCameraView);
+  toggleCameraViewRef.current = toggleCameraView;
   const drivingRef = useRef(false);
   const vehicleInteractRef = useRef(onVehicleInteract);
   vehicleInteractRef.current = onVehicleInteract;
@@ -2360,6 +2362,13 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         return next;
       });
     };
+    const onCameraViewKeyDown = (event: KeyboardEvent) => {
+      if (appPaused || event.code !== "KeyV" || event.repeat || buildModeRef.current || mapEditModeRef.current) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      event.preventDefault();
+      toggleCameraViewRef.current();
+    };
     const onMapEditKeyDown = (event: KeyboardEvent) => {
       if (!mapEditModeRef.current || !mapEditMovementCodes.has(event.code)) return;
       const target = event.target;
@@ -2385,6 +2394,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     window.addEventListener("keyup", onGhostModeKeyUp);
     window.addEventListener("blur", stopGhostKey);
     window.addEventListener("keydown", onFirstPersonKeyDown);
+    window.addEventListener("keydown", onCameraViewKeyDown);
     window.addEventListener("pointerdown", primeBlasterAudio, { once: true, capture: true });
     window.addEventListener("keydown", primeBlasterAudio, { once: true });
     window.addEventListener("keydown", onMapEditKeyDown);
@@ -3296,6 +3306,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       window.removeEventListener("blur", stopGhostKey);
       stopGhostKey();
       window.removeEventListener("keydown", onFirstPersonKeyDown);
+      window.removeEventListener("keydown", onCameraViewKeyDown);
       window.removeEventListener("pointerdown", primeBlasterAudio, true);
       window.removeEventListener("keydown", primeBlasterAudio);
       window.removeEventListener("keydown", onMapEditKeyDown);
@@ -3407,7 +3418,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         </div>}
         <div className={`world-control-group${activeFloatingGroup === "view" ? " is-active" : ""}`}>
           {activeFloatingGroup === "view" && <div className="world-control-actions" id="map-view-actions" role="group" aria-label="Camera actions">
-            <button type="button" className="camera-view-control" aria-label={firstPersonView ? "Switch to third-person view" : "Switch to first-person view"} title={firstPersonView ? "Third-person view" : "First-person view"} onClick={toggleCameraView}>
+            <button type="button" className="camera-view-control" aria-label={firstPersonView ? "Switch to third-person view" : "Switch to first-person view"} title={firstPersonView ? "Third-person view · V" : "First-person view · V"} onClick={toggleCameraView}>
               {firstPersonView ? "3P" : "1P"}
             </button>
             {firstPersonView && <button type="button" className={`weapon-inventory-control${weaponInventoryOpen ? " is-active" : ""}`} aria-label={weaponInventoryOpen ? "Close weapon inventory" : "Open weapon inventory"} title="Weapon inventory · B" onClick={() => { setWeaponInventoryOpen((open) => !open); if (!weaponInventoryOpen && document.pointerLockElement) document.exitPointerLock(); }}>
