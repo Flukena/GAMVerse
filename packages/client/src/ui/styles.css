@@ -1180,9 +1180,15 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .reaction-picker-control .dock-button:focus-visible { outline: 2px solid #8ecae6; outline-offset: 2px; }
 
 .office-minimap { max-width: calc(100vw - 24px); height: auto; }
-.app-shell:has(.office-minimap) .page-tutorial-reopen { left: 12px; bottom: 180px; }
+.app-shell:has(.office-minimap) .page-tutorial-reopen { left: 20px; bottom: 108px; width: 32px; height: 32px; opacity: 0; visibility: visible; pointer-events: none; transform: scale(.92); transition: opacity .14s ease, transform .14s ease; }
+.app-shell:has(.office-minimap:hover) .page-tutorial-reopen,
+.app-shell:has(.page-tutorial-reopen:hover) .page-tutorial-reopen,
+.app-shell .page-tutorial-reopen:focus-visible { opacity: 1; pointer-events: auto; transform: scale(1); }
 .app-shell:has(.office-sidebar.is-open) .office-minimap { visibility: hidden; }
 @media (max-width: 760px) {
   .office-minimap { --minimap-touch-clearance-px: 148px; --minimap-horizontal-reserve-px: 230px; transform: translateX(var(--minimap-touch-clearance-px)); max-width: calc(100vw - var(--minimap-horizontal-reserve-px)); }
-  .app-shell:has(.office-minimap) .page-tutorial-reopen { left: 160px; }
+  .app-shell:has(.office-minimap) .page-tutorial-reopen { left: 160px; bottom: calc(12px + 18vw); }
+}
+@media (hover: none) {
+  .app-shell:has(.office-minimap) .page-tutorial-reopen { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
 }
