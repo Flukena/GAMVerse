@@ -7,7 +7,7 @@ import { OfficeSocialOverlay } from "./social/OfficeSocialOverlay";
 import { ReactionPicker } from "./social/ReactionPicker";
 import "./social/social.css";
 import { Client, type Room } from "@colyseus/sdk";
-import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
+import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomLayoutZoneAt, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, screenMovementToWorld, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -15,7 +15,11 @@ import { createVoiceRoom } from "./media/voiceRoomSdk";
 import { VoiceRoomSession, VOICE_MEDIA_STOPPED_LABEL, type VoiceSessionListener } from "./media/voiceRoomSession";
 import { resolveVoiceTarget, type VoiceTargetInputs } from "./media/voiceTarget";
 import { fetchVoiceToken } from "./media/voiceToken";
-import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance } from "livekit-client";
+import { VoiceParticipantRoster, type VoiceRosterActivity, type VoiceRosterMediaSource, type VoiceRosterPerson } from "./media/VoiceParticipantRoster";
+import { SoundSettings } from "./media/SoundSettings";
+import { applyAudioInputPreference, readAudioDevicePreferences, saveAudioInputDevice, saveAudioOutputDevice, type AudioDevicePreferences } from "./media/audioDevicePreferences";
+import { readVoiceParticipantAudioLevels, saveVoiceParticipantAudioLevels } from "./media/voiceParticipantPreferences";
+import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance, RoomEvent } from "livekit-client";
 import { CharacterPreview3D } from "../world/CharacterPreview3D";
 import { QUATERNIUS_CHARACTERS } from "../assets/characterAssets";
 import { getRealtimeEndpoint } from "../realtimeEndpoint";
@@ -51,7 +55,7 @@ const VOICE_VIDEO_KIND = "video";
 type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 type CharacterSelectionId = KenneyCharacterId | `custom-${string}`;
 type PersonalAvatarModel = { id: `custom-${string}`; label: string; modelUrl: string };
-type SettingsSection = "general" | "permissions" | "security";
+type SettingsSection = "general" | "sound" | "permissions" | "security";
 type BrowserPermissionValue = "granted" | "denied" | "prompt" | "unknown";
 type OfficeActivityType = "office.join" | "office.leave" | "meeting.enter" | "meeting.leave" | "private.enter" | "private.leave" | "bubble.enter" | "bubble.leave" | "vehicle.enter" | "vehicle.leave";
 type OfficeActivity = { id: string; actorUsername: string; activityType: OfficeActivityType; locationName: string | null; occurredAt: string };
@@ -84,8 +88,25 @@ const userStatusOptions: Array<{ value: UserStatus; label: string; icon: string;
   { value: "lunch", label: "Lunch", icon: "♨", color: "#e08b22" },
   { value: "coffee-break", label: "Coffee break", icon: "☕", color: "#8a5a35" },
 ];
-type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean; handRaised: boolean };
+type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean; handRaised: boolean; microphoneEnabled: boolean; cameraEnabled: boolean; screenShareEnabled: boolean };
+function voiceRosterAreaKey(position: { x: number; z: number }, layout: RoomLayout, previousZoneId?: string | null): string {
+  const mediaZone = roomLayoutZoneAt(position, layout, previousZoneId);
+  if (mediaZone) return `zone:${mediaZone.id}`;
+  const restroom = layout.zones.find((zone) => zone.kind === "restroom" && Math.abs(position.x - zone.x) <= zone.width / 2 && Math.abs(position.z - zone.z) <= zone.depth / 2);
+  return restroom ? `restroom:${restroom.id}` : "lobby";
+}
 
+function readVoiceRosterActivity(participant: { name?: string; identity: string; trackPublications: Map<string, { source: unknown; track?: { source: unknown } | null; isMuted: boolean }> }): VoiceRosterActivity {
+  const activity: VoiceRosterActivity = { microphone: false, camera: false, screenShare: false };
+  for (const publication of participant.trackPublications.values()) {
+    if (publication.isMuted) continue;
+    const source = String(publication.source ?? publication.track?.source ?? "").toLocaleLowerCase();
+    if (source.includes("microphone")) activity.microphone = true;
+    else if (source.includes("screen")) activity.screenShare = true;
+    else if (source.includes("camera")) activity.camera = true;
+  }
+  return activity;
+}
 type FollowAlert = { followerSessionId: string; followerName: string };
 type WaveAlert = { senderSessionId: string; senderName: string };
 type BlasterVector = { x: number; y: number; z: number };
@@ -95,7 +116,7 @@ type Office = { id: string; name: string; ownerUsername: string; role: "owner" |
 type OfficeInvite = { id: string; officeId: string; officeName: string; inviter: string; role: "admin" | "user"; expiresAt: string };
 type OfficeMember = { username: string; role: "owner" | "admin" | "user"; joinedAt: string | null };
 type ProximityAudioTrack = { track: RemoteAudioTrack; username: string };
-type VideoTileItem = { key: string; track: LocalVideoTrack | RemoteVideoTrack; label: string; local: boolean };
+type VideoTileItem = { key: string; track: LocalVideoTrack | RemoteVideoTrack; label: string; local: boolean; username: string; source: VoiceRosterMediaSource };
 type ManagedAccount = MaintainerAccount;
 
 const movementKeys = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"];
@@ -103,7 +124,6 @@ const CAMERA_MAX_BITRATE_BPS = 1_500_000;
 const SCREEN_MAX_BITRATE_BPS = 4_000_000;
 const MEDIA_MAX_FRAMERATE_FPS = 30;
 const MEDIA_DEGRADATION_PREFERENCE = "maintain-resolution";
-const RECONNECT_VOICE_LABEL = "Reconnect voice";
 const DISMISS_MEDIA_NOTICE_LABEL = "Dismiss";
 
 function usePanelPresence(isOpen: boolean, exitDuration = 260) {
@@ -250,7 +270,7 @@ function VideoTile({ track, label, local, focused, onFocus, compact = false }: {
   </article>;
 }
 
-function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "videoOff" | "screen" | "headphones" | "headphonesOff" | "close" | "maximize" | "exit" | "car" | "lock" | "unlock"; size?: number }) {
+function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "videoOff" | "screen" | "screenOff" | "headphones" | "headphonesOff" | "close" | "maximize" | "exit" | "car" | "lock" | "unlock" | "refresh"; size?: number }) {
   const shared = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const drawings = {
     mic: <><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></>,
@@ -258,6 +278,7 @@ function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "
     video: <><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></>,
     videoOff: <><path d="m3 3 18 18M10.6 5H14a2 2 0 0 1 2 2v2l5-3v10l-5-3v2a2 2 0 0 1-.59 1.41M3 7v10a2 2 0 0 0 2 2h9"/></>,
     screen: <><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4m-3-9 2-2 2 2 3-4"/></>,
+    screenOff: <><path d="m3 3 18 18M10 3h10a2 2 0 0 1 2 2v10M2 8V5a2 2 0 0 1 2-2h1m-1 7v7a2 2 0 0 0 2 2h11M8 21h8m-4-4v4"/></>,
     headphones: <><path d="M3 14v-3a9 9 0 0 1 18 0v3"/><path d="M5 13h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Zm12 0h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Z"/></>,
     headphonesOff: <><path d="M3 14v-3a9 9 0 0 1 15.4-6.4M21 11v3M5 13h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Zm12 0h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1M2 2l20 20"/></>,
     close: <><path d="m18 6-12 12M6 6l12 12"/></>,
@@ -266,6 +287,7 @@ function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "
     car: <><path d="m5 11 1.5-5h11L19 11l2 2v5h-2m-14 0H3v-5l2-2Z"/><path d="M5 11h14M7 18h10"/><circle cx="7" cy="18" r="1.5"/><circle cx="17" cy="18" r="1.5"/></>,
     lock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></>,
     unlock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2m-3.5 9v3"/></>,
+    refresh: <><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 17.4 6.4L20 9M4 15l2.6 2.6A7 7 0 0 0 18.4 15"/></>,
   };
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" {...shared}>{drawings[name]}</svg>;
 }
@@ -300,8 +322,14 @@ export function OfficeApp() {
   const privateLiveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
   const proximityLiveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
   const [zoneAudioUsernames, setZoneAudioUsernames] = useState<Set<string>>(new Set());
+  const voiceActivityRoomCleanupRef = useRef<(() => void) | null>(null);
   const proximityAudioTracksRef = useRef(new Map<string, ProximityAudioTrack>());
+  const remoteAudioTracksRef = useRef(new Map<string, { track: RemoteAudioTrack; username: string }>());
+  const participantAudioLevelsRef = useRef(readVoiceParticipantAudioLevels());
+  const remoteAudioContextRef = useRef<AudioContext | null>(null);
   const speakingUsernamesRef = useRef(new Set<string>());
+  const [speakingUsernames, setSpeakingUsernames] = useState<ReadonlySet<string>>(() => new Set());
+  const speakingRosterUsernamesRef = useRef<ReadonlySet<string>>(new Set());
   const speakingByVoiceRoomRef = useRef(new Map<LiveKitRoomInstance, Set<string>>());
   const audioOutputRef = useRef<HTMLDivElement>(null);
   const inboundAudioMutedRef = useRef(false);
@@ -362,6 +390,8 @@ export function OfficeApp() {
   const [mapEditorUsername, setMapEditorUsername] = useState<string | null>(null);
   const [mapEditLockRequestPending, setMapEditLockRequestPending] = useState(false);
   const [officeMapLayout, setOfficeMapLayout] = useState<RoomLayout | null>(null);
+  const officeMapLayoutRef = useRef(officeMapLayout);
+  officeMapLayoutRef.current = officeMapLayout;
   const [mapEditBaseline, setMapEditBaseline] = useState<RoomLayout | null>(null);
   const mapDimensions = officeMapLayout?.dimensions ?? { width: CAMPUS_WORLD.width, depth: CAMPUS_WORLD.depth };
   const [mapConfigVersion, setMapConfigVersion] = useState(1);
@@ -401,7 +431,6 @@ export function OfficeApp() {
   const selectedWallAssetDefinition = ROOM_WALL_OPTIONS.find((item) => item.asset === mapZoneWallAsset);
   const [mapZoneWallColor, setMapZoneWallColor] = useState("#023047");
   const [mapZoneDoorStyle, setMapZoneDoorStyle] = useState<"geometry" | "asset">("geometry");
-  const [ghostModeEnabled, setGhostModeEnabled] = useState(false);
   const [ghostSessionIds, setGhostSessionIds] = useState<Set<string>>(() => new Set());
   const [mapZoneSaving, setMapZoneSaving] = useState(false);
   const [selectedMapZoneId, setSelectedMapZoneId] = useState<string | null>(null);
@@ -430,18 +459,16 @@ export function OfficeApp() {
   useEffect(() => { setDeskClaimBusy(false); setDeskClaimError(null); }, [selectedDeskZoneId]);
   const [lockedZoneIds, setLockedZoneIds] = useState<string[]>([]);
   const [voiceConnected, setVoiceConnected] = useState(false);
-  const [voiceMuted, setVoiceMuted] = useState(false);
-  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceMuted, setVoiceMuted] = useState(true);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [proximityGroupId, setProximityGroupId] = useState<string | null>(null);
   const [proximityVoiceConnected, setProximityVoiceConnected] = useState(false);
-  const [proximityVoiceMuted, setProximityVoiceMuted] = useState(false);
-  const [proximityVoiceBusy, setProximityVoiceBusy] = useState(false);
+  const [proximityVoiceMuted, setProximityVoiceMuted] = useState(true);
   const [privateVoiceConnected, setPrivateVoiceConnected] = useState(false);
-  const [privateVoiceMuted, setPrivateVoiceMuted] = useState(false);
-  const [privateVoiceBusy, setPrivateVoiceBusy] = useState(false);
+  const [privateVoiceMuted, setPrivateVoiceMuted] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [screenShareEnabled, setScreenShareEnabled] = useState(false);
+  const [participantAudioLevels, setParticipantAudioLevels] = useState<Map<string, number>>(readVoiceParticipantAudioLevels);
   const [videoTiles, setVideoTiles] = useState<VideoTileItem[]>([]);
   const [focusedVideoKey, setFocusedVideoKey] = useState<string | null>(null);
   const [videoPopupOpen, setVideoPopupOpen] = useState(false);
@@ -488,6 +515,9 @@ export function OfficeApp() {
   const noiseReductionEnabledRef = useRef(noiseReductionEnabled);
   const [noiseReductionStatus, setNoiseReductionStatus] = useState<"unknown" | "checking" | "enabled" | "fallback" | "disabled">("unknown");
   const [noiseReductionDetails, setNoiseReductionDetails] = useState("");
+  const [audioDevicePreferences, setAudioDevicePreferences] = useState<AudioDevicePreferences>(() => readAudioDevicePreferences());
+  const audioDevicePreferencesRef = useRef(audioDevicePreferences);
+  audioDevicePreferencesRef.current = audioDevicePreferences;
   const updateNoiseReductionPreference = (enabled: boolean) => {
     noiseReductionEnabledRef.current = enabled;
     setNoiseReductionEnabled(enabled);
@@ -528,6 +558,11 @@ export function OfficeApp() {
   const [error, setError] = useState<string | null>(null);
   const [playerCount, setPlayerCount] = useState(0);
   const [people, setPeople] = useState<Array<[string, PlayerSnapshot]>>([]);
+  const voiceRosterActivities = new Map(people.map(([, player]) => [player.username.toLocaleLowerCase(), {
+    microphone: player.microphoneEnabled,
+    camera: player.cameraEnabled,
+    screenShare: player.screenShareEnabled,
+  }] as const));
   useEffect(() => {
     if (mapPlayerAction && !people.some(([id, player]) => id === mapPlayerAction.sessionId && player.presence === "online")) setMapPlayerAction(null);
   }, [people, mapPlayerAction]);
@@ -599,6 +634,22 @@ export function OfficeApp() {
     selectUserStatus(mutedByStatus ? "available" : "do-not-disturb");
   };
   const attachRemoteAudio = (track: RemoteAudioTrack) => {
+    if (window.AudioContext) {
+      try {
+        let context = remoteAudioContextRef.current;
+        if (!context) {
+          context = new window.AudioContext();
+          remoteAudioContextRef.current = context;
+          void context.resume().catch(() => undefined);
+          const selectedOutput = audioDevicePreferencesRef.current.outputDeviceId;
+          const setSinkId = (context as AudioContext & { setSinkId?: (sinkId: string) => Promise<void> }).setSinkId;
+          if (selectedOutput && setSinkId) void setSinkId.call(context, selectedOutput).catch((cause) => console.warn("Could not select the saved speaker.", cause));
+        }
+        track.setAudioContext(context);
+      } catch (cause) {
+        console.warn("Could not enable per-person audio gain; using browser volume controls.", cause);
+      }
+    }
     const element = track.attach();
     element.autoplay = true;
     element.muted = inboundAudioMutedRef.current;
@@ -608,6 +659,7 @@ export function OfficeApp() {
   useEffect(() => {
     const unlockAudio = () => {
       unlockSocialNotificationAudio();
+      if (remoteAudioContextRef.current?.state === "suspended") void remoteAudioContextRef.current.resume().catch(() => {});
       window.removeEventListener("pointerdown", unlockAudio, true);
       window.removeEventListener("keydown", unlockAudio, true);
       window.removeEventListener("touchstart", unlockAudio, true);
@@ -870,6 +922,11 @@ export function OfficeApp() {
     }
     speakingUsernamesRef.current.clear();
     for (const username of next) speakingUsernamesRef.current.add(username);
+    const current = speakingRosterUsernamesRef.current;
+    if (current.size !== next.size || [...next].some((username) => !current.has(username))) {
+      speakingRosterUsernamesRef.current = next;
+      setSpeakingUsernames(next);
+    }
   };
 
   const updateVoiceRoomSpeakers = (room: LiveKitRoomInstance) => {
@@ -877,6 +934,10 @@ export function OfficeApp() {
     if (usernames.size) speakingByVoiceRoomRef.current.set(room, usernames);
     else speakingByVoiceRoomRef.current.delete(room);
     rebuildSpeakingUsernames();
+  };
+
+  const reportVoiceActivity = (room: LiveKitRoomInstance | null) => {
+    roomRef.current?.send("media-activity", room ? readVoiceRosterActivity(room.localParticipant) : { microphone: false, camera: false, screenShare: false });
   };
 
   const isCurrentVoiceRoom = (room: LiveKitRoomInstance) => [liveKitRoomRef.current, privateLiveKitRoomRef.current, proximityLiveKitRoomRef.current].includes(room);
@@ -936,13 +997,60 @@ export function OfficeApp() {
     else setNoiseReductionStatus("checking");
   };
 
+  const switchMicrophoneDevice = async (deviceId: string) => {
+    const previous = audioDevicePreferencesRef.current;
+    const next = { ...previous, inputDeviceId: deviceId };
+    audioDevicePreferencesRef.current = next;
+    setAudioDevicePreferences(next);
+    saveAudioInputDevice(deviceId);
+    const rooms = [liveKitRoomRef.current, privateLiveKitRoomRef.current, proximityLiveKitRoomRef.current].filter((room): room is LiveKitRoomInstance => Boolean(room));
+    try {
+      await Promise.all(rooms.map((room) => room.switchActiveDevice("audioinput", deviceId || "default")));
+    } catch (cause) {
+      await Promise.allSettled(rooms.map((room) => room.switchActiveDevice("audioinput", previous.inputDeviceId || "default")));
+      audioDevicePreferencesRef.current = previous;
+      setAudioDevicePreferences(previous);
+      saveAudioInputDevice(previous.inputDeviceId);
+      throw cause;
+    }
+  };
+
+  const switchSpeakerDevice = async (deviceId: string) => {
+    const previous = audioDevicePreferencesRef.current;
+    const next = { ...previous, outputDeviceId: deviceId };
+    let context = remoteAudioContextRef.current;
+    if (!context && window.AudioContext) {
+      context = new window.AudioContext();
+      remoteAudioContextRef.current = context;
+      void context.resume().catch(() => undefined);
+    }
+    const sinkContext = context as (AudioContext & { setSinkId?: (sinkId: string) => Promise<void> }) | null;
+    const previousSinkId = previous.outputDeviceId;
+    const rooms = [liveKitRoomRef.current, privateLiveKitRoomRef.current, proximityLiveKitRoomRef.current].filter((room): room is LiveKitRoomInstance => Boolean(room));
+    audioDevicePreferencesRef.current = next;
+    setAudioDevicePreferences(next);
+    saveAudioOutputDevice(deviceId);
+    try {
+      if (sinkContext?.setSinkId) await sinkContext.setSinkId(deviceId);
+      else if (context && (deviceId || previousSinkId)) throw new Error("This browser cannot switch speakers while voice audio is playing.");
+      else await Promise.all(rooms.map((room) => room.switchActiveDevice("audiooutput", deviceId || "default")));
+    } catch (cause) {
+      if (!sinkContext?.setSinkId && !context) await Promise.allSettled(rooms.map((room) => room.switchActiveDevice("audiooutput", previousSinkId || "default")));
+      audioDevicePreferencesRef.current = previous;
+      setAudioDevicePreferences(previous);
+      saveAudioOutputDevice(previous.outputDeviceId);
+      if (sinkContext?.setSinkId) await sinkContext.setSinkId(previousSinkId).catch(() => undefined);
+      throw cause;
+    }
+  };
+
   const syncLocalVideoTiles = (room: LiveKitRoomInstance) => {
     const activePublications = [...room.localParticipant.videoTrackPublications.values()].filter((publication) => publication.track && !publication.isMuted);
     const localTiles: VideoTileItem[] = activePublications.map((publication) => {
         const track = publication.track as LocalVideoTrack;
         const source = String(publication.source ?? track.source).toLowerCase();
         const screen = source.includes("screen");
-        return { key: mediaTileKey(room.name, "local", String(publication.source ?? track.source)), track, label: screen ? "Screen share" : "Camera", local: true };
+        return { key: mediaTileKey(room.name, "local", String(publication.source ?? track.source)), track, label: screen ? "Screen share" : "Camera", local: true, username: authUser?.username.toLocaleLowerCase() ?? "", source: screen ? "screen" : "camera" };
       });
     setVideoTiles((tiles) => [...tiles.filter((tile) => !tile.local), ...localTiles]);
     if (localTiles.length) {
@@ -964,19 +1072,55 @@ export function OfficeApp() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [videoPopupOpen]);
 
-  const updateProximityAudioVolumes = () => {
+  const getProximityAudioFade = (username: string) => {
     const local = localSessionIdRef.current ? playersRef.current.get(localSessionIdRef.current) : undefined;
     const onlinePlayers = [...playersRef.current.values()].filter((player) => player.presence === "online");
-    const onlinePlayersByUsername = new Map<string, (typeof onlinePlayers)[number]>();
-    for (const player of onlinePlayers) {
-      if (!onlinePlayersByUsername.has(player.username)) onlinePlayersByUsername.set(player.username, player);
-    }
+    const remote = onlinePlayers.find((player) => player.username.toLocaleLowerCase() === username.toLocaleLowerCase());
+    if (!local || !remote) return 0;
+    const distance = Math.hypot(local.x - remote.x, local.z - remote.z);
+    const fade = Math.max(0, Math.min(1, (CAMPUS_WORLD.proximityRadius - distance) / (CAMPUS_WORLD.proximityRadius - CAMPUS_WORLD.voiceFullVolumeRadius)));
+    return fade * fade * (3 - 2 * fade);
+  };
+
+  const updateProximityAudioVolumes = () => {
     for (const { track, username } of proximityAudioTracksRef.current.values()) {
-      const remote = onlinePlayersByUsername.get(username);
-      if (!local || !remote) { track.setVolume(0); continue; }
-      const distance = Math.hypot(local.x - remote.x, local.z - remote.z);
-      const fade = Math.max(0, Math.min(1, (CAMPUS_WORLD.proximityRadius - distance) / (CAMPUS_WORLD.proximityRadius - CAMPUS_WORLD.voiceFullVolumeRadius)));
-      track.setVolume(fade * fade * (3 - 2 * fade));
+      const level = participantAudioLevelsRef.current.get(username.toLocaleLowerCase()) ?? 1;
+      track.setVolume(getProximityAudioFade(username) * level);
+    }
+  };
+
+  const setParticipantAudioLevel = (username: string, requestedLevel: number) => {
+    const key = username.toLocaleLowerCase();
+    const next = Math.max(0, Math.min(1.5, requestedLevel));
+    participantAudioLevelsRef.current.set(key, next);
+    setParticipantAudioLevels(new Map(participantAudioLevelsRef.current));
+    saveVoiceParticipantAudioLevels(participantAudioLevelsRef.current);
+    for (const [identity, entry] of remoteAudioTracksRef.current) {
+      if (entry.username !== key) continue;
+      const proximityTrack = proximityAudioTracksRef.current.get(identity)?.track === entry.track;
+      entry.track.setVolume(next * (proximityTrack ? getProximityAudioFade(entry.username) : 1));
+    }
+  };
+
+  const moderateVoiceMedia = async (source: "microphone" | "camera" | "screen_share", targetUsername?: string) => {
+    const office = activeOffice;
+    if (!office) return;
+    const targetLabel = targetUsername ?? "all participants in this voice zone";
+    const sourceLabel = source === "microphone" ? "microphone" : source === "camera" ? "camera" : "screen share";
+    if (!targetUsername && !window.confirm(`Mute ${sourceLabel} for ${targetLabel}? They may be able to turn it on again.`)) return;
+    setVoiceMediaNotice(null);
+    try {
+      const response = await fetch(`${endpoint}/media/moderate`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ officeId: office.id, targetUsername, source, all: !targetUsername }),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string; mutedTracks?: number };
+      if (!response.ok) throw new Error(result.error ?? "Could not mute media.");
+      setVoiceMediaNotice(`Muted ${sourceLabel} for ${targetLabel}.`);
+    } catch (cause) {
+      setVoiceMediaNotice(cause instanceof Error ? cause.message : "Could not mute media.");
     }
   };
 
@@ -1110,24 +1254,42 @@ export function OfficeApp() {
       setPrivateVoiceConnected(state.connected && state.target?.kind === "private");
       setProximityVoiceConnected(state.connected && state.target?.kind === "proximity");
       setVoiceMuted(state.muted); setPrivateVoiceMuted(state.muted); setProximityVoiceMuted(state.muted);
-      setVoiceBusy(state.busy); setPrivateVoiceBusy(state.busy); setProximityVoiceBusy(state.busy);
       setVoiceError(state.error?.message ?? null);
       setVoiceRetryExhausted(state.retryExhausted);
     },
     roomChanged: (room, target) => {
+      voiceActivityRoomCleanupRef.current?.();
+      voiceActivityRoomCleanupRef.current = null;
       speakingByVoiceRoomRef.current.clear();
       speakingUsernamesRef.current.clear();
+      speakingRosterUsernamesRef.current = new Set();
+      setSpeakingUsernames(new Set());
       proximityAudioTracksRef.current.clear();
       setZoneAudioUsernames(new Set());
+      remoteAudioTracksRef.current.clear();
       audioOutputRef.current?.replaceChildren();
       liveKitRoomRef.current = target?.kind === "meeting" ? room : null;
       privateLiveKitRoomRef.current = target?.kind === "private" ? room : null;
       proximityLiveKitRoomRef.current = target?.kind === "proximity" ? room : null;
+      if (room) {
+        void applyAudioInputPreference(room, audioDevicePreferencesRef.current).catch((cause) => console.warn("Could not apply the saved microphone.", cause));
+        if (!remoteAudioContextRef.current && audioDevicePreferencesRef.current.outputDeviceId) {
+          void room.switchActiveDevice("audiooutput", audioDevicePreferencesRef.current.outputDeviceId).catch((cause) => console.warn("Could not apply the saved speaker.", cause));
+        }
+      }
       setVideoTiles([]); setCameraEnabled(false); setScreenShareEnabled(false);
+      if (room) {
+        const refresh = () => reportVoiceActivity(room);
+        const events = ["participantConnected", "participantDisconnected", "trackPublished", "trackUnpublished", "trackMuted", "trackUnmuted", "localTrackPublished", "localTrackUnpublished"] as RoomEvent[];
+        for (const event of events) room.on(event, refresh);
+        voiceActivityRoomCleanupRef.current = () => { for (const event of events) room.off(event, refresh); };
+        refresh();
+      } else reportVoiceActivity(null);
     },
     speakersChanged: updateVoiceRoomSpeakers,
     localTracksChanged: (room, publication) => {
       syncLocalVideoTiles(room);
+      reportVoiceActivity(room);
       if (publication?.source === VOICE_MICROPHONE_SOURCE && publication.audioTrack) void configureNoiseReductionForTrack(room, publication.audioTrack);
     },
     trackSubscribed: (voiceRoom, track, _publication, participant, target) => {
@@ -1135,19 +1297,21 @@ export function OfficeApp() {
       if (track.kind === VOICE_AUDIO_KIND) {
         const audioTrack = track as RemoteAudioTrack;
         setZoneAudioUsernames(current => new Set([...current, username]));
+        remoteAudioTracksRef.current.set(participant.identity, { track: audioTrack, username });
         if (target.kind === "proximity") {
           proximityAudioTracksRef.current.set(participant.identity, { track: audioTrack, username });
           updateProximityAudioVolumes();
-        }
+        } else audioTrack.setVolume(participantAudioLevelsRef.current.get(username) ?? 1);
         attachRemoteAudio(audioTrack);
       } else if (track.kind === VOICE_VIDEO_KIND) {
         const screen = String(track.source).toLowerCase().includes("screen");
-        addRemoteVideoTile({ key: mediaTileKey(voiceRoom.name, participant.identity, String(track.source)), track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false });
+        addRemoteVideoTile({ key: mediaTileKey(voiceRoom.name, participant.identity, String(track.source)), track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false, username, source: screen ? "screen" : "camera" });
       }
     },
     trackUnsubscribed: (_room, track, participant) => {
       if (track.kind === VOICE_AUDIO_KIND) setZoneAudioUsernames(current => { const next = new Set(current); next.delete(voiceParticipantUsername(participant)); return next; });
       if (proximityAudioTracksRef.current.get(participant.identity)?.track === track) proximityAudioTracksRef.current.delete(participant.identity);
+      if (remoteAudioTracksRef.current.get(participant.identity)?.track === track) remoteAudioTracksRef.current.delete(participant.identity);
       track.detach().forEach(element => element.remove());
       setVideoTiles(tiles => tiles.filter(tile => tile.track !== track));
     },
@@ -2069,6 +2233,9 @@ export function OfficeApp() {
               status: entry.status === "do-not-disturb" || entry.status === "in-meeting" || entry.status === "toilet" || entry.status === "lunch" || entry.status === "coffee-break" ? entry.status : "available",
               presence: entry.presence === "away" ? "away" : "online",
               nearby: Boolean(localPlayer && sessionId !== localSessionIdRef.current && entry.presence === "online" && nearbySessionIdsRef.current.has(sessionId)),
+              microphoneEnabled: Boolean(entry.microphoneEnabled),
+              cameraEnabled: Boolean(entry.cameraEnabled),
+              screenShareEnabled: Boolean(entry.screenShareEnabled),
             });
           }
           playersRef.current = snapshot;
@@ -2077,8 +2244,15 @@ export function OfficeApp() {
           setUserStatus(localSnapshot?.status ?? "available");
           setActivePetId(localSnapshot?.petId ?? "");
           updateProximityAudioVolumes();
+          const rosterLocal = localSessionIdRef.current ? snapshot.get(localSessionIdRef.current) : undefined;
+          const inRosterProximity = new Set<string>();
+          if (rosterLocal) {
+            for (const [sessionId, player] of snapshot) {
+              if (sessionId !== localSessionIdRef.current && player.presence === "online" && Math.hypot(rosterLocal.x - player.x, rosterLocal.z - player.z) <= CAMPUS_WORLD.proximityRadius) inRosterProximity.add(sessionId);
+            }
+          }
           const signature = [...snapshot]
-            .map(([id, player]) => `${id}:${player.presence}:${player.nearby}:${player.displayName}:${player.characterId}:${player.petId}:${player.weaponId}:${player.vehicleId}:${player.vehicleMode}:${player.vehiclePropId}:${player.vehiclePropX}:${player.vehiclePropZ}:${player.vehiclePropRotation}:${player.sittingPropId}:${player.status}:${player.handRaised}`)
+            .map(([id, player]) => `${id}:${player.presence}:${player.nearby}:${inRosterProximity.has(id)}:${officeMapLayoutRef.current ? voiceRosterAreaKey(player, officeMapLayoutRef.current, id === localSessionIdRef.current ? voiceTargetInputsRef.current.meetingZoneId ?? privateZoneIdRef.current : null) : "lobby"}:${player.displayName}:${player.characterId}:${player.petId}:${player.weaponId}:${player.vehicleId}:${player.vehicleMode}:${player.vehiclePropId}:${player.vehiclePropX}:${player.vehiclePropZ}:${player.vehiclePropRotation}:${player.status}:${player.handRaised}:${player.microphoneEnabled}:${player.cameraEnabled}:${player.screenShareEnabled}`)
             .sort()
             .join("|");
           if (signature !== peopleSignatureRef.current) {
@@ -2240,7 +2414,11 @@ export function OfficeApp() {
             else next.delete(sessionId);
             return next;
           });
-          if (sessionId === room.sessionId) setGhostModeEnabled(payload.enabled);
+        });
+        room.onMessage("ghost-mode-hint", () => {
+          setAutoMoveNotice("Blocked by a prop or car. Hold G to pass through props, cars, and people; walls and locked rooms stay solid.");
+          if (autoMoveNoticeTimerRef.current !== undefined) window.clearTimeout(autoMoveNoticeTimerRef.current);
+          autoMoveNoticeTimerRef.current = window.setTimeout(() => setAutoMoveNotice(null), 3200);
         });
         room.onMessage("private-zone", (payload: unknown) => {
           if (typeof payload !== "object" || payload === null || !("zoneId" in payload)) return;
@@ -2596,6 +2774,34 @@ export function OfficeApp() {
     : meetingZoneId ? `You’re here · ${lockedZoneIds.includes(meetingZoneId) ? "Locked to current occupants" : "Open to everyone"}` : "Open to everyone";
   const userOwnsAnotherDesk = Boolean(activeDeskZone && authUser && officeMapLayout?.zones.some((zone) => zone.kind === "private" && zone.ownerUsername === authUser.username && zone.id !== activeDeskZone.id));
   const canClaimAnyDesk = !authUser || !officeMapLayout?.zones.some((zone) => zone.kind === "private" && zone.ownerUsername === authUser.username);
+  const localRosterPlayer = people.find(([id]) => id === localSessionIdRef.current)?.[1];
+  const localRosterAreaKey = localRosterPlayer ? officeMapLayout ? voiceRosterAreaKey(localRosterPlayer, officeMapLayout, meetingZoneId ?? privateZoneId) : "lobby" : null;
+  const localRosterRangePlayers = new Set<string>();
+  if (localRosterPlayer) {
+    for (const [sessionId, player] of people) {
+      if (sessionId !== localSessionIdRef.current && Math.hypot(localRosterPlayer.x - player.x, localRosterPlayer.z - player.z) <= CAMPUS_WORLD.proximityRadius) localRosterRangePlayers.add(sessionId);
+    }
+  }
+  const rosterParticipantSessionIds = new Set(people.flatMap(([sessionId, player]) => {
+    if (sessionId === localSessionIdRef.current) return [];
+    const playerAreaKey = officeMapLayout ? voiceRosterAreaKey(player, officeMapLayout) : "lobby";
+    const sharesZoneWithLocal = Boolean(localRosterAreaKey && localRosterAreaKey !== "lobby" && playerAreaKey === localRosterAreaKey);
+    const nearbyInSameOpenArea = localRosterRangePlayers.has(sessionId);
+    if (player.presence === "online" && (sharesZoneWithLocal || nearbyInSameOpenArea)) return [sessionId];
+    return [];
+  }));
+  const voiceRosterPeople: VoiceRosterPerson[] = rosterParticipantSessionIds.size === 0 ? [] : people.flatMap(([sessionId, player]) => {
+    if (sessionId !== localSessionIdRef.current && !rosterParticipantSessionIds.has(sessionId)) return [];
+    const local = sessionId === localSessionIdRef.current;
+    const username = player.username.toLocaleLowerCase();
+    return [{ sessionId, username, displayName: player.displayName, status: player.status, presence: player.presence, local, nearby: localRosterRangePlayers.has(sessionId) }];
+  });
+  const openVoiceRosterVideo = (username: string, source: VoiceRosterMediaSource) => {
+    const tile = videoTiles.find((candidate) => candidate.username === username.toLocaleLowerCase() && candidate.source === source);
+    if (!tile) return;
+    setFocusedVideoKey(tile.key);
+    setVideoPopupOpen(true);
+  };
   const focusedVideoTile = videoTiles.find((tile) => tile.key === focusedVideoKey) ?? videoTiles[0] ?? null;
   const secondaryVideoTiles = focusedVideoTile ? videoTiles.filter((tile) => tile.key !== focusedVideoTile.key) : [];
   const miniVideoTiles = secondaryVideoTiles.length > 0 ? secondaryVideoTiles : focusedVideoTile ? [focusedVideoTile] : [];
@@ -2614,6 +2820,18 @@ export function OfficeApp() {
       <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} cameraBehindCharacterRef={cameraBehindCharacterRef} firstPersonViewRef={firstPersonViewRef} map2dDecorationsRef={social.decorationsRef} map2dViewRef={map2dViewRef} locateRequestRef={locateRequestRef} autoMoveStatusRevisionRef={autoMoveStatusRevisionRef} propsConfigVersion={modifyPropsOpen ? modifyPropsVersion : mapPropsConfigVersion} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused || Boolean(social.interaction)} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} jumpStartedAtRef={jumpStartedAtRef} onJump={() => roomRef.current?.send("jump", true)} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); lockedMovementRef.current = null; roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} onSelectPlayer={(sessionId, x, y) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") setMapPlayerAction({ sessionId, displayName: player.displayName, x, y }); }} onGhostModeChange={setGhostMode} />
       <OfficeSocialOverlay social={social} room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} endpoint={endpoint} officeId={activeOffice.id} username={authUser.username} sessionKey={localSessionIdRef.current} chatTarget={chatTarget} chatContainer={chatContainer} chatVisible={activeLeftTab === "chat" && workspacePanelOpen} onUnread={setChatUnread} raised={playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ?? false} doNotDisturb={userStatus === "do-not-disturb"} zoneUsernames={zoneAudioUsernames} />
       <Minimap layout={displayedOfficeMapLayout} configVersion={mapPropsConfigVersion} playersRef={playersRef} firstPersonViewRef={firstPersonViewRef} hidden={mapEditMode || modifyPropsOpen} onPan={(center) => { locateRequestRef.current = { center, requestId: performance.now() }; }} />
+      <VoiceParticipantRoster
+        people={voiceRosterPeople}
+        speakingUsernames={speakingUsernames}
+        activities={voiceRosterActivities}
+        audioLevels={participantAudioLevels}
+        canMuteAll={voiceRosterPeople.filter((person) => !person.local).length > 1 && ["owner", "admin", "maintainer"].includes(activeOffice.role)}
+        canOpenVideo={(username, source) => videoTiles.some((tile) => tile.username === username.toLocaleLowerCase() && tile.source === source)}
+        onOpenVideo={openVoiceRosterVideo}
+        onSetAudioLevel={setParticipantAudioLevel}
+        onModeratePerson={(username, source) => void moderateVoiceMedia(source, username)}
+        onMuteAll={(source) => void moderateVoiceMedia(source)}
+      />
       {mapPlayerAction && <div className="map-player-action-backdrop" role="presentation" onPointerDown={() => setMapPlayerAction(null)}>
         <div className="map-player-action-menu" role="menu" aria-label={`Actions for ${mapPlayerAction.displayName}`} style={{ left: Math.max(8, Math.min(mapPlayerAction.x, window.innerWidth - 188)), top: Math.max(8, Math.min(mapPlayerAction.y, window.innerHeight - 104)) }} onPointerDown={(event) => event.stopPropagation()}>
           <strong>{mapPlayerAction.displayName}</strong>
@@ -2738,13 +2956,18 @@ export function OfficeApp() {
 
       {settingsOpen && <div className="profile-dialog-backdrop settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="profile-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
         <header className="profile-dialog-header"><div><span className="eyebrow">USER SETTINGS</span><h2 id="settings-dialog-title">Settings</h2></div><button type="button" className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><FeatherIcon name="close" size={17} /></button></header>
-        <div className="settings-dialog-body"><nav className="settings-section-nav" aria-label="Settings topics"><button type="button" className={settingsSection === "general" ? "active" : ""} aria-current={settingsSection === "general" ? "page" : undefined} onClick={() => setSettingsSection("general")}>General</button><button type="button" className={settingsSection === "permissions" ? "active" : ""} aria-current={settingsSection === "permissions" ? "page" : undefined} onClick={() => setSettingsSection("permissions")}>Permission</button><button type="button" className={settingsSection === "security" ? "active" : ""} aria-current={settingsSection === "security" ? "page" : undefined} onClick={() => setSettingsSection("security")}>Security</button></nav>
-          <div className="settings-section-content">{settingsSection === "general" ? <section aria-labelledby="general-settings-title"><span className="eyebrow">PREFERENCES</span><h3 id="general-settings-title">General</h3><p className="settings-intro">Adjust client-side preferences.</p><div className="permission-row settings-general-row"><div><strong>Idle animations</strong><small>Turn off idle movement for characters and pets</small></div><label className="settings-toggle-control"><span className="sr-only">Idle animations</span><input type="checkbox" role="switch" checked={idleAnimationsEnabled} onChange={(event) => updateIdleAnimationsEnabled(event.target.checked)} /><span aria-hidden="true" /></label></div><div className="permission-row settings-general-row"><div><strong>Noise reduction</strong><small>Reduce background noise locally with RNNoise</small><small className={`noise-reduction-status ${noiseReductionStatus}`} role="status">{noiseReductionStatus === "checking" ? "Loading local noise filter…" : noiseReductionStatus === "enabled" ? "RNNoise noise reduction is active" : noiseReductionStatus === "fallback" ? `RNNoise unavailable: ${noiseReductionDetails || "browser noise reduction remains active"}` : noiseReductionStatus === "disabled" ? "Using browser noise reduction" : "Applies when you join voice"}</small></div><label className="settings-toggle-control"><span className="sr-only">Noise reduction</span><input type="checkbox" role="switch" checked={noiseReductionEnabled} onChange={(event) => updateNoiseReductionPreference(event.target.checked)} /><span aria-hidden="true" /></label></div></section> : settingsSection === "permissions" ? <section aria-labelledby="permissions-title"><span className="eyebrow">DEVICE ACCESS</span><h3 id="permissions-title">Permissions</h3><p className="settings-intro">Allow GAMVerse to use your microphone, camera, or screen when you choose those controls.</p>
+        <div className="settings-dialog-body"><nav className="settings-section-nav" aria-label="Settings topics"><button type="button" className={settingsSection === "general" ? "active" : ""} aria-current={settingsSection === "general" ? "page" : undefined} onClick={() => setSettingsSection("general")}>General</button><button type="button" className={settingsSection === "sound" ? "active" : ""} aria-current={settingsSection === "sound" ? "page" : undefined} onClick={() => setSettingsSection("sound")}>Sound</button><button type="button" className={settingsSection === "permissions" ? "active" : ""} aria-current={settingsSection === "permissions" ? "page" : undefined} onClick={() => setSettingsSection("permissions")}>Permission</button><button type="button" className={settingsSection === "security" ? "active" : ""} aria-current={settingsSection === "security" ? "page" : undefined} onClick={() => setSettingsSection("security")}>Security</button></nav>
+          <div className="settings-section-content">
+            {settingsSection === "general" && <section aria-labelledby="general-settings-title"><span className="eyebrow">PREFERENCES</span><h3 id="general-settings-title">General</h3><p className="settings-intro">Adjust client-side preferences.</p><div className="permission-row settings-general-row"><div><strong>Idle animations</strong><small>Turn off idle movement for characters and pets</small></div><label className="settings-toggle-control"><span className="sr-only">Idle animations</span><input type="checkbox" role="switch" checked={idleAnimationsEnabled} onChange={(event) => updateIdleAnimationsEnabled(event.target.checked)} /><span aria-hidden="true" /></label></div></section>}
+            {settingsSection === "sound" && <SoundSettings inputDeviceId={audioDevicePreferences.inputDeviceId} outputDeviceId={audioDevicePreferences.outputDeviceId} onInputDeviceChange={switchMicrophoneDevice} onOutputDeviceChange={switchSpeakerDevice} noiseReductionEnabled={noiseReductionEnabled} noiseReductionStatus={noiseReductionStatus} noiseReductionDetails={noiseReductionDetails} onNoiseReductionChange={updateNoiseReductionPreference} />}
+            {settingsSection === "permissions" && <section aria-labelledby="permissions-title"><span className="eyebrow">DEVICE ACCESS</span><h3 id="permissions-title">Permissions</h3><p className="settings-intro">Allow GAMVerse to use your microphone, camera, or screen when you choose those controls.</p>
             {(["microphone", "camera"] as const).map((kind) => <div className="permission-row" key={kind}><div><strong>{kind === "microphone" ? "Microphone" : "Camera"}</strong><small className={`permission-state ${browserPermissions[kind]}`}>{browserPermissions[kind] === "unknown" ? "Status unavailable" : browserPermissions[kind]}</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission(kind)}>{permissionBusy === kind ? "Checking…" : browserPermissions[kind] === "denied" ? "Check again" : "Allow access"}</button></div>)}
             <div className="permission-row"><div><strong>Screen sharing</strong><small>Browser asks each time you share</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission("screen")}>{permissionBusy === "screen" ? "Checking…" : "Check sharing"}</button></div>
             {permissionMessage && <p className="permission-message" role="status">{permissionMessage}</p>}{screenPermissionResult && <p className="permission-message" role="status">{screenPermissionResult}</p>}
             {(browserPermissions.microphone === "denied" || browserPermissions.camera === "denied") && <p className="permission-help">If access is blocked, open this site’s permissions from the browser address bar, allow the device, then select Check again.</p>}
-          </section> : <section aria-labelledby="security-title"><span className="eyebrow">ACCOUNT SECURITY</span><h3 id="security-title">Security</h3><p className="settings-intro">Update the password you use to sign in to GAMVerse.</p><button type="button" className="settings-menu-row security-password-action" onClick={() => { setAccountError(null); setChangePasswordOpen(true); }}><span><strong>Change password</strong><small>Choose a new sign-in password</small></span><span aria-hidden="true">›</span></button></section>}</div>
+          </section>}
+            {settingsSection === "security" && <section aria-labelledby="security-title"><span className="eyebrow">ACCOUNT SECURITY</span><h3 id="security-title">Security</h3><p className="settings-intro">Update the password you use to sign in to GAMVerse.</p><button type="button" className="settings-menu-row security-password-action" onClick={() => { setAccountError(null); setChangePasswordOpen(true); }}><span><strong>Change password</strong><small>Choose a new sign-in password</small></span><span aria-hidden="true">›</span></button></section>}
+          </div>
         </div>
       </section></div>}
 
@@ -2826,8 +3049,8 @@ export function OfficeApp() {
           {miniVideoTiles.length > 0 && <section className="video-mini-strip" aria-label="Camera and screen share previews"><div className="video-mini-strip-scroll">{miniVideoTiles.map((tile) => <VideoTile key={`mini:${tile.key}`} track={tile.track} label={tile.label} local={tile.local} focused={tile.key === focusedVideoTile.key} compact onFocus={() => setFocusedVideoKey(tile.key)} />)}</div></section>}
           <div className="video-popup-controls" aria-label="Media controls">
             <button type="button" disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void toggleMicrophone()}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /><span>{selectedMicMuted ? "Mic off" : "Mic on"}</span></button>
-            <button type="button" className={cameraEnabled ? "active" : ""} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "videoOff" : "video"} /><span>{cameraEnabled ? "Camera off" : "Camera"}</span></button>
-            <button type="button" className={screenShareEnabled ? "active" : ""} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name="screen" /><span>{screenShareEnabled ? "Stop share" : "Share screen"}</span></button>
+            <button type="button" className={cameraEnabled ? "active" : ""} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "video" : "videoOff"} /><span>{cameraEnabled ? "Camera off" : "Camera"}</span></button>
+            <button type="button" className={screenShareEnabled ? "active" : ""} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name={screenShareEnabled ? "screen" : "screenOff"} /><span>{screenShareEnabled ? "Stop share" : "Share screen"}</span></button>
           </div>
         </section>,
         document.body,
@@ -2836,12 +3059,11 @@ export function OfficeApp() {
 
       {voiceMediaNotice && <div className="error-banner" role="status">{voiceMediaNotice}<button type="button" onClick={() => setVoiceMediaNotice(null)}>{DISMISS_MEDIA_NOTICE_LABEL}</button></div>}
       <div className="bottom-dock" data-tutorial-target="office-toolbar" aria-label="Office controls">
-        {voiceRetryExhausted && !appPaused ? <button type="button" className="dock-button" onClick={() => voiceSessionRef.current?.reconnect()}>{RECONNECT_VOICE_LABEL}</button> :
+        {voiceRetryExhausted && !appPaused ? <span className="dock-button voice-reconnect-indicator" role="img" aria-label="Voice disconnected" title="Voice disconnected"><FeatherIcon name="refresh" /></span> :
         <button data-tutorial-target="office-microphone" type="button" className={`dock-button ${selectedVoiceConnected && !selectedMicMuted ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedVoiceConnected ? (selectedMicMuted ? "Turn microphone on" : "Turn microphone off") : "Voice connects automatically when you enter a voice zone"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void toggleMicrophone()}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /></button>}
-        <button type="button" className={`dock-button ${cameraEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "videoOff" : "video"} /></button>
-        <button type="button" className={`dock-button ${screenShareEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name="screen" /></button>
+        <button type="button" className={`dock-button ${cameraEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "video" : "videoOff"} /></button>
+        <button type="button" className={`dock-button ${screenShareEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name={screenShareEnabled ? "screen" : "screenOff"} /></button>
         <button type="button" className={`dock-button ${userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "active" : ""}`} aria-pressed={userStatus === "do-not-disturb" || userStatus === "in-meeting"} title={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Headphones off · click to set Available" : "Headphones on · click to turn on Do not disturb"} aria-label={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Turn headphones on" : "Turn headphones off"} onClick={toggleHeadphones}><FeatherIcon name={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "headphonesOff" : "headphones"} /></button>
-        <button type="button" className={`dock-button ghost-mode-button${ghostModeEnabled ? " active" : ""}`} aria-pressed={ghostModeEnabled} title="Hold this button or hold G to pass through props and interior walls" aria-label="Hold to enable ghost mode" disabled={appPaused} onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); setGhostMode(true); }} onPointerUp={() => setGhostMode(false)} onPointerCancel={() => setGhostMode(false)} onLostPointerCapture={() => setGhostMode(false)} onBlur={() => setGhostMode(false)} onKeyDown={(event) => { if (event.code === "Space") { event.preventDefault(); return; } if (event.code === "Enter" && !event.repeat) { event.preventDefault(); setGhostMode(true); } }} onKeyUp={(event) => { if (event.code === "Enter") setGhostMode(false); }}><kbd>G</kbd><span>{ghostModeEnabled ? "Ghost on" : "Hold Ghost"}</span></button>
         <ReactionPicker room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} disabled={appPaused} />
         <span className="dock-separator" />
         <div className="user-status-dock-control">
@@ -2887,7 +3109,7 @@ export function OfficeApp() {
         {activeDeskZone && !activeDeskZone.ownerUsername && !userOwnsAnotherDesk && <button type="button" disabled={deskClaimBusy} onClick={() => void claimDeskZone(activeDeskZone.id)}>{deskClaimBusy && deskClaimingZoneId === activeDeskZone.id ? "Claiming…" : "Claim desk"}</button>}
         {activeDeskZone && !activeDeskZone.ownerUsername && userOwnsAnotherDesk && <small className="desk-claim-limit">You already own a desk.</small>}
         {zoneLockTargetId && <button type="button" className={`zone-lock-button${lockedZoneIds.includes(zoneLockTargetId) ? " is-locked" : ""}`} aria-label={lockedZoneIds.includes(zoneLockTargetId) ? "Unlock room" : "Lock room"} aria-pressed={lockedZoneIds.includes(zoneLockTargetId)} title={lockedZoneIds.includes(zoneLockTargetId) ? "Unlock room" : "Lock room"} onClick={() => roomRef.current?.send("zone-lock", { zoneId: zoneLockTargetId, locked: !lockedZoneIds.includes(zoneLockTargetId) })}>
-          <FeatherIcon name={lockedZoneIds.includes(zoneLockTargetId) ? "unlock" : "lock"} size={24} />
+          <FeatherIcon name={lockedZoneIds.includes(zoneLockTargetId) ? "lock" : "unlock"} size={24} />
         </button>}
         {canManageCurrentDesk && activeDeskZone && <button type="button" disabled={deskClaimBusy} onClick={() => void unclaimDeskZone(activeDeskZone.id)}>{deskClaimBusy && deskClaimingZoneId === activeDeskZone.id ? "Unclaiming…" : "Unclaim"}</button>}
         {activeDeskZone && deskClaimError && <small className="desk-claim-error" role="alert">{deskClaimError}</small>}

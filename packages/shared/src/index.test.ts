@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { arePlayersNearby, CAMPUS_LAYOUT, CAMPUS_WORLD, campusPropPlacements, campusWorldFromConfig, isPositionWalkable, isValidMovementInput, movePlayer, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomWorldFromConfig, screenMovementToWorld, WORLD } from "./index.ts";
+import { arePlayersNearby, CAMPUS_LAYOUT, CAMPUS_WORLD, campusPropPlacements, campusWorldFromConfig, isPositionWalkable, isValidMovementInput, isRoomWallProp, movePlayer, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomWorldFromConfig, screenMovementToWorld, WORLD } from "./index.ts";
 import { generateCampusMap } from "./campusMapGenerator.ts";
 
 test("normalizes diagonal movement to the configured walk speed", () => {
@@ -149,6 +149,21 @@ test("saved office map props use campus coordinates for server collision", () =>
   assert.equal(isPositionWalkable({ x: 43, z: 54 }, world), true);
   const stopped = movePlayer({ x: 43, z: 54 }, { x: 0, z: -1 }, 0.5, world);
   assert.ok(stopped.z > 53.38);
+});
+
+test("wall model props stay in the wall collision set even when their catalog prop is non-colliding", () => {
+  assert.equal(isRoomWallProp({ asset: "kit-building-kit-wall" }), true);
+  assert.equal(isRoomWallProp({ asset: "kit-factory-kit-structure-wall" }), true);
+  assert.equal(isRoomWallProp({ asset: "kit-mini-dungeon-wall" }), true);
+  assert.equal(isRoomWallProp({ asset: "office-wall-shelf" }), false);
+
+  const world = campusWorldFromConfig({ version: 1, layout: { version: 1, props: [
+    { id: "wall-prop", asset: "kit-building-kit-wall", x: 0, z: 0, rotation: 0, collision: false },
+    { id: "desk", asset: "desk", x: 5, z: 0, rotation: 0, collision: true },
+  ], zones: [] } });
+  assert.equal(world.walls.some((wall) => wall.x === 0 && wall.z === 0), true);
+  assert.equal(world.obstacles.length, 1);
+  assert.equal(isPositionWalkable({ x: 0, z: 0 }, world), false);
 });
 
 test("seat collision follows chair and sofa model footprints instead of the 1 m editor cells", () => {

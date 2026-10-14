@@ -17,15 +17,15 @@ const tutorials: Record<TutorialPage, { title: string; steps: TutorialStep[] }> 
     { title: "Move around", body: "Inside an office, W/S walk forward or backward. Hold A/D to turn left or right in 15° steps while the camera follows your character.", keyboard: "W / S  ·  Hold A / D" },
   ] },
   office: { title: "Inside the office", steps: [
-    { title: "Focus your character", body: "Center the view and lock the camera behind your character again. Use the adjacent arrow button to travel to your desk when available.", target: "office-focus-character" },
+    { title: "Character camera actions", body: "Open this group to focus the view on your character or lock the camera behind them. Focus recenters the view; camera lock controls whether it follows your facing.", target: "office-character-actions" },
     { title: "Office toolbar", body: "These controls manage microphone, camera, screen sharing, audio, status, and leaving the office.", target: "office-toolbar" },
-    { title: "Move and turn", body: "With the camera locked behind you, W/S walk forward or backward. Hold A/D to turn in 15° steps. Right-drag to free the camera and use camera-relative movement; Focus character locks it again.", keyboard: "W / S  ·  Hold A / D  ·  Right-drag" },
+    { title: "Move and turn", body: "When camera lock is on, W/S walk forward or backward and holding A/D turns in 15° steps. Right-drag to release the angle lock; use the lock button to turn it back on.", keyboard: "W / S  ·  Hold A / D  ·  Right-drag" },
     { title: "Move faster or travel", body: "Hold Shift to move faster, press Space to jump in 3D, or double-click the ground to travel automatically.", keyboard: "Shift  ·  Space  ·  Double-click" },
   ] },
   meeting: { title: "Join the meeting", steps: [
     { title: "Microphone", body: "Speak with people in this room. Your microphone connects when you enter a voice zone.", target: "office-microphone" },
     { title: "Camera and screen", body: "Turn on your camera or share your screen from these controls.", target: "office-toolbar" },
-    { title: "Move around", body: "With the camera locked, W/S walk and holding A/D turns in 15° steps. Right-drag to free the camera, or press Space to jump in 3D.", keyboard: "W / S  ·  Hold A / D  ·  Right-drag  ·  Space" },
+    { title: "Move around", body: "When camera lock is on, W/S walk and holding A/D turns in 15° steps. Use the lock button to release or restore the angle; press Space to jump in 3D.", keyboard: "W / S  ·  Hold A / D  ·  Space" },
   ] },
 };
 
