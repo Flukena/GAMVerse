@@ -2493,12 +2493,21 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       toggleCameraViewRef.current();
     };
     const onJumpKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Space" || event.repeat || appPaused || buildModeRef.current || mapEditModeRef.current || cameraStateRef.current.mode === "map2d") return;
-      if (event.target instanceof Element && event.target.closest("button, input, textarea, select, a, [contenteditable], [role='button'], [role='dialog']")) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (event.code !== "Space") return;
+      const input = target instanceof HTMLInputElement ? target : null;
+      const isTextEntry = target?.closest("textarea, [contenteditable='true']")
+        || (input && ["text", "search", "url", "tel", "email", "password"].includes(input.type));
+      if (isTextEntry) return;
+
+      // Reserve Space for jumping. Prevent native button activation and any
+      // lower-level toolbar handlers from turning it into a toggle/action.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.repeat || appPaused || buildModeRef.current || mapEditModeRef.current || cameraStateRef.current.mode === "map2d" || target?.closest("[role='dialog']")) return;
       const localId = localSessionIdRef.current;
       const player = localId ? playersRef.current.get(localId) : undefined;
       if (!player || player.vehicleId || player.sittingPropId) return;
-      event.preventDefault();
       buildCallbacksRef.current.onJump?.();
     };
     const onMapEditKeyDown = (event: KeyboardEvent) => {
@@ -2527,7 +2536,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     window.addEventListener("blur", stopGhostKey);
     window.addEventListener("keydown", onFirstPersonKeyDown);
     window.addEventListener("keydown", onCameraViewKeyDown);
-    window.addEventListener("keydown", onJumpKeyDown);
+    window.addEventListener("keydown", onJumpKeyDown, true);
     window.addEventListener("pointerdown", primeBlasterAudio, { once: true, capture: true });
     window.addEventListener("keydown", primeBlasterAudio, { once: true });
     window.addEventListener("keydown", onMapEditKeyDown);
@@ -3488,7 +3497,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       stopGhostKey();
       window.removeEventListener("keydown", onFirstPersonKeyDown);
       window.removeEventListener("keydown", onCameraViewKeyDown);
-      window.removeEventListener("keydown", onJumpKeyDown);
+      window.removeEventListener("keydown", onJumpKeyDown, true);
       window.removeEventListener("pointerdown", primeBlasterAudio, true);
       window.removeEventListener("keydown", primeBlasterAudio);
       window.removeEventListener("keydown", onMapEditKeyDown);
