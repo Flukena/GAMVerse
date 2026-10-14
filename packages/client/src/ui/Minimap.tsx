@@ -106,7 +106,7 @@ export function Minimap({
       height={MINIMAP_HEIGHT_PX}
       aria-label="Office minimap; click to pan 2D"
       style={{
-        position: "absolute",
+        position: "fixed",
         left: MINIMAP_LEFT_OFFSET_PX,
         bottom: MINIMAP_BOTTOM_OFFSET_PX,
         zIndex: MINIMAP_Z_INDEX,
