@@ -66,6 +66,19 @@ This is the single rulebook for coding agents (Claude, Codex) and contributors. 
 - Behaviour changes need a test that fails when the change is reverted, or a stated browser check.
 - Multiplayer behaviour (movement, facing, presence, voice zones) is verified with two browser sessions on the Compose stack. Say which checks were run and which were not.
 
+## Agents
+
+Project agents live in `.claude/agents/` (Claude) and `.codex/agents/` (Codex). Each one points back to this file for the rules. Delegate to the agent that owns the area; generic Claude agent types are blocked by the hook in `.claude/settings.json`.
+
+| Area | Claude | Codex |
+| --- | --- | --- |
+| Client UI, world, camera, 2D map, voice sessions | `gamverse-client-dev` (sonnet) | `gamverse-client` |
+| Server, shared rules, media grants, migrations | `gamverse-server-dev` (sonnet) | `gamverse-server` |
+| Review | `gamverse-reviewer` (opus) for Codex diffs | `gamverse-reviewer` for plans and Claude diffs |
+| Build/test runs and counts | `gamverse-verifier` (haiku) | — |
+
+Codex implements by default; the Claude dev agents are for when Codex is unavailable or the work needs the live Compose stack. The implementer never reviews its own work.
+
 ## Ask the owner first
 
 Production deploys and `compose.production.yaml`/`Caddyfile` changes, secrets and `.env*` files, data deletion or volume removal, applied migrations, adding a source-code license, and new third-party asset packs.
