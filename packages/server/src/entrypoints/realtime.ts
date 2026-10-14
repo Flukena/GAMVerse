@@ -7,7 +7,7 @@ import { getRecentServerErrorCount, logServerError, logServerEvent } from "../in
 import { hasValidInternalServiceToken } from "../infra/internalServiceAuth.js";
 import { OfficeRoom, closeOfficeRooms, kickAccountFromOffices, kickOfficeMember, officeRoomDefinition } from "../offices/OfficeRoom.js";
 import { getOfficeRole } from "../offices/repository.js";
-import { createMeetingAudioToken, createPrivateVoiceToken, createProximityAudioToken, liveKitIdentity } from "../media/service.js";
+import { createMeetingAudioToken, createPrivateVoiceToken, createProximityAudioToken, liveKitIdentity, muteVoiceParticipantTracks, voiceRoomNameForModeration } from "../media/service.js";
 import { errorMessage, jsonBodyParser, originGuard, sessionFromCookie, type HttpRequest as AuthRequest, type HttpResponse as AuthResponse } from "../http/middleware.js";
 
 const port = Number(process.env.PORT ?? 2567);
@@ -127,6 +127,53 @@ const server = defineServer({
           }
           response.json({ ...token, groupId });
         } catch (error) { response.status(503).json({ error: errorMessage(error) }); }
+      });
+      app.post("/media/moderate", async (request: AuthRequest, response: AuthResponse) => {
+        const sessionToken = sessionFromCookie(request.header("cookie"));
+        const session = await getSession(sessionToken);
+        if (!session || !sessionToken) { response.status(401).json({ error: "Authentication required." }); return; }
+        const officeId = request.body?.officeId;
+        const rawSource: unknown = request.body?.source;
+        const sources = ["microphone", "camera", "screen_share"] as const;
+        if (typeof rawSource !== "string" || !sources.includes(rawSource as (typeof sources)[number])) {
+          response.status(400).json({ error: "Office and a valid media source are required." }); return;
+        }
+        const source = rawSource as (typeof sources)[number];
+        const muteAll = request.body?.all === true;
+        const rawTargetUsername: unknown = request.body?.targetUsername;
+        if (typeof officeId !== "string") {
+          response.status(400).json({ error: "Office and a valid media source are required." }); return;
+        }
+        if (!muteAll && (typeof rawTargetUsername !== "string" || !rawTargetUsername.trim() || rawTargetUsername.length > 64)) {
+          response.status(400).json({ error: "A target username is required." }); return;
+        }
+        const targetUsername = typeof rawTargetUsername === "string" ? rawTargetUsername : undefined;
+        const role = await getOfficeRole(session.username, officeId, session.role === "maintainer");
+        if (!role) { response.status(403).json({ error: "You are not a member of this office." }); return; }
+        if (muteAll && role !== "owner" && role !== "admin" && role !== "maintainer") {
+          response.status(403).json({ error: "Only office admins can mute everyone in a voice zone." }); return;
+        }
+        if (!muteAll && targetUsername === session.username) {
+          response.status(400).json({ error: "Use your own media controls to manage your microphone or camera." }); return;
+        }
+        const voiceContext = OfficeRoom.getVoiceRoomForModeration(officeId, session.username, liveKitIdentity(session.username, sessionToken), muteAll ? undefined : targetUsername);
+        if (!voiceContext || voiceContext.participantIdentities.length === 0) {
+          response.status(403).json({ error: "The target is no longer in your voice zone." }); return;
+        }
+        try {
+          const roomName = voiceRoomNameForModeration(officeId, voiceContext.kind, voiceContext.id);
+          const mutedTracks = await muteVoiceParticipantTracks(roomName, voiceContext.participantIdentities, source);
+          if (mutedTracks === 0) { response.status(409).json({ error: "No active track of that type was found in this voice zone." }); return; }
+          logServerEvent("realtime", muteAll ? "voice.zone.media.muted" : "voice.participant.media.muted", {
+            officeId,
+            actorUsername: session.username,
+            targetUsername: muteAll ? undefined : targetUsername,
+            zoneKind: voiceContext.kind,
+            source,
+            mutedTracks,
+          });
+          response.json({ mutedTracks });
+        } catch (error) { response.status(503).json({ error: "Could not mute media in this voice zone." }); }
       });
     app.get("/health/live", (_request: AuthRequest, response: AuthResponse) => response.json({ status: "ok", service: "realtime" }));
     app.get("/health/ready", async (_request: AuthRequest, response: AuthResponse) => {

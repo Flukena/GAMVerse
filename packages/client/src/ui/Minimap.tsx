@@ -10,7 +10,7 @@ import {
   type Map2dProjection,
 } from "../world/map2d/map2dProjection";
 const MINIMAP_LEFT_OFFSET_PX = 12;
-const MINIMAP_BOTTOM_OFFSET_PX = 110;
+const MINIMAP_BOTTOM_OFFSET_PX = 12;
 const MINIMAP_Z_INDEX = 5;
 const MINIMAP_BORDER_RADIUS_PX = 8;
 const MINIMAP_BORDER_CSS = "1px solid #23495a";
@@ -106,7 +106,7 @@ export function Minimap({
       height={MINIMAP_HEIGHT_PX}
       aria-label="Office minimap; click to pan 2D"
       style={{
-        position: "absolute",
+        position: "fixed",
         left: MINIMAP_LEFT_OFFSET_PX,
         bottom: MINIMAP_BOTTOM_OFFSET_PX,
         zIndex: MINIMAP_Z_INDEX,

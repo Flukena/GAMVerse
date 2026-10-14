@@ -9,9 +9,11 @@ import type { MovementInput } from "./inputDelivery.js";
 import { schema, t } from "@colyseus/schema";
 import { CAMPUS_LAYOUT, campusPropPlacements } from "./campusLayout.js";
 import { readRoomLayout, roomPropCollisionClearanceRadius, roomPropCollisionFootprint } from "./roomLayout.js";
+import { isRoomWallProp } from "./roomWallProps.js";
 import type { RoomLayout } from "./roomLayout.js";
 
 export { roomBoundaryWalls, roomWallSolidSegments } from "./roomWallSegments.js";
+export { isRoomWallProp } from "./roomWallProps.js";
 export { CAMPUS_COUNTS, CAMPUS_LAYOUT, campusPropPlacements, legacyPortalToCampus } from "./campusLayout.js";
 export type { CampusPropPlacement, CampusRoom, CampusRoomKind } from "./campusLayout.js";
 export { ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, parseRoomPropSeatReference, readRoomLayout, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropPlacementSupport, roomPropSeatAnchors, roomPropSeatReference, type RoomLayoutRoadway, type RoomPropSeatAnchor } from "./roomLayout.js";
@@ -232,7 +234,12 @@ export function campusWorldFromConfig(
         ...CAMPUS_WORLD.spawnPoints,
       ]
     : CAMPUS_WORLD.spawnPoints;
-  const placedProps: Blocker[] = props.filter((prop) => !excludedPropIds.has(prop.id) && prop.collision && !prop.elevation).map((prop) => {
+  // Wall-like assets stay solid in Ghost mode even when saved with a raised
+  // placement height. Elevation must not silently turn structural geometry
+  // into a pass-through prop.
+  const wallProps = props.filter((prop) => !excludedPropIds.has(prop.id) && isRoomWallProp(prop));
+  const wallPropIds = new Set(wallProps.map((prop) => prop.id));
+  const placedProps: Blocker[] = props.filter((prop) => !excludedPropIds.has(prop.id) && !wallPropIds.has(prop.id) && prop.collision && !prop.elevation).map((prop) => {
     const footprint = roomPropCollisionFootprint(prop);
     const playerClearanceRadius = roomPropCollisionClearanceRadius(prop);
     return {
@@ -249,6 +256,10 @@ export function campusWorldFromConfig(
       ? { x: wall.x + (start + end) / 2, z: wall.z, width: end - start, depth: wall.thickness }
       : { x: wall.x, z: wall.z + (start + end) / 2, width: wall.thickness, depth: end - start });
   });
+  const placedWallProps: Blocker[] = wallProps.map((prop) => {
+    const footprint = roomPropCollisionFootprint(prop);
+    return { x: prop.x, z: prop.z, width: footprint.width, depth: footprint.depth, playerClearanceRadius: CAMPUS_WORLD.playerRadius };
+  });
   const boundaryWalls: Blocker[] = roomBoundaryWalls(width, depth);
   // An office's saved map is the source of truth for its furniture collision.
   // CAMPUS_WORLD.obstacles belong to the legacy built-in campus scene; carrying
@@ -256,7 +267,8 @@ export function campusWorldFromConfig(
   // (0, 0), which can block auto routes and chair approaches even though the
   // old scene objects are not rendered there.
   const obstacles = placedProps;
-  return { ...CAMPUS_WORLD, width, depth, spawnPoints, walls: [...boundaryWalls, ...mapWalls], obstacles, collisionGrid: makeBlockerGrid([...boundaryWalls, ...mapWalls, ...obstacles]) };
+  const walls = [...boundaryWalls, ...mapWalls, ...placedWallProps];
+  return { ...CAMPUS_WORLD, width, depth, spawnPoints, walls, obstacles, collisionGrid: makeBlockerGrid([...walls, ...obstacles]) };
 }
 
 export function roomLayoutZoneAt(position: Position, config: unknown, previousZoneId?: string | null) {
@@ -269,7 +281,7 @@ export const CAMERA = {
   offsetZ: 12.5,
   dragSensitivity: 0.006,
   zoomStep: 10,
-  minZoom: 30,
+  minZoom: 15,
   maxZoom: 35,
 } as const;
 
@@ -285,6 +297,14 @@ export const USER_STATUSES = [
   "coffee-break",
 ] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];
+
+export type MediaActivity = { microphone: boolean; camera: boolean; screenShare: boolean };
+
+export function isValidMediaActivity(value: unknown): value is MediaActivity {
+  if (typeof value !== "object" || value === null) return false;
+  const activity = value as Record<string, unknown>;
+  return typeof activity.microphone === "boolean" && typeof activity.camera === "boolean" && typeof activity.screenShare === "boolean";
+}
 
 export const PlayerState = schema(
   {
@@ -308,6 +328,9 @@ export const PlayerState = schema(
     weaponId: t.string(),
     status: t.string(),
     presence: t.string(),
+    microphoneEnabled: t.boolean(),
+    cameraEnabled: t.boolean(),
+    screenShareEnabled: t.boolean(),
   },
   "PlayerState",
 );

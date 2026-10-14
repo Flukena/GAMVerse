@@ -110,3 +110,27 @@ export async function revokeSpotlightParticipant(roomName: string, identity: str
     if (!(error instanceof ServerError) || error.code !== "not_found") throw error;
   }
 }
+export function voiceRoomNameForModeration(officeId: string, kind: "meeting" | "private" | "proximity", id: string) {
+  if (kind === "meeting") return meetingRoomName(officeId, id);
+  if (kind === "private") return privateVoiceRoomName(officeId, id);
+  return proximityRoomName(officeId, id);
+}
+
+export async function muteVoiceParticipantTracks(roomName: string, identities: string[], source: "microphone" | "camera" | "screen_share") {
+  if (identities.length === 0) return 0;
+  const sourceValue = source === "microphone" ? TrackSource.MICROPHONE : source === "camera" ? TrackSource.CAMERA : TrackSource.SCREEN_SHARE;
+  const service = getRoomService();
+  const rooms = await service.listRooms([roomName]);
+  if (rooms.length === 0) return 0;
+  const identitySet = new Set(identities);
+  const participants = (await service.listParticipants(roomName)).filter((participant) => identitySet.has(participant.identity));
+  let mutedCount = 0;
+  for (const participant of participants) {
+    const tracks = participant.tracks.filter((track) => track.source === sourceValue && !track.muted);
+    for (const track of tracks) {
+      await service.mutePublishedTrack(roomName, participant.identity, track.sid, true);
+      mutedCount += 1;
+    }
+  }
+  return mutedCount;
+}

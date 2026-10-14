@@ -35,6 +35,27 @@ type BlasterShotEvent = { shooterSessionId: string; start: BlasterVector; end: B
 const ROOM_LABEL_RADIUS_BLOCKS = 50;
 const ROAD_SURFACE_COLOR = "#45484a";
 const ROAD_JOIN_OVERLAP_M = 0.08;
+const CHARACTER_NAME_TAG_HEIGHT_M = 1.85;
+const VEHICLE_NAME_TAG_HEIGHT_M = 2.8;
+const PLAYER_STATUS_COLORS: Record<PlayerStatus, string> = {
+  available: "#2f9e62",
+  "do-not-disturb": "#dc3545",
+  "in-meeting": "#7950c7",
+  toilet: "#168aad",
+  lunch: "#e08b22",
+  "coffee-break": "#8a5a35",
+};
+const PLAYER_STATUS_ICONS: Partial<Record<PlayerStatus, string>> = {
+  "do-not-disturb": "⊖",
+  "in-meeting": "▣",
+  toilet: "WC",
+  lunch: "♨",
+  "coffee-break": "☕",
+};
+
+function playerStatusColor(status?: PlayerStatus) {
+  return PLAYER_STATUS_COLORS[status ?? "available"];
+}
 
 interface Props {
   activeRoomKey: string;
@@ -352,16 +373,19 @@ function disposeObjectResources(root: THREE.Object3D) {
   });
 }
 
-function makeNameTag(name: string) {
+function makeNameTag(name: string, color = "#123247") {
   const canvas = document.createElement("canvas");
   canvas.width = 512;
   canvas.height = 128;
   const context = canvas.getContext("2d")!;
-  context.fillStyle = "rgba(17, 24, 39, 0.86)";
+  context.fillStyle = /^#[0-9a-f]{6}$/i.test(color) ? color : "#123247";
   context.beginPath();
   context.roundRect(12, 18, 488, 92, 36);
   context.fill();
-  context.fillStyle = "#f8fafc";
+  const r = Number.parseInt(context.fillStyle.slice(1, 3), 16);
+  const g = Number.parseInt(context.fillStyle.slice(3, 5), 16);
+  const b = Number.parseInt(context.fillStyle.slice(5, 7), 16);
+  context.fillStyle = (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#10212c" : "#f8fafc";
   context.font = "600 42px Inter, Arial, sans-serif";
   context.textAlign = "center";
   context.textBaseline = "middle";
@@ -434,48 +458,7 @@ function makeZoneLockIcon() {
   return icon;
 }
 
-function makeUserStatusBadge(status: PlayerStatus) {
-  const colors: Record<PlayerStatus, string> = {
-    available: "#2f9e62",
-    "do-not-disturb": "#dc3545",
-    "in-meeting": "#7950c7",
-    toilet: "#168aad",
-    lunch: "#e08b22",
-    "coffee-break": "#8a5a35",
-  };
-  const symbols: Record<PlayerStatus, string> = {
-    available: "✓",
-    "do-not-disturb": "−",
-    "in-meeting": "▣",
-    toilet: "WC",
-    lunch: "♨",
-    "coffee-break": "☕",
-  };
-  const canvas = document.createElement("canvas");
-  canvas.width = 96;
-  canvas.height = 96;
-  const context = canvas.getContext("2d")!;
-  context.fillStyle = colors[status];
-  context.beginPath();
-  context.arc(48, 48, 43, 0, Math.PI * 2);
-  context.fill();
-  context.strokeStyle = "#fff";
-  context.lineWidth = 6;
-  context.stroke();
-  context.fillStyle = "#fff";
-  context.font = `800 ${status === "toilet" ? 29 : status === "coffee-break" ? 43 : 52}px Arial, sans-serif`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText(symbols[status], 48, 50);
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false }));
-  sprite.scale.set(0.43, 0.43, 1);
-  sprite.position.set(0, 2.35, 0);
-  sprite.renderOrder = 11;
-  sprite.userData.playerStatus = status;
-  return sprite;
-}
-
-function makeAvatar(color: number, name: string) {
+function makeAvatar(color: number) {
   const group = new THREE.Group();
   const proceduralRig = new THREE.Group();
   group.add(proceduralRig);
@@ -535,9 +518,6 @@ function makeAvatar(color: number, name: string) {
   const clip = addEllipsoid(head, accent, [0.23, 0.2, -0.21], [0.075, 0.03, 0.022]);
   clip.rotation.z = -0.45;
 
-  const label = makeNameTag(name);
-  label.position.y = 1.85;
-  group.add(label);
   return { group, proceduralRig, body: torso, head, bodyPivot, leftLeg, rightLeg, leftArm, rightArm };
 }
 
@@ -774,7 +754,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   inboundAudioMutedRef.current = inboundAudioMuted;
   const idleAnimationsEnabledRef = useRef(idleAnimationsEnabled);
   idleAnimationsEnabledRef.current = idleAnimationsEnabled;
-  const [activeFloatingGroup, setActiveFloatingGroup] = useState<"edit" | "view" | "zoom" | null>(null);
+  const [activeFloatingGroup, setActiveFloatingGroup] = useState<"character" | "edit" | "view" | "zoom" | null>(null);
+  const worldControlDockRef = useRef<HTMLDivElement>(null);
   const [tppTransitionDistanceM, setTppTransitionDistanceM] = useState<number>(CAMERA.maxZoom);
   const tppTransitionDistanceMRef = useRef<number>(CAMERA.maxZoom);
   const [selectedBlasterId, setSelectedBlasterId] = useState<KenneyBlasterId>(KENNEY_BLASTER_IDS[0]);
@@ -784,6 +765,16 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   weaponInventoryOpenRef.current = weaponInventoryOpen;
   firstPersonViewRef.current = firstPersonView;
   useEffect(() => () => { firstPersonViewRef.current = false; }, [firstPersonViewRef]);
+  useEffect(() => {
+    if (!activeFloatingGroup) return;
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !worldControlDockRef.current?.contains(event.target)) {
+        setActiveFloatingGroup(null);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointerDown, true);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointerDown, true);
+  }, [activeFloatingGroup]);
   const previousRoomKeyRef = useRef(cameraRoomKey);
   const previousWorldKeyRef = useRef(activeRoomKey);
   const cameraStateRef = useRef(createCameraState(activeRoomKey === "lobby"));
@@ -831,6 +822,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const vehicleInteractRef = useRef(onVehicleInteract);
   vehicleInteractRef.current = onVehicleInteract;
   const campusOverview = activeRoomKey === "lobby";
+  const cameraLockEnabled = cameraState.following && cameraState.followFacing;
   const tppZoomMaxDistanceM = campusOverview ? tppTransitionDistanceM : CAMERA.maxZoom;
   const campusOverviewRef = useRef(true);
   campusOverviewRef.current = campusOverview;
@@ -915,6 +907,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    const vehicleNameOverlay = document.createElement("div");
+    vehicleNameOverlay.className = "vehicle-name-overlay";
+    vehicleNameOverlay.setAttribute("aria-hidden", "true");
+    host.appendChild(vehicleNameOverlay);
+    const vehicleNameLabels = new Map<string, HTMLDivElement>();
+    const vehicleNameProjection = new THREE.Vector3();
     host.appendChild(renderer.domElement);
     const map2dCanvas = document.createElement("canvas");
     map2dCanvas.setAttribute("aria-hidden", "true");
@@ -1868,7 +1866,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const avatarColors = [0x668c7a, 0x7291bd, 0xd18c6b, 0x9a81b3, 0xd1ae63, 0x6fa9a0, 0xb97691];
     const roomPortalMeshes = new Map<string, { root: THREE.Group; label: THREE.Sprite; signature: string }>();
     const avatars = new Map<string, THREE.Group>();
-    const avatarStatusBadges = new Map<string, THREE.Sprite>();
     const avatarSpeakingBubbles = new Map<string, THREE.Sprite>();
     const localFireRaycaster = new THREE.Raycaster();
     fireFirstPerson = () => {
@@ -2804,7 +2801,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
 
       for (const [id, player] of players) {
         const characterId = player.characterId || DEFAULT_CHARACTER_ID;
-        const userStatus: PlayerStatus = player.status ?? "available";
         const vehicleId = player.vehicleId ?? "";
         const petId = player.petId ?? "";
         let avatar = avatars.get(id);
@@ -2816,14 +2812,13 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           avatars.delete(id);
           heldWeaponBySessionId.delete(id);
           avatarCharacterIds.delete(id);
-          avatarStatusBadges.delete(id);
           avatarSpeakingBubbles.delete(id);
           fallbackParts.delete(id);
           avatar = undefined;
         }
         if (!avatar) {
           const color = avatarColors[avatars.size % avatarColors.length];
-          const fallback = makeAvatar(color, id === localId ? "You" : player.displayName);
+          const fallback = makeAvatar(color);
           avatar = fallback.group;
           avatarAnimations.set(id, { model: fallback.bodyPivot, proceduralMotion: true, rotationOffset: Math.PI, phase: 0 });
           fallbackParts.set(id, {
@@ -2839,9 +2834,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             0,
             player.z + (campusOverviewRef.current ? mapWorld.depth / 2 : 0),
           );
-          const statusBadge = makeUserStatusBadge(userStatus);
-          avatar.add(statusBadge);
-          avatarStatusBadges.set(id, statusBadge);
           const speakingBubble = makeSpeakingBubble();
           avatar.add(speakingBubble);
           avatarSpeakingBubbles.set(id, speakingBubble);
@@ -2917,18 +2909,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               console.warn("Could not load the Kenney character; keeping the procedural avatar.", error);
             }
           });
-        }
-
-        let statusBadge = avatarStatusBadges.get(id);
-        if (!statusBadge || statusBadge.userData.playerStatus !== userStatus) {
-          if (statusBadge) {
-            avatar.remove(statusBadge);
-            statusBadge.material.map?.dispose();
-            statusBadge.material.dispose();
-          }
-          statusBadge = makeUserStatusBadge(userStatus);
-          avatar.add(statusBadge);
-          avatarStatusBadges.set(id, statusBadge);
         }
         let speakingBubble = avatarSpeakingBubbles.get(id);
         if (!speakingBubble) {
@@ -3148,7 +3128,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           avatars.delete(id);
           heldWeaponBySessionId.delete(id);
           avatarCharacterIds.delete(id);
-          avatarStatusBadges.delete(id);
           avatarSpeakingBubbles.delete(id);
           positions.delete(id);
           jumpStartedAtRef?.current.delete(id);
@@ -3417,6 +3396,46 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
         lastLocateRequestRef.current = locate.requestId;
       }
+      camera.updateMatrixWorld(true);
+      const overlayRect = renderer.domElement.getBoundingClientRect();
+      for (const [id, player] of playersRef.current) {
+        let label = vehicleNameLabels.get(id);
+        if (!label) {
+          label = document.createElement("div");
+          label.className = "vehicle-name-label";
+          vehicleNameOverlay.appendChild(label);
+          vehicleNameLabels.set(id, label);
+        }
+        const labelText = id === localId ? "You" : player.displayName;
+        if (label.textContent !== labelText) label.textContent = labelText;
+        const statusIcon = PLAYER_STATUS_ICONS[player.status ?? "available"];
+        if (statusIcon && label.dataset.statusIcon !== statusIcon) label.dataset.statusIcon = statusIcon;
+        else if (!statusIcon && label.dataset.statusIcon) delete label.dataset.statusIcon;
+        const labelColor = playerStatusColor(player.status);
+        if (label.dataset.color !== labelColor) {
+          label.style.backgroundColor = labelColor;
+          const colorRed = Number.parseInt(labelColor.slice(1, 3), 16);
+          const colorGreen = Number.parseInt(labelColor.slice(3, 5), 16);
+          const colorBlue = Number.parseInt(labelColor.slice(5, 7), 16);
+          label.style.color = (colorRed * 299 + colorGreen * 587 + colorBlue * 114) / 1000 > 150 ? "#10212c" : "#fff";
+          label.dataset.color = labelColor;
+        }
+        const isDriving = Boolean(player.vehicleId);
+        const nameAnchor = isDriving ? vehiclePositions.get(id) : avatars.get(id)?.position;
+        const nameHeight = isDriving ? VEHICLE_NAME_TAG_HEIGHT_M : CHARACTER_NAME_TAG_HEIGHT_M;
+        if (!nameAnchor || showMap2d || firstPersonViewRef.current) { if (label.style.display !== "none") label.style.display = "none"; continue; }
+        const projected = vehicleNameProjection.set(nameAnchor.x, nameAnchor.y + nameHeight, nameAnchor.z).project(camera);
+        const visible = projected.z >= -1 && projected.z <= 1 && Math.abs(projected.x) <= 1.05 && Math.abs(projected.y) <= 1.05;
+        const display = visible ? "block" : "none";
+        if (label.style.display !== display) label.style.display = display;
+        if (visible) {
+          const left = Math.round((projected.x + 1) * 0.5 * overlayRect.width * 2) / 2;
+          const top = Math.round((1 - projected.y) * 0.5 * overlayRect.height * 2) / 2;
+          if (label.dataset.left !== String(left)) { label.style.left = `${left}px`; label.dataset.left = String(left); }
+          if (label.dataset.top !== String(top)) { label.style.top = `${top}px`; label.dataset.top = String(top); }
+        }
+      }
+      for (const [id, label] of vehicleNameLabels) if (!playersRef.current.has(id)) { label.remove(); vehicleNameLabels.delete(id); }
       map2dCenterRef.current = map2dRenderer.frame({ visible: showMap2d, following: cameraStateRef.current.following, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
         projection: { center: map2dCenterRef.current, pxPerM: cameraStateRef.current.map2dScalePxPerM, widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
         players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: map2dDestinationRef.current }) ?? map2dCenterRef.current;
@@ -3496,7 +3515,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       }
       avatarAnimations.clear();
       avatarCharacterIds.clear();
-      avatarStatusBadges.clear();
       fallbackParts.clear();
       for (const entry of roomPortalMeshes.values()) {
         entry.root.traverse((object) => {
@@ -3515,6 +3533,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       renderer.dispose();
       socialOverlay.dispose();
       map2dRenderer.dispose(); removeMap2dShortcut();
+      vehicleNameOverlay.remove(); vehicleNameLabels.clear();
       map2dCanvas.remove(); map2dCanvasRef.current = null;
       scene.clear();
       deskClaimLayer.remove();
@@ -3541,15 +3560,25 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         <kbd style={{ minWidth: 23, padding: "3px 6px", border: "1px solid rgba(255,255,255,.35)", borderRadius: 6, background: "rgba(255,255,255,.12)", font: "inherit", textAlign: "center" }}>E</kbd>
         {isDriving ? "Exit vehicle" : "Drive vehicle"}
       </div>}
-      {campusOverview && !mapEditMode && !buildMode && <div className="world-control-dock" aria-label="Map controls">
-        <button type="button" className="world-control-trigger" aria-label="Toggle 2D / 3D view (M)" title="2D / 3D · M" onClick={toggleMap2d}>2D / 3D</button>
-        <div className="world-control-group" role="group" aria-label="Character actions">
-          <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "focus-character" }); }}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.3"/></svg>
-          </button>
+      {campusOverview && !mapEditMode && !buildMode && <div ref={worldControlDockRef} className="world-control-dock" aria-label="Map controls">
+        <div className="world-control-group" role="group" aria-label="Workspace actions">
+          <button type="button" className="world-control-trigger" aria-label="Toggle 2D / 3D view (M)" title="2D / 3D · M" onClick={() => { setActiveFloatingGroup(null); toggleMap2d(); }}>2D / 3D</button>
           {personalDeskZone && currentPrivateZoneId !== personalDeskZone.id && <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={appPaused} onClick={() => { setActiveFloatingGroup(null); buildCallbacksRef.current.onAutoMove?.({ x: personalDeskZone.x, z: personalDeskZone.z }, false); }}>
             <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 20 4l-7.5 17-2.2-7.3L3 11.5Z"/><path d="m10.3 13.7 4.6-4.6"/></svg>
           </button>}
+        </div>
+        <div className={`world-control-group${activeFloatingGroup === "character" ? " is-active" : ""}`}>
+          {activeFloatingGroup === "character" && <div className="world-control-actions character-camera-actions" id="character-camera-actions" role="group" aria-label="Character camera actions">
+            <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "focus-character" }); }}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3"/></svg>
+            </button>
+            <button data-tutorial-target="office-camera-lock" type="button" className={`world-control-trigger${cameraLockEnabled ? " is-active" : ""}`} aria-label={cameraLockEnabled ? "Unlock camera angle" : "Lock camera behind character"} aria-pressed={cameraLockEnabled} title={cameraLockEnabled ? "Unlock camera angle" : "Lock camera behind character"} disabled={cameraState.mode === "fpp" || cameraState.editing} onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "set-camera-lock", locked: !cameraLockEnabled }); }}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/>{cameraLockEnabled ? <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/> : <path d="M8 10V7a4 4 0 0 1 7.5-2"/>}</svg>
+            </button>
+          </div>}
+          <button data-tutorial-target="office-character-actions" type="button" className="world-control-trigger" aria-label="Character camera actions" title="Character camera actions" aria-expanded={activeFloatingGroup === "character"} aria-controls="character-camera-actions" onClick={() => setActiveFloatingGroup((group) => group === "character" ? null : "character")}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.3"/></svg>
+          </button>
         </div>
         {(canEditMap && onEditMap || onModifyProps) && <div className={`world-control-group${activeFloatingGroup === "edit" ? " is-active" : ""}`}>
           {activeFloatingGroup === "edit" && <div className="world-control-actions" id="map-edit-actions" role="group" aria-label="Editing actions">
