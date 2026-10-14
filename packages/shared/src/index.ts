@@ -281,7 +281,7 @@ export const CAMERA = {
   offsetZ: 12.5,
   dragSensitivity: 0.006,
   zoomStep: 10,
-  minZoom: 30,
+  minZoom: 15,
   maxZoom: 35,
 } as const;
 
