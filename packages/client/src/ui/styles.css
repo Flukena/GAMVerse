@@ -1221,6 +1221,8 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .person-info { min-width: 56px; }
 .person-row > button { flex: 0 0 auto; padding: 5px 7px; border: 1px solid rgba(2, 48, 71, .12); border-radius: 8px; background: rgba(255,255,255,.62); color: var(--color-primary); font: 600 10px/1.2 "DM Sans", sans-serif; cursor: pointer; }
 .person-row > button:hover { border-color: rgba(33,158,188,.35); background: rgba(255,255,255,.9); }
+.person-row > .person-spotlight-button[aria-pressed="true"] { border-color: rgba(25, 135, 84, .3); background: rgba(25, 135, 84, .1); color: #176b46; }
+.person-row > .person-spotlight-button.is-active:hover { background: rgba(25, 135, 84, .16); }
 .person-actions { max-width: 100%; flex-wrap: wrap; }
 @media (max-width: 760px) {
   .app-shell > .office-sidebar { padding-top: 64px; }

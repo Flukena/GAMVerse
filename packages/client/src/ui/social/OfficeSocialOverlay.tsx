@@ -43,11 +43,6 @@ export function OfficeSocialOverlay(props: OfficeSocialOverlayProps) {
           onClose={social.closeInteraction}
         />
       )}
-      {social.spotlight.usernames.length > 0 && (
-        <div className="gather-spotlight-banner" role="status">
-          Spotlight: {social.spotlight.usernames.join(", ")}
-        </div>
-      )}
       {props.sessionKey && (
         <SpotlightSession
           endpoint={props.endpoint}
