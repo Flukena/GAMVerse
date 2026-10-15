@@ -1147,7 +1147,8 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
   .bottom-dock { background: #023047; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
-.world-control-dock { position: absolute; z-index: 7; right: 24px; bottom: 8px; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 8px; }
+.world-control-dock { position: absolute; z-index: 7; top: 72px; right: 0; bottom: 0; display: flex; box-sizing: border-box; flex-direction: column-reverse; align-items: flex-end; justify-content: flex-start; gap: 8px; padding: 12px 16px calc(96px + env(safe-area-inset-bottom, 0px)); pointer-events: none; }
+.world-control-dock > .world-control-group { pointer-events: auto; }
 .nickname-settings { display: grid; gap: 7px; margin: 14px 0 18px; }
 .nickname-settings > label { color: var(--color-primary); font-size: .9rem; font-weight: 700; }
 .nickname-settings > label span,.nickname-settings > small { color: var(--color-muted); font-size: .78rem; font-weight: 400; }
@@ -1172,7 +1173,7 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .tpp-zoom-readout output { color: var(--color-primary); font: 700 12px/1 "DM Sans", sans-serif; letter-spacing: 0; }
 .world-control-actions .weapon-inventory-control { display: grid; }
 @keyframes world-control-reveal { from { opacity: 0; transform: translateX(6px) scale(.96); transform-origin: right center; } to { opacity: 1; transform: translateX(0) scale(1); } }
-@media (max-width: 720px) { .world-control-dock { right: 14px; bottom: calc(8px + env(safe-area-inset-bottom)); gap: 7px; } .world-control-trigger { width: 44px; height: 44px; } .world-control-actions .overview-zoom-controls button { width: 44px; height: 40px; } }
+@media (max-width: 720px) { .world-control-dock { top: 64px; right: 0; bottom: 0; gap: 7px; padding: 10px 10px calc(90px + env(safe-area-inset-bottom, 0px)); } .world-control-trigger { width: 44px; height: 44px; } .world-control-actions .overview-zoom-controls button { width: 44px; height: 40px; } }
 
 .bottom-dock:has(.reaction-picker-popover) { z-index: 13; }
 .reaction-picker-control { position: relative; flex: 0 0 auto; }
