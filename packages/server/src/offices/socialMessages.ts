@@ -12,6 +12,7 @@ import { revokeSpotlightParticipant } from "../media/service.js";
 import { logServerError } from "../infra/logger.js";
 const CHAT_SEND_FAILED_LABEL = "Chat could not be sent.";
 const SPOTLIGHT_COMMAND_FAILED_LABEL = "Spotlight command failed.";
+export const HAND_RAISE_MAX_DURATION_MS = 60_000;
 
 type Client = {
   sessionId: string;
@@ -41,6 +42,7 @@ type OfficeSocial = {
   reactions: ReactionGate;
 };
 const offices = new Map<string, OfficeSocial>();
+const handRaiseTimers = new WeakMap<SocialRoom, Map<string, ReturnType<typeof setTimeout>>>();
 function sendSpotlightState(
   room: SocialRoom,
   snapshot: {
@@ -109,7 +111,26 @@ function registerReactions(
   });
   room.onMessage("hand-raise", (client, payload) => {
     const player = state.player(client.sessionId);
-    if (player && isValidHandRaise(payload)) player.handRaised = payload.raised;
+    if (!player || !isValidHandRaise(payload)) return;
+    const timers = handRaiseTimers.get(room) ?? new Map<string, ReturnType<typeof setTimeout>>();
+    handRaiseTimers.set(room, timers);
+    const existingTimer = timers.get(client.sessionId);
+    if (payload.raised) {
+      // A repeated raised=true cannot extend the one-minute maximum.
+      if (player.handRaised) return;
+      player.handRaised = true;
+      const timer = setTimeout(() => {
+        timers.delete(client.sessionId);
+        const current = state.player(client.sessionId);
+        if (current) current.handRaised = false;
+      }, HAND_RAISE_MAX_DURATION_MS);
+      timer.unref?.();
+      timers.set(client.sessionId, timer);
+      return;
+    }
+    if (existingTimer) clearTimeout(existingTimer);
+    timers.delete(client.sessionId);
+    player.handRaised = false;
   });
 }
 export function registerSocialMessages(
@@ -134,6 +155,12 @@ export function registerSocialMessages(
   return social.spotlight;
 }
 export function unregisterSocialMessages(room: SocialRoom, officeId: string, rotateOnFinalDispose = true) {
+  const timers = handRaiseTimers.get(room);
+  if (timers) {
+    for (const timer of timers.values()) clearTimeout(timer);
+    timers.clear();
+    handRaiseTimers.delete(room);
+  }
   const social = offices.get(officeId);
   if (!social) return;
   social.states.delete(room);

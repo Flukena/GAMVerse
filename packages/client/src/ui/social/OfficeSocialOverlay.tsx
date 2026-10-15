@@ -15,7 +15,6 @@ interface OfficeSocialOverlayProps {
   chatContainer: HTMLElement | null;
   chatVisible: boolean;
   onUnread(count: number): void;
-  raised: boolean;
   doNotDisturb: boolean;
   zoneUsernames: ReadonlySet<string>;
 }
@@ -36,8 +35,6 @@ export function OfficeSocialOverlay(props: OfficeSocialOverlayProps) {
         onNearby={social.nearbyMessage}
       />
       <SocialControls
-        room={props.room}
-        raised={props.raised}
         nearestTitle={social.nearestTitle}
       />
       {social.interaction && (

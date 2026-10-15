@@ -1223,6 +1223,20 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
   .app-shell:has(.office-minimap) .page-tutorial-reopen { left: 160px; bottom: calc(12px + 18vw); }
 }
 .lobby-shell .office-sidebar { bottom: 0; }
+
+/* The left rail stays icon-only; content occupies the flexible area beside it. */
+.app-shell > .office-sidebar { flex-direction: row; }
+.office-sidebar > .left-sidebar-nav { flex: 0 0 54px; flex-direction: column; align-items: center; gap: 9px; padding: 12px 6px; overflow: visible; border-right: 1px solid rgba(2,48,71,.08); border-bottom: 0; }
+.office-sidebar > .left-sidebar-nav > button:not(.icon-button) { position: relative; display: grid; flex: 0 0 40px; width: 40px; height: 40px; min-height: 40px; place-items: center; padding: 0; border-radius: 11px; }
+.office-sidebar > .left-sidebar-nav > button svg { width: 19px; height: 19px; }
+.office-sidebar > .left-sidebar-nav > button > span { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; border: 1px solid #f8fbfc; border-radius: 999px; background: #219ebc; color: white; font-size: 9px; line-height: 14px; }
+.office-sidebar-content { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.office-sidebar-content > .sidebar-workspace,
+.office-sidebar-content > .sidebar-people,
+.office-sidebar-content > .sidebar-activity { width: 100%; padding-right: 14px; padding-left: 14px; }
+.office-sidebar-content > .sidebar-chat-container.is-active { width: 100%; }
+.hand-raise-button.active { color: #ffd166; border-color: rgba(255,209,102,.8); background: rgba(255,209,102,.18); }
+.hand-raise-button:disabled { opacity: .45; cursor: not-allowed; }
 @media (hover: none) {
   .app-shell:has(.office-minimap) .page-tutorial-reopen { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
 }

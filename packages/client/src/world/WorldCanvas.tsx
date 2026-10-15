@@ -3561,8 +3561,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         {isDriving ? "Exit vehicle" : "Drive vehicle"}
       </div>}
       {campusOverview && !mapEditMode && !buildMode && <div ref={worldControlDockRef} className="world-control-dock" aria-label="Map controls">
+        <div className="world-control-group map-mode-control">
+          <button type="button" className="world-control-trigger" aria-label={cameraState.mode === "map2d" ? "Switch to 3D view" : "Switch to 2D view"} title={cameraState.mode === "map2d" ? "Switch to 3D view · M" : "Switch to 2D view · M"} onClick={() => { setActiveFloatingGroup(null); toggleMap2d(); }}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg></button>
+        </div>
         <div className="world-control-group" role="group" aria-label="Workspace actions">
-          <button type="button" className="world-control-trigger" aria-label="Toggle 2D / 3D view (M)" title="2D / 3D · M" onClick={() => { setActiveFloatingGroup(null); toggleMap2d(); }}>2D / 3D</button>
           {personalDeskZone && currentPrivateZoneId !== personalDeskZone.id && <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={appPaused} onClick={() => { setActiveFloatingGroup(null); buildCallbacksRef.current.onAutoMove?.({ x: personalDeskZone.x, z: personalDeskZone.z }, false); }}>
             <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 20 4l-7.5 17-2.2-7.3L3 11.5Z"/><path d="m10.3 13.7 4.6-4.6"/></svg>
           </button>}
