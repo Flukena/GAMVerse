@@ -145,7 +145,7 @@ function usePanelPresence(isOpen: boolean, exitDuration = 260) {
   return isMounted;
 }
 
-function CharacterPicker({ value, onChange }: { value: CharacterSelectionId | null; onChange: (id: KenneyCharacterId) => void }) {
+function CharacterPicker({ value, currentCharacterId, onChange }: { value: CharacterSelectionId | null; currentCharacterId: CharacterSelectionId | null; onChange: (id: KenneyCharacterId) => void }) {
   return <div className="character-picker" role="radiogroup" aria-label="Choose a character">
     {KENNEY_CHARACTER_IDS.map((id) => {
       const blocky = id.startsWith("character-blocky-");
@@ -160,6 +160,7 @@ function CharacterPicker({ value, onChange }: { value: CharacterSelectionId | nu
       return <button type="button" className={`character-option${value === id ? " selected" : ""}`} key={id} role="radio" aria-checked={value === id} onClick={() => onChange(id)}>
         <img src={preview} alt="" loading="lazy" />
         <span>{label}</span>
+        {currentCharacterId === id && <small className="character-current-badge">Current</small>}
       </button>;
     })}
   </div>;
@@ -173,6 +174,7 @@ function PersonalAvatarPicker({ models, value, currentCharacterId, onChange, onR
         <span className="personal-avatar-preview" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="M13 10h22v8h5v12h-5v8H13v-8H8V18h5v-8Z" fill="currentColor" opacity=".18"/><path d="M17 15h14v18H17zM11 21h6v8h-6zm20 0h6v8h-6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/><path d="M20 22h2m4 0h2M20 28h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg></span>
         <span>{model.label}</span>
       </button>
+      {currentCharacterId === model.id && <small className="character-current-badge">Current</small>}
       <button type="button" className="personal-avatar-remove" aria-label={`Remove ${model.label}`} title={value === model.id || currentCharacterId === model.id ? "Choose and save another character before removing this model" : `Remove ${model.label}`} disabled={value === model.id || currentCharacterId === model.id} onClick={() => onRemove(model)}>×</button>
     </div>)}
   </div>;
@@ -2629,7 +2631,7 @@ export function OfficeApp() {
         <span className="eyebrow">FIRST TIME HERE</span>
         <h1>Choose your character</h1>
         <p>Pick how other people will see you in the shared office.</p>
-        <div className="tutorial-character-picker" data-tutorial-target="character-picker"><CharacterPicker value={characterDraft} onChange={setCharacterDraft} /></div>
+        <div className="tutorial-character-picker" data-tutorial-target="character-picker"><CharacterPicker value={characterDraft} currentCharacterId={null} onChange={setCharacterDraft} /></div>
         {characterError && <p className="auth-error" role="alert">{characterError}</p>}
         <button data-tutorial-target="character-continue" className="auth-submit" type="button" disabled={characterBusy || !characterDraft} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : "Continue"}</button>
       </section>
@@ -2954,20 +2956,20 @@ export function OfficeApp() {
             <CharacterPreview3D characterId={previewCharacterId} endpoint={endpoint} label={previewCharacter.label} fallbackImage={previewCharacter.preview} />
             <div className="character-preview-copy"><span className="eyebrow">3D PREVIEW</span><strong>{previewCharacter.label}</strong><span>{previewCharacter.source}</span><small>Drag the model to rotate it</small></div>
           </section>
-          <CharacterPicker value={characterDraft} onChange={setCharacterDraft} />
+          <CharacterPicker value={characterDraft} currentCharacterId={authUser.characterId ?? DEFAULT_CHARACTER_ID} onChange={setCharacterDraft} />
           <section className="personal-models-section" aria-label="Personal 3D models">
             <div className="personal-models-heading"><div><span className="eyebrow">YOUR MODELS</span><p className="personal-model-help">One GLB file with embedded model textures, up to 10 MiB. Only you can choose or remove it.</p></div><button type="button" className="personal-model-add" disabled={avatarUploadBusy} onClick={() => avatarUploadInputRef.current?.click()}>{avatarUploadBusy ? "Uploading…" : "Add model"}</button></div>
             <input ref={avatarUploadInputRef} className="visually-hidden" type="file" accept=".glb,model/gltf-binary" onChange={(event) => void uploadPersonalAvatar(event)} aria-label="Upload a GLB character model" />
             {personalModelsBusy && <p className="personal-model-status">Loading your models…</p>}
             {personalModelsError && <p className="auth-error" role="alert">{personalModelsError}</p>}
-            <PersonalAvatarPicker models={personalAvatarModels} value={characterDraft} currentCharacterId={authUser.characterId} onChange={setCharacterDraft} onRemove={(model) => void removePersonalAvatar(model)} />
+            <PersonalAvatarPicker models={personalAvatarModels} value={characterDraft} currentCharacterId={authUser.characterId ?? DEFAULT_CHARACTER_ID} onChange={setCharacterDraft} onRemove={(model) => void removePersonalAvatar(model)} />
           </section>
           <section className="companion-section" aria-label="Choose a companion pet">
             <div className="personal-models-heading"><div><span className="eyebrow">COMPANION</span><p className="personal-model-help">Choose a pet to follow you around the office.</p></div><button type="button" className="companion-none" aria-pressed={!activePetId} onClick={() => { setActivePetId(""); window.localStorage.removeItem(`gammyverse.pet.${authUser.username}`); roomRef.current?.send("pet", ""); }}>None</button></div>
             <div className="companion-picker" role="group" aria-label="Available pets">{KENNEY_PET_IDS.map((petId) => <button type="button" key={petId} className={`companion-card${activePetId === petId ? " selected" : ""}`} aria-pressed={activePetId === petId} title={petLabel(petId)} onClick={() => { setActivePetId(petId); window.localStorage.setItem(`gammyverse.pet.${authUser.username}`, petId); roomRef.current?.send("pet", petId); }}><img src={quaterniusPet(petId)?.preview ?? `/assets/kenney/cube-pets/Previews/${petId}.png`} alt="" loading="lazy" /><span>{petLabel(petId)}</span></button>)}</div>
           </section>
         </div>
-        <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" aria-busy={characterBusy} title={!characterBusy && characterDraft === authUser.characterId ? "Choose a different character to enable saving" : undefined} disabled={characterBusy || !characterDraft || characterDraft === authUser.characterId} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : "Save character"}</button></footer>
+        <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" aria-busy={characterBusy} title={!characterBusy && characterDraft === authUser.characterId ? "This is already your current character" : undefined} disabled={characterBusy || !characterDraft || characterDraft === authUser.characterId} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : characterDraft === authUser.characterId ? "Current character" : "Save character"}</button></footer>
       </section></div>}
 
       {settingsOpen && <div className="profile-dialog-backdrop settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="profile-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">

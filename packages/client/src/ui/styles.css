@@ -403,11 +403,13 @@ button.voice-participant-media:disabled { opacity: .45; cursor: default; }
 .character-current span { color: #8a978e; font-size: 10px; }
 .character-drawer-content { flex: 1; min-height: 0; padding: 14px 24px calc(112px + env(safe-area-inset-bottom, 0px)); overflow: auto; box-sizing: border-box; scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
 .character-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 11px; }
-.character-option { display: grid; gap: 6px; min-width: 0; padding: 6px; overflow: hidden; border: 1px solid #e8ede9; border-radius: 10px; background: #fff; color: #758279; text-align: left; cursor: pointer; transition: border-color .14s ease, background .14s ease; }
+.character-option { position: relative; display: grid; gap: 6px; min-width: 0; padding: 6px; overflow: hidden; border: 1px solid #e8ede9; border-radius: 10px; background: #fff; color: #758279; text-align: left; cursor: pointer; transition: border-color .14s ease, background .14s ease; }
 .character-option:hover { border-color: #b7c9bc; background: #f9fbf9; }
 .character-option.selected { border-color: #5c9272; background: #f0f6f1; box-shadow: 0 0 0 1px #5c9272 inset; color: #3f715d; }
 .character-option img { display: block; width: 100%; height: 76px; object-fit: contain; border-radius: 6px; background: #f2f4f1; transform: scale(1.28); }
 .character-option span { overflow: hidden; padding: 0 2px; font-size: 10px; font-weight: 600; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
+.character-current-badge { position: absolute; top: 8px; right: 8px; z-index: 1; padding: 3px 6px; border: 1px solid rgba(255,255,255,.82); border-radius: 999px; background: rgba(2,48,71,.82); color: #fff; font: 700 8px/1.2 "DM Sans", sans-serif; letter-spacing: .02em; }
+.personal-avatar-option .character-current-badge { top: 8px; right: 31px; }
 .personal-models-section { margin-top: 20px; padding-top: 14px; border-top: 1px solid #e9eeea; }
 .personal-models-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .personal-model-add { padding: 6px 9px; border: 1px solid #dce7de; border-radius: 8px; background: #fff; color: #47745a; font: 650 10px "DM Sans", sans-serif; cursor: pointer; }
