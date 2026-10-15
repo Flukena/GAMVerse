@@ -401,7 +401,7 @@ button.voice-participant-media:disabled { opacity: .45; cursor: default; }
 .character-current div { display: grid; gap: 4px; }
 .character-current strong { color: #405248; font-size: 12px; text-transform: capitalize; }
 .character-current span { color: #8a978e; font-size: 10px; }
-.character-drawer-content { flex: 1; min-height: 0; padding: 14px 18px; overflow: auto; }
+.character-drawer-content { flex: 1; min-height: 0; padding: 14px 18px calc(112px + env(safe-area-inset-bottom, 0px)); overflow: auto; box-sizing: border-box; scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
 .character-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 11px; }
 .character-option { display: grid; gap: 6px; min-width: 0; padding: 6px; overflow: hidden; border: 1px solid #e8ede9; border-radius: 10px; background: #fff; color: #758279; text-align: left; cursor: pointer; transition: border-color .14s ease, background .14s ease; }
 .character-option:hover { border-color: #b7c9bc; background: #f9fbf9; }
