@@ -4,7 +4,7 @@ import { CAMERA } from "@gammyverse/shared";
 import { MathUtils, Vector3 } from "three";
 import { cameraReducer, createCameraState } from "./cameraState";
 import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, cameraZoomButtonEvent, panEditorCamera } from "./cameraInput";
-import { CAMPUS_2D_ZOOM_THRESHOLD_RATIO, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL } from "./constants";
+import { CAMPUS_MAX_ZOOM_RATIO, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL } from "./constants";
 
 const EXPECTED_LIMIT_DEG = 75;
 const LARGE_DRAG_PIXEL = 100_000;
@@ -63,11 +63,29 @@ test("map2d zoom controls change independent scale instead of 3D framing", () =>
 });
 
 const ZOOM_IN_FACTOR = 2;
-test("threshold overview wheel and buttons return to 3D zoom", () => {
-  const overview = cameraReducer(createCameraState(true), { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO });
-  assert.equal(overview.view, "3d");
-  for (const event of [cameraWheelEvent(overview, -DRAG_PIXEL), cameraZoomButtonEvent(overview, ZOOM_IN_FACTOR)]) {
-    assert.equal(event.type, "zoom");
-    assert.equal(cameraReducer(overview, event).mode, "tpp");
+const CAMPUS_MAX_DISTANCE_M = 60;
+const REPEATED_ZOOM_STEPS_COUNT = 20;
+test("wheel zoom clamps at the 3D distance limit without changing mode", () => {
+  const ready = cameraReducer(createCameraState(true), { type: "avatar-ready" });
+  for (const initial of [ready, cameraReducer(ready, { type: "manual-drag" })]) {
+    let state = initial;
+    for (let step = 0; step < REPEATED_ZOOM_STEPS_COUNT; step += 1) {
+      const event = cameraWheelEvent(state, DRAG_PIXEL, CAMPUS_MAX_DISTANCE_M);
+      assert.equal(event.type, "distance");
+      state = cameraReducer(state, event);
+      assert.equal(state.view, "3d");
+      assert.equal(state.mode, initial.mode);
+    }
+    assert.equal(state.distanceM, CAMPUS_MAX_DISTANCE_M);
+  }
+});
+
+test("2D wheel and button zoom stay in 2D until an explicit mode switch", () => {
+  const map = cameraReducer(cameraReducer(createCameraState(true), { type: "avatar-ready" }), { type: "set-view", view: "2d" });
+  const zoomed = { ...map, zoomRatio: CAMPUS_MAX_ZOOM_RATIO };
+  for (const event of [cameraWheelEvent(map, -LARGE_DRAG_PIXEL), cameraZoomButtonEvent(zoomed, ZOOM_IN_FACTOR)]) {
+    const state = cameraReducer(map, event);
+    assert.equal(state.view, "2d");
+    assert.equal(state.mode, "map2d");
   }
 });

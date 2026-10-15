@@ -349,3 +349,37 @@ test("office media sessions isolate zone target changes from spotlight teardown"
   await zone.session.dispose();
   await spotlight.session.dispose();
 });
+
+test("availability suppression clears microphone intent synchronously without an active target", async () => {
+  const f = fixture((dependencies, listener) => new VoiceRoomSession({ ...dependencies, initialMuted: false }, listener));
+  f.session.suppressMedia();
+  assert.equal(f.states.at(-1)?.muted, true);
+  await join(f);
+  assert.deepEqual(f.rooms[0]!.microphone, [false]);
+  f.session.reconnect();
+  await flush();
+  f.rooms[1]!.ready();
+  await flush();
+  assert.deepEqual(f.rooms[1]!.microphone, [false]);
+  await f.session.setMuted(false);
+  assert.equal(f.rooms[1]!.microphone.at(-1), true);
+  await f.session.dispose();
+});
+
+test("availability suppression leaves active media and cancels queued microphone intent", async () => {
+  const f = fixture();
+  await join(f);
+  await f.session.setMuted(false);
+  f.session.setTarget({ ...target, id: "B" });
+  const queuedUnmute = f.session.setMuted(false);
+  f.session.suppressMedia();
+  assert.equal(f.states.at(-1)?.muted, true);
+  assert.equal(f.states.at(-1)?.target, null);
+  await queuedUnmute;
+  f.session.setTarget({ ...target, id: "C" });
+  await flush();
+  f.rooms.at(-1)!.ready();
+  await flush();
+  assert.deepEqual(f.rooms.at(-1)!.microphone, [false]);
+  await f.session.dispose();
+});

@@ -91,6 +91,11 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     this.start();
   }
   leave(): void { this.setTarget(null); }
+  suppressMedia(): void {
+    if (this.disposed) return;
+    this.publish({ muted: true });
+    this.leave();
+  }
   dispose(): Promise<void> {
     if (this.disposed) return this.teardown;
     this.disposed = true;

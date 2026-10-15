@@ -1,4 +1,4 @@
-import { LOCATE_PULSE_MS, MAP2D_PICK_RADIUS_PX } from "./constants";
+import { LOCATE_PULSE_MS, MAP2D_DRAG_THRESHOLD_PX, MAP2D_PICK_RADIUS_PX } from "./constants";
 import {
   worldToScreen,
   type Map2dPoint,
@@ -39,3 +39,7 @@ export type Map2dLocateRequest = {
   center?: Map2dPoint;
   requestId: number;
 };
+
+export function isMap2dDrag(start: ScreenPoint, point: ScreenPoint): boolean {
+  return Math.hypot(point.x - start.x, point.y - start.y) >= MAP2D_DRAG_THRESHOLD_PX;
+}

@@ -2,7 +2,10 @@ import type { RoomLayout } from "@gammyverse/shared";
 import type { Map2dDecoration } from "./map2dDynamicLayer";
 import type { Map2dPoint, Map2dProjection } from "./map2dProjection";
 
+import type { Map2dPresentation } from "./map2dPresentation";
+
 type FrameInputs = {
+  presentation?: Map2dPresentation;
   layout: RoomLayout | null;
   configVersion: number;
   widthM: number;
@@ -40,6 +43,7 @@ function sameDecoration(a: Map2dDecoration, b: Map2dDecoration): boolean {
 export class Map2dFrameChanges {
   private invalidated = true;
   private readonly projection: Map2dProjection = { center: { x: 0, z: 0 }, pxPerM: 0, widthPx: 0, heightPx: 0, dpr: 1 };
+  private presentation: Map2dPresentation | undefined;
   private layout: RoomLayout | null = null;
   private configVersion = 0;
   private widthM = 0;
@@ -55,9 +59,10 @@ export class Map2dFrameChanges {
   readonly activeDecorations: Map2dDecoration[] = [];
   invalidate(): void { this.invalidated = true; }
   private sceneChanged(input: FrameInputs): boolean {
-    const changed = this.layout !== input.layout || this.configVersion !== input.configVersion ||
+    const changed = this.presentation !== input.presentation || this.layout !== input.layout || this.configVersion !== input.configVersion ||
       this.widthM !== input.widthM || this.depthM !== input.depthM || this.view !== input.view ||
       this.localId !== input.localId || this.following !== Boolean(input.following);
+    this.presentation = input.presentation;
     this.layout = input.layout;
     this.configVersion = input.configVersion;
     this.widthM = input.widthM;

@@ -1,3 +1,6 @@
+import { registerDeskAssignmentEndpoints } from "../http/deskAssignmentEndpoints.js";
+import { requestRealtimeControl } from "../infra/realtimeControl.js";
+import { registerDeskEndpoints } from "../http/deskEndpoints.js";
 import { chatHistoryEndpoint } from "./chatHistoryEndpoint.js";
 import { accountRoleEndpoint } from "./accountRoleEndpoint.js";
 import { accountSuspensionEndpoint } from "./accountSuspensionEndpoint.js";
@@ -377,13 +380,15 @@ function configureApi() {
           response.status(message.includes("access denied") ? 403 : message.includes("PostgreSQL") ? 503 : 400).json({ error: message });
         }
       });
+      registerDeskAssignmentEndpoints(app);
+      registerDeskEndpoints(app, officeId => notifyRealtime("offices/map", { officeId }));
       app.post("/offices/:officeId/desk-zones/:zoneId/claim", async (request: AuthRequest, response: AuthResponse) => {
         const session = await requestSession(request);
         if (!session) { response.status(401).json({ error: "Authentication required." }); return; }
         try {
           const result = await claimOfficeDeskZone(session.username, request.params.officeId, request.params.zoneId);
           const zone = readRoomLayout(result.config).zones.find((entry) => entry.id === request.params.zoneId);
-          if (zone) await notifyRealtime("offices/desk-zone", { officeId: request.params.officeId, zoneId: zone.id, name: zone.name, ownerUsername: zone.ownerUsername ?? "" });
+          if (zone) await notifyRealtime("offices/map", { officeId: request.params.officeId });
           logServerEvent("api", "desk.claimed", { officeId: request.params.officeId, zoneId: request.params.zoneId, username: session.username });
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
@@ -400,7 +405,7 @@ function configureApi() {
         try {
           const result = await unclaimOfficeDeskZone(session.username, request.params.officeId, request.params.zoneId);
           const zone = readRoomLayout(result.config).zones.find((entry) => entry.id === request.params.zoneId);
-          if (zone) await notifyRealtime("offices/desk-zone", { officeId: request.params.officeId, zoneId: zone.id, name: zone.name, ownerUsername: zone.ownerUsername ?? "" });
+          if (zone) await notifyRealtime("offices/map", { officeId: request.params.officeId });
           logServerEvent("api", "desk.unclaimed", { officeId: request.params.officeId, zoneId: request.params.zoneId, username: session.username });
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
@@ -491,22 +496,8 @@ async function startApi() {
   server.listen(port, "0.0.0.0", () => logServerEvent("api", "service.listening", { port, nodeEnv: process.env.NODE_ENV ?? "development" }));
 }
 
-async function notifyRealtime(action: string, body: Record<string, string>) {
-  const baseUrl = process.env.REALTIME_INTERNAL_URL;
-  const serviceToken = process.env.INTERNAL_SERVICE_TOKEN;
-  if (!baseUrl || !serviceToken) throw new Error("Realtime service control is not configured.");
-  const startedAt = performance.now();
-  try {
-    const response = await fetch(baseUrl.replace(/\/$/, "") + "/internal/" + action, {
-      method: "POST", headers: { "Content-Type": "application/json", "X-Internal-Service-Token": serviceToken },
-      body: JSON.stringify(body), signal: AbortSignal.timeout(3_000),
-    });
-    if (!response.ok) throw new Error(`Realtime control request failed with HTTP ${response.status}.`);
-    logServerEvent("api", "realtime.control.completed", { action, officeId: body.officeId, durationMs: Math.round(performance.now() - startedAt) });
-  } catch (error) {
-    logServerError("api", "realtime.control.failed", error, { action, officeId: body.officeId, durationMs: Math.round(performance.now() - startedAt) });
-    throw error;
-  }
+async function notifyRealtime(action: string, body: Record<string, string>): Promise<void> {
+  await requestRealtimeControl(action, body);
 }
 
 type RealtimeOperationsOverview = {

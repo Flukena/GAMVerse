@@ -17,6 +17,19 @@
 .page-tutorial-done { background: #06384e; color: #fff; }
 .page-tutorial-back { border: 1px solid #cfe0e5; background: #fff; color: #315768; }
 .page-tutorial-reopen { position: fixed; z-index: 1100; left: max(18px, env(safe-area-inset-left, 0px)); bottom: max(22px, env(safe-area-inset-bottom, 0px)); display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid #c8dce3; border-radius: 50%; background: #f8fcfd; color: #06384e; box-shadow: 0 5px 18px rgba(8, 40, 55, .18); font-size: 20px; font-weight: 800; cursor: pointer; }
+:root[data-workspace-theme] .office-experience .page-tutorial-card { border-color: var(--workspace-edge); background: var(--workspace-surface); color: var(--workspace-ink); color-scheme: light; }
+:root[data-workspace-theme="dark"] .office-experience .page-tutorial-card { color-scheme: dark; }
+:root[data-workspace-theme] .office-experience .page-tutorial-card h2 { color: var(--workspace-ink); }
+:root[data-workspace-theme] .office-experience .page-tutorial-card > p,
+:root[data-workspace-theme] .office-experience .page-tutorial-eyebrow,
+:root[data-workspace-theme] .office-experience .page-tutorial-optout { color: var(--workspace-muted); }
+:root[data-workspace-theme] .office-experience .page-tutorial-keys,
+:root[data-workspace-theme] .office-experience .page-tutorial-close,
+:root[data-workspace-theme] .office-experience .page-tutorial-back { border-color: var(--workspace-edge); background: var(--workspace-subtle); color: var(--workspace-ink); }
+:root[data-workspace-theme] .office-experience .page-tutorial-done { background: var(--workspace-action); color: var(--workspace-on-action); }
+:root[data-workspace-theme] .office-experience .page-tutorial-optout input { accent-color: var(--workspace-action); }
+:root[data-workspace-theme] .office-experience .page-tutorial-card :focus-visible,
+:root[data-workspace-theme] .office-experience .page-tutorial-reopen:focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 3px; }
 @keyframes tutorial-focus-in { from { opacity: .6; transform: scale(.93); } to { opacity: 1; transform: scale(1); } }
 @keyframes tutorial-card-in { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 520px) { .page-tutorial-card { padding: 18px; } .page-tutorial-card h2 { font-size: 19px; } .page-tutorial-actions { align-items: end; } }

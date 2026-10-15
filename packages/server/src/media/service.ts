@@ -1,3 +1,5 @@
+import { zoneMediaReady, type ZoneMediaDescriptor } from "./zoneMediaDescriptor.js";
+import type { ConversationTokenMode } from "@gammyverse/shared";
 import { createHash } from "node:crypto";
 import { AccessToken, RoomServiceClient, TrackSource, ServerError } from "livekit-server-sdk";
 
@@ -9,12 +11,21 @@ function liveKitConfig() {
   return { url, apiKey, apiSecret };
 }
 
+export const ZONE_MEDIA_REQUEST_TIMEOUT_SECONDS = 2;
 let roomService: RoomServiceClient | undefined;
-function getRoomService() {
+let zoneRoomService: RoomServiceClient | undefined;
+function createRoomService(requestTimeoutSeconds?: number) {
   const { apiKey, apiSecret } = liveKitConfig();
   const host = process.env.LIVEKIT_INTERNAL_URL ?? "http://livekit:7880";
-  roomService ??= new RoomServiceClient(host, apiKey, apiSecret);
+  return new RoomServiceClient(host, apiKey, apiSecret, requestTimeoutSeconds === undefined ? undefined : { requestTimeout: requestTimeoutSeconds, failover: false });
+}
+function getRoomService() {
+  roomService ??= createRoomService();
   return roomService;
+}
+function getZoneRoomService() {
+  zoneRoomService ??= createRoomService(ZONE_MEDIA_REQUEST_TIMEOUT_SECONDS);
+  return zoneRoomService;
 }
 
 export function liveKitIdentity(username: string, sessionToken: string) {
@@ -38,48 +49,45 @@ export function privateVoiceRoomName(officeId: string, zoneId: string) {
   return `office-${officeId}-private-${zoneId}`;
 }
 
-export async function createMeetingAudioToken(username: string, identity: string, officeId: string, meetingId: string) {
+const MEETING_TOKEN_TTL_SECONDS = 300;
+const SPATIAL_TOKEN_TTL_SECONDS = 60;
+async function createSpatialMediaToken(username: string, identity: string, roomName: string, ttlSeconds: number, mode: ConversationTokenMode) {
   const { url, apiKey, apiSecret } = liveKitConfig();
-  const roomName = meetingRoomName(officeId, meetingId);
-  const token = new AccessToken(apiKey, apiSecret, { identity, name: username, ttl: "5m" });
-  token.addGrant({
-    roomJoin: true,
-    room: roomName,
-    canPublishSources: [TrackSource.MICROPHONE, TrackSource.CAMERA, TrackSource.SCREEN_SHARE],
-    canSubscribe: true,
-    canPublishData: false,
-  });
+  const token = new AccessToken(apiKey, apiSecret, { identity, name: username, ttl: ttlSeconds });
+  const publish = mode === "join";
+  token.addGrant({ roomJoin: true, room: roomName, canPublish: publish,
+    canPublishSources: publish ? [TrackSource.MICROPHONE, TrackSource.CAMERA, TrackSource.SCREEN_SHARE] : [],
+    canSubscribe: true, canPublishData: false });
   return { url, roomName, token: await token.toJwt() };
+}
+const ZONE_MEDIA_NOT_READY_LABEL = "Zone media is not ready.";
+function assertReadyZone(descriptor: ZoneMediaDescriptor, kind: ZoneMediaDescriptor["kind"]) {
+  if (descriptor.kind !== kind || !zoneMediaReady(descriptor)) throw new Error(ZONE_MEDIA_NOT_READY_LABEL);
+}
+export async function createMeetingAudioToken(username: string, identity: string, descriptor: ZoneMediaDescriptor, mode: ConversationTokenMode = "join") {
+  assertReadyZone(descriptor, "meeting");
+  return createSpatialMediaToken(username, identity, descriptor.roomName, MEETING_TOKEN_TTL_SECONDS, mode);
 }
 
 export async function revokeMeetingParticipant(officeId: string, meetingId: string, identity: string) {
   await getRoomService().removeParticipant(meetingRoomName(officeId, meetingId), identity, { revokeTokenTs: BigInt(Math.floor(Date.now() / 1000)) });
 }
 
-export async function createPrivateVoiceToken(username: string, identity: string, officeId: string, zoneId: string) {
-  const { url, apiKey, apiSecret } = liveKitConfig();
-  const roomName = privateVoiceRoomName(officeId, zoneId);
-  const token = new AccessToken(apiKey, apiSecret, { identity, name: username, ttl: "1m" });
-  token.addGrant({ roomJoin: true, room: roomName, canPublishSources: [TrackSource.MICROPHONE, TrackSource.CAMERA, TrackSource.SCREEN_SHARE], canSubscribe: true, canPublishData: false });
-  return { url, roomName, token: await token.toJwt() };
+export async function createPrivateVoiceToken(username: string, identity: string, descriptor: ZoneMediaDescriptor, mode: ConversationTokenMode = "join") {
+  assertReadyZone(descriptor, "private");
+  return createSpatialMediaToken(username, identity, descriptor.roomName, SPATIAL_TOKEN_TTL_SECONDS, mode);
+}
+export async function deleteSpatialMediaRoom(roomName: string, service: Pick<RoomServiceClient, "deleteRoom"> = getZoneRoomService()) {
+  try { await service.deleteRoom(roomName); }
+  catch (error) { if (!(error instanceof ServerError) || error.code !== "not_found") throw error; }
 }
 
 export async function revokePrivateVoiceParticipant(officeId: string, zoneId: string, identity: string) {
   await getRoomService().removeParticipant(privateVoiceRoomName(officeId, zoneId), identity, { revokeTokenTs: BigInt(Math.floor(Date.now() / 1000)) });
 }
 
-export async function createProximityAudioToken(username: string, identity: string, officeId: string, groupId: string) {
-  const { url, apiKey, apiSecret } = liveKitConfig();
-  const roomName = proximityRoomName(officeId, groupId);
-  const token = new AccessToken(apiKey, apiSecret, { identity, name: username, ttl: "1m" });
-  token.addGrant({
-    roomJoin: true,
-    room: roomName,
-    canPublishSources: [TrackSource.MICROPHONE, TrackSource.CAMERA, TrackSource.SCREEN_SHARE],
-    canSubscribe: true,
-    canPublishData: false,
-  });
-  return { url, roomName, token: await token.toJwt() };
+export async function createProximityAudioToken(username: string, identity: string, officeId: string, groupId: string, mode: ConversationTokenMode = "join") {
+  return createSpatialMediaToken(username, identity, proximityRoomName(officeId, groupId), SPATIAL_TOKEN_TTL_SECONDS, mode);
 }
 
 export async function revokeProximityParticipants(officeId: string, groupId: string, identities: string[]) {

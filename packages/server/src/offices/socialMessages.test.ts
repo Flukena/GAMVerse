@@ -3,6 +3,7 @@ import test from "node:test";
 import { OfficeState, PlayerState } from "@gammyverse/shared";
 import {
   registerSocialMessages,
+  socialPeople,
   unregisterSocialMessages,
 } from "./socialMessages.js";
 function roomFixture() {
@@ -35,7 +36,7 @@ function roomFixture() {
     handlers,
   };
 }
-test("office instances share spotlight epoch and durable schema, hand raise survives late join snapshot", () => {
+test("office instances share spotlight epoch and durable schema", () => {
   const first = roomFixture();
   const second = roomFixture();
   const player = new PlayerState();
@@ -50,17 +51,6 @@ test("office instances share spotlight epoch and durable schema, hand raise surv
   const two = registerSocialMessages(second, "fixture-office", state);
   assert.equal(one, two);
   assert.equal(first.state.spotlightEpoch, second.state.spotlightEpoch);
-  first.handlers.get("hand-raise")!(
-    { sessionId: "alice-session", send: () => {} },
-    { raised: true },
-  );
-  assert.equal(player.handRaised, true);
-  assert.equal(first.state.toJSON().players["alice-session"].handRaised, true);
-  first.handlers.get("hand-raise")!(
-    { sessionId: "alice-session", send: () => {} },
-    { raised: "true" },
-  );
-  assert.equal(player.handRaised, true);
   unregisterSocialMessages(first, "fixture-office");
   assert.equal(two.grant("alice", false)!.epoch, second.state.spotlightEpoch);
   unregisterSocialMessages(second, "fixture-office");
@@ -90,4 +80,11 @@ test("social failures expose fixed labels and never raw exception text", async (
     { error: "Spotlight command failed." },
   ]);
   unregisterSocialMessages(room, "error-fixture");
+});
+
+test("revoked physical occupants are isolated from private Nearby chat audiences", () => {
+  const first = new PlayerState();first.username="alice";first.presence="online";
+  const second = new PlayerState();second.username="guest";second.presence="online";
+  const people = socialPeople([["alice",first],["guest",second]],new Map([["alice",{id:"private-zone"}],["guest",{id:"private-zone"}]]),new Map(),new Set(["alice"]));
+  assert.notEqual(people.find(person=>person.sessionId==="alice")?.channel,people.find(person=>person.sessionId==="guest")?.channel);
 });

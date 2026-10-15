@@ -3,9 +3,9 @@ import test from "node:test";
 import { Vector3 } from "three";
 import { computeCameraFrame } from "./cameraFrame";
 import { cameraReducer, createCameraState } from "./cameraState";
-import { CAMPUS_2D_ZOOM_THRESHOLD_RATIO, CAMPUS_MIN_ZOOM_RATIO, DEFAULT_TPP_ELEVATION_RAD, LIVE_OFFICE_FOCUS_DISTANCE_M } from "./constants";
+import { CAMPUS_MAX_ZOOM_RATIO, CAMPUS_MIN_ZOOM_RATIO, DEFAULT_TPP_ELEVATION_RAD, LIVE_OFFICE_FOCUS_DISTANCE_M } from "./constants";
 
-const FREE_ZOOM_RATIO = CAMPUS_2D_ZOOM_THRESHOLD_RATIO / 2;
+const FREE_ZOOM_RATIO = CAMPUS_MAX_ZOOM_RATIO / 2;
 const CUSTOM_DISTANCE_M = 20;
 const MAP_WIDTH_M = 200;
 const MAP_DEPTH_M = 250;
@@ -32,7 +32,7 @@ test("walking preserves FPP, followed map2d, and editing views", () => {
   const ready = readyState();
   const protectedStates = [
     cameraReducer(ready, { type: "toggle-fpp" }),
-    cameraReducer(ready, { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO }),
+    cameraReducer(ready, { type: "toggle-2d" }),
     cameraReducer(ready, { type: "edit", active: true }),
   ];
   for (const state of protectedStates) assert.deepEqual(cameraReducer(state, { type: "walk-input" }), state);
@@ -49,11 +49,16 @@ test("leaving FPP restores close TPP framing", () => {
   assert.equal(tpp.elevationRad, DEFAULT_TPP_ELEVATION_RAD);
 });
 
-test("zoom crosses the 2D threshold and returns to the detached view", () => {
-  const free = cameraReducer(readyState(), { type: "manual-drag" });
-  const map = cameraReducer(free, { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO });
-  assert.equal(map.mode, "map2d");
-  assert.equal(cameraReducer(map, { type: "zoom", ratio: FREE_ZOOM_RATIO }).mode, "free");
+test("zoom keeps followed, detached and first-person cameras in the selected 3D mode", () => {
+  const ready = readyState();
+  const states = [ready, cameraReducer(ready, { type: "manual-drag" }), cameraReducer(ready, { type: "toggle-fpp" })];
+  for (const before of states) {
+    for (const ratio of [CAMPUS_MAX_ZOOM_RATIO, CAMPUS_MIN_ZOOM_RATIO]) {
+      const after = cameraReducer(before, { type: "zoom", ratio });
+      assert.equal(after.view, "3d");
+      assert.equal(after.mode, before.mode);
+    }
+  }
 });
 
 test("editing exits FPP, rejects FPP toggle, and does not auto-follow on exit", () => {
@@ -111,7 +116,7 @@ test("media-zone crossings preserve FPP, detached, 2D and editor views", () => {
   const states = [
     cameraReducer(ready, { type: "toggle-fpp" }),
     cameraReducer(ready, { type: "manual-drag" }),
-    cameraReducer(ready, { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO }),
+    cameraReducer(ready, { type: "toggle-2d" }),
     cameraReducer(ready, { type: "edit", active: true }),
     createCameraState(true),
   ];
@@ -131,7 +136,7 @@ test("explicit 2D survives arrival, ignores FPP toggle and 3D toggle resets over
   assert.equal(cameraReducer(map, { type: "edit", active: true }).mode, "free");
   const fpp = cameraReducer(readyState(), { type: "toggle-fpp" });
   assert.equal(cameraReducer(fpp, { type: "toggle-2d" }).mode, "map2d");
-  const zoomed = cameraReducer(map, { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO });
+  const zoomed = cameraReducer(map, { type: "zoom", ratio: CAMPUS_MAX_ZOOM_RATIO });
   const three = cameraReducer(zoomed, { type: "toggle-2d" });
   assert.equal(three.view, "3d");
   assert.equal(three.mode, "tpp");
@@ -150,19 +155,21 @@ test("set-view is idempotent across StrictMode restoration and Locate requests",
   assert.equal(cameraReducer(third, { type: "set-view", view: "3d" }), third);
 });
 
-test("toolbar 3D request exits threshold overview even when stored view is 3D", () => {
-  const overview = cameraReducer(readyState(), { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO });
-  assert.equal(overview.view, "3d");
-  const returned = cameraReducer(overview, { type: "set-view", view: "3d" });
-  assert.equal(returned.mode, "tpp");
-  assert.equal(returned.zoomRatio, CAMPUS_MIN_ZOOM_RATIO);
-  assert.equal(cameraReducer(overview, { type: "toggle-2d" }).mode, "tpp");
+test("only an explicit mode request changes a zoomed 3D view to 2D", () => {
+  const zoomed = cameraReducer(readyState(), { type: "zoom", ratio: CAMPUS_MAX_ZOOM_RATIO });
+  assert.equal(cameraReducer(zoomed, { type: "set-view", view: "3d" }), zoomed);
+  const map = cameraReducer(zoomed, { type: "toggle-2d" });
+  assert.equal(map.view, "2d");
+  assert.equal(map.mode, "map2d");
+  const zoomedMap = cameraReducer(map, { type: "zoom", ratio: CAMPUS_MIN_ZOOM_RATIO });
+  assert.equal(zoomedMap.mode, "map2d");
+  assert.equal(cameraReducer(zoomedMap, { type: "toggle-2d" }).mode, "tpp");
 });
 
-test("V preserves explicit 2D, while threshold overview can enter FPP", () => {
+test("V preserves explicit 2D and can enter FPP from zoomed 3D", () => {
   const ready = readyState();
   const map = cameraReducer(ready, { type: "toggle-2d" });
   assert.equal(cameraReducer(map, { type: "toggle-fpp" }), map);
-  const overview = cameraReducer(ready, { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO });
+  const overview = cameraReducer(ready, { type: "zoom", ratio: CAMPUS_MAX_ZOOM_RATIO });
   assert.equal(cameraReducer(overview, { type: "toggle-fpp" }).mode, "fpp");
 });

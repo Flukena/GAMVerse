@@ -1,5 +1,5 @@
 import { playerName } from "../identity/playerName";
-import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, JUMP_DURATION_MS, jumpHeightAt, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, parseRoomPropSeatReference, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone } from "@gammyverse/shared";
+import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, JUMP_DURATION_MS, jumpHeightAt, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, parseRoomPropSeatReference, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone, type UserStatus } from "@gammyverse/shared";
 import type { MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -15,11 +15,16 @@ import { createProceduralHumanoidRig, updateProceduralHumanoidRig, type Procedur
 import { fitWallAssetModel } from "./wallAssetTransform";
 import { cameraReducer, createCameraState, isBehindCharacterLocked, type CameraEvent } from "./camera/cameraState";
 import { computeCameraFrame, applyCameraProjection, campusOverviewDistance } from "./camera/cameraFrame";
-import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, cameraZoomButtonEvent, panEditorCamera, hasCameraMovement } from "./camera/cameraInput";
+import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, panEditorCamera, hasCameraMovement } from "./camera/cameraInput";
 import { CameraOcclusion } from "./camera/cameraOcclusion";
 import { smoothCameraPose, type CameraPose } from "./camera/cameraPose";
-import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_2D_ZOOM_THRESHOLD_RATIO, CAMPUS_BOUNDARY_WALL_HEIGHT_M, CAMERA_ZOOM_BUTTON_RATIO, FOLLOW_FACING_RESPONSE_PER_SECOND, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
+import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_3D_DISTANCE_LIMIT_RATIO, CAMPUS_BOUNDARY_WALL_HEIGHT_M, FOLLOW_FACING_RESPONSE_PER_SECOND, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
 
+import { WorldControls } from "./WorldControls";
+import { makeUserStatusBadge } from "./playerStatusBadge";
+import { useMap2dPresentation } from "./map2d/useMap2dPresentation";
+import { resolveMap2dPresentation } from "./map2d/map2dPresentation";
+import type { Map2dTravelFeedback } from "./map2d/map2dTravelFeedback";
 import { WorldSocialOverlay } from "./WorldSocialOverlay";
 import { Map2dRenderer, readMap2dPreference, persistMap2dPreference } from "./map2d/Map2dRenderer";
 import { smoothAvatarPose, avatarPoseBlend } from "./map2d/avatarPoseSmoother";
@@ -30,7 +35,7 @@ import type { Map2dDecoration } from "./map2d/map2dDynamicLayer";
 import { campusOverviewMapScalePxPerM } from "./map2d/map2dProjection";
 
 type CharacterModelId = KenneyCharacterId | `custom-${string}`;
-type PlayerStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
+type PlayerStatus = UserStatus;
 type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; isMaintainer?: boolean; characterId: CharacterModelId; petId?: string; weaponId?: KenneyBlasterId | ""; vehicleId?: string; vehicleMode?: "" | "manual" | "auto"; vehiclePropId?: string; vehiclePropX?: number; vehiclePropZ?: number; vehiclePropRotation?: number; sittingPropId?: string; dancing?: boolean; status?: PlayerStatus; handRaised?: boolean };
 type RoomPortalVisual = { roomKey: string; name: string; x: number; z: number; isLocked: boolean };
 type BlasterVector = { x: number; y: number; z: number };
@@ -43,6 +48,7 @@ const CHARACTER_NAME_TAG_HEIGHT_M = 1.85;
 const VEHICLE_NAME_TAG_HEIGHT_M = 2.8;
 const PLAYER_STATUS_COLORS: Record<PlayerStatus, string> = {
   available: "#2f9e62",
+  away: "#8a949e",
   "do-not-disturb": "#dc3545",
   "in-meeting": "#7950c7",
   toilet: "#168aad",
@@ -77,10 +83,12 @@ interface Props {
   map2dToggleRef?: MutableRefObject<() => void>;
   locateRequestRef?: MutableRefObject<Map2dLocateRequest | null>;
   propsConfigVersion?: number;
-  autoMoveStatusRevisionRef?: MutableRefObject<number>;
+  travelFeedback?: Map2dTravelFeedback | null;
+  onCancelTravel?: () => void;
   roomPortals?: RoomPortalVisual[];
   roomLayout: RoomLayout | null;
   personalDeskZone?: RoomLayoutZone | null;
+  onReturnToDesk?: () => void;
   currentPrivateZoneId?: string | null;
   inboundAudioMuted?: boolean;
   appPaused?: boolean;
@@ -745,7 +753,7 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
-export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, localPetIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, map2dToggleRef, locateRequestRef, autoMoveStatusRevisionRef, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps, onMapViewChange }: Props) {
+export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, localPetIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, map2dToggleRef, locateRequestRef, travelFeedback = null, onCancelTravel, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, onReturnToDesk, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps, onMapViewChange }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compassRoseRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -762,10 +770,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   inboundAudioMutedRef.current = inboundAudioMuted;
   const idleAnimationsEnabledRef = useRef(idleAnimationsEnabled);
   idleAnimationsEnabledRef.current = idleAnimationsEnabled;
-  const [activeFloatingGroup, setActiveFloatingGroup] = useState<"character" | "edit" | "view" | "zoom" | null>(null);
-  const worldControlDockRef = useRef<HTMLDivElement>(null);
-  const [tppTransitionDistanceM, setTppTransitionDistanceM] = useState<number>(CAMERA.maxZoom);
-  const tppTransitionDistanceMRef = useRef<number>(CAMERA.maxZoom);
+  const [activeFloatingGroup, setActiveFloatingGroup] = useState<"edit" | "view" | "zoom" | null>(null);
+  const [tppMaxDistanceM, setTppMaxDistanceM] = useState<number>(CAMERA.maxZoom);
+  const tppMaxDistanceMRef = useRef<number>(CAMERA.maxZoom);
   const [selectedBlasterId, setSelectedBlasterId] = useState<KenneyBlasterId>(KENNEY_BLASTER_IDS[0]);
   const selectedBlasterIdRef = useRef<KenneyBlasterId>(KENNEY_BLASTER_IDS[0]);
   const [weaponInventoryOpen, setWeaponInventoryOpen] = useState(false);
@@ -776,7 +783,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   useEffect(() => {
     if (!activeFloatingGroup) return;
     const closeOnOutsidePointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !worldControlDockRef.current?.contains(event.target)) {
+      if (event.target instanceof Element && !event.target.closest(".world-control-dock, .map2d-controls")) {
         setActiveFloatingGroup(null);
       }
     };
@@ -788,11 +795,15 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const cameraStateRef = useRef(createCameraState(activeRoomKey === "lobby"));
   const [cameraState, setCameraState] = useState(cameraStateRef.current);
   useEffect(() => { onMapViewChange?.(cameraState.mode === "map2d"); }, [cameraState.mode, onMapViewChange]);
+  const mapPresentation = useMap2dPresentation(cameraState.map2dScalePxPerM);
+  const mapPresentationPreferenceRef = useRef(mapPresentation.preference);
+  mapPresentationPreferenceRef.current = mapPresentation.preference;
+  const mapPresentationRef = useRef(mapPresentation.presentation);
   const map2dCenterRef = useRef({ x: 0, z: 0 });
   const locateDecorationsRef = useRef<Map2dDecoration[]>([]);
   const lastLocateRequestRef = useRef(0);
-  const lastAutoMoveStatusRevisionRef = useRef(0);
-  const map2dDestinationRef = useRef<{ x: number; z: number } | null>(null);
+  const travelFeedbackRef = useRef(travelFeedback);
+  travelFeedbackRef.current = travelFeedback;
   const setMap2dView = (view: "2d" | "3d") => {
     cameraStateRef.current = applyCameraView(cameraStateRef.current, view, {
       exitFirstPerson: () => {
@@ -832,8 +843,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const vehicleInteractRef = useRef(onVehicleInteract);
   vehicleInteractRef.current = onVehicleInteract;
   const campusOverview = activeRoomKey === "lobby";
-  const cameraLockEnabled = cameraState.following && cameraState.followFacing;
-  const tppZoomMaxDistanceM = campusOverview ? tppTransitionDistanceM : CAMERA.maxZoom;
+  const tppZoomMaxDistanceM = campusOverview ? tppMaxDistanceM : CAMERA.maxZoom;
   const campusOverviewRef = useRef(true);
   campusOverviewRef.current = campusOverview;
 
@@ -934,8 +944,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const map2dRenderer = new Map2dRenderer(map2dCanvas, {
       pan: (center) => { map2dCenterRef.current = center; dispatchCamera({ type: "manual-drag" }); },
       zoom: (pxPerM) => dispatchCamera({ type: "map2d-scale", pxPerM }),
-      zoomOverview: (deltaYPx) => dispatchCamera(cameraWheelEvent(cameraStateRef.current, deltaYPx, tppTransitionDistanceMRef.current)),
-      walk: (destination) => { map2dDestinationRef.current = destination; buildCallbacksRef.current.onAutoMove?.(destination, false); },
+      zoomOverview: (deltaYPx) => dispatchCamera(cameraWheelEvent(cameraStateRef.current, deltaYPx, tppMaxDistanceMRef.current)),
+      walk: (destination) => { buildCallbacksRef.current.onAutoMove?.(destination, false); },
       selectPlayer: (id, x, y) => buildCallbacksRef.current.onSelectPlayer?.(id, x, y),
     });
     const removeMap2dShortcut = registerMap2dShortcut(window, {
@@ -2434,7 +2444,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       // gesture. Keep that gesture dedicated to rotation instead of changing
       // the camera distance underneath it.
       if (cameraDrag?.mode === "rotate" || (event.buttons & 2) !== 0) return;
-      dispatchCamera(cameraWheelEvent(cameraStateRef.current, event.deltaY, tppTransitionDistanceMRef.current));
+      dispatchCamera(cameraWheelEvent(cameraStateRef.current, event.deltaY, tppMaxDistanceMRef.current));
       if (cameraStateRef.current.mode === "tpp" || cameraStateRef.current.mode === "free" && !cameraStateRef.current.editing) setActiveFloatingGroup("zoom");
     };
     const stopRotating = (event: PointerEvent) => {
@@ -2632,9 +2642,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       // Calculate the yaw-independent map fit once per viewport size and reuse
       // it during frames/rotation; this prevents camera orbit from changing zoom.
       campusFitDistanceM = campusOverviewDistance(activeFloor.width, activeFloor.depth, camera.aspect, cameraYawRef.current, cameraStateRef.current.elevationRad, TPP_FOV_DEG);
-      const transitionDistance = Math.max(CAMERA.minZoom, campusFitDistanceM * CAMPUS_2D_ZOOM_THRESHOLD_RATIO);
-      tppTransitionDistanceMRef.current = campusOverview ? transitionDistance : CAMERA.maxZoom;
-      setTppTransitionDistanceM(tppTransitionDistanceMRef.current);
+      const maxDistanceM = Math.max(CAMERA.minZoom, campusFitDistanceM * CAMPUS_3D_DISTANCE_LIMIT_RATIO);
+      tppMaxDistanceMRef.current = campusOverview ? maxDistanceM : CAMERA.maxZoom;
+      setTppMaxDistanceM(tppMaxDistanceMRef.current);
     };
     const observer = new ResizeObserver(resize);
     observer.observe(host);
@@ -3421,9 +3431,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       if (placementGhost.visible) {
         placementGhost.position.set(placementGhostPosition.x, placementGhostElevation, placementGhostPosition.z);
       }
-      if (autoMoveStatusRevisionRef && autoMoveStatusRevisionRef.current !== lastAutoMoveStatusRevisionRef.current) {
-        lastAutoMoveStatusRevisionRef.current = autoMoveStatusRevisionRef.current; map2dDestinationRef.current = null;
-      }
       const showMap2d = cameraStateRef.current.mode === "map2d";
       renderer.domElement.style.opacity = showMap2d ? "0" : "1";
       if (map2dViewRef) map2dViewRef.current = showMap2d;
@@ -3478,12 +3485,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
       }
       for (const [id, label] of vehicleNameLabels) if (!playersRef.current.has(id)) { label.remove(); vehicleNameLabels.delete(id); }
-      const mapScalePxPerM = cameraStateRef.current.view === "3d"
-        ? campusOverviewMapScalePxPerM(mapWorld.width, mapWorld.depth, host.clientWidth, host.clientHeight, cameraStateRef.current.zoomRatio, CAMPUS_2D_ZOOM_THRESHOLD_RATIO)
-        : cameraStateRef.current.map2dScalePxPerM;
-      map2dCenterRef.current = map2dRenderer.frame({ visible: showMap2d, following: cameraStateRef.current.following, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
-        projection: { center: map2dCenterRef.current, pxPerM: mapScalePxPerM, widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
-        players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: map2dDestinationRef.current }) ?? map2dCenterRef.current;
+      mapPresentationRef.current = resolveMap2dPresentation(mapPresentationPreferenceRef.current, cameraStateRef.current.map2dScalePxPerM, mapPresentationRef.current);
+      map2dCenterRef.current = map2dRenderer.frame({ presentation: mapPresentationRef.current, visible: showMap2d, following: cameraStateRef.current.following, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
+        projection: { center: map2dCenterRef.current, pxPerM: cameraStateRef.current.map2dScalePxPerM, widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
+        players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: travelFeedbackRef.current?.destination ?? null }) ?? map2dCenterRef.current;
       socialOverlay.frame({ camera, players: playersRef.current, decorations: map2dDecorationsRef?.current ?? [], localId, layout: roomLayout, offsetX: campusOverviewRef.current ? mapWorld.width / 2 : 0, offsetZ: campusOverviewRef.current ? mapWorld.depth / 2 : 0, visible: !showMap2d, nowMs: performance.now() });
       if (!showMap2d) renderer.render(scene, camera);
       animationFrame = requestAnimationFrame(render);
@@ -3610,69 +3615,19 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         <kbd style={{ minWidth: 23, padding: "3px 6px", border: "1px solid rgba(255,255,255,.35)", borderRadius: 6, background: "rgba(255,255,255,.12)", font: "inherit", textAlign: "center" }}>E</kbd>
         {isDriving ? "Exit vehicle" : "Drive vehicle"}
       </div>}
-      {campusOverview && !mapEditMode && !buildMode && <div ref={worldControlDockRef} className="world-control-dock" aria-label="Map controls">
-        <div className="world-control-group map-mode-control">
-          <button type="button" className="world-control-trigger" aria-label={cameraState.mode === "map2d" ? "Switch to 3D view" : "Switch to 2D view"} title={cameraState.mode === "map2d" ? "Switch to 3D view · M" : "Switch to 2D view · M"} onClick={() => { setActiveFloatingGroup(null); toggleMap2d(); }}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg></button>
-        </div>
-        {personalDeskZone && currentPrivateZoneId !== personalDeskZone.id && <div className="world-control-group" role="group" aria-label="Workspace actions">
-          <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={appPaused} onClick={() => { setActiveFloatingGroup(null); buildCallbacksRef.current.onAutoMove?.({ x: personalDeskZone.x, z: personalDeskZone.z }, false); }}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 20 4l-7.5 17-2.2-7.3L3 11.5Z"/><path d="m10.3 13.7 4.6-4.6"/></svg>
-          </button>
-        </div>}
-        <div className={`world-control-group${activeFloatingGroup === "character" ? " is-active" : ""}`}>
-          {activeFloatingGroup === "character" && <div className="world-control-actions character-camera-actions" id="character-camera-actions" role="group" aria-label="Character camera actions">
-            <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "focus-character" }); }}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3"/></svg>
-            </button>
-            <button data-tutorial-target="office-camera-lock" type="button" className={`world-control-trigger${cameraLockEnabled ? " is-active" : ""}`} aria-label={cameraLockEnabled ? "Unlock camera angle" : "Lock camera behind character"} aria-pressed={cameraLockEnabled} title={cameraLockEnabled ? "Unlock camera angle" : "Lock camera behind character"} disabled={cameraState.mode === "fpp" || cameraState.editing} onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "set-camera-lock", locked: !cameraLockEnabled }); }}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/>{cameraLockEnabled ? <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/> : <path d="M8 10V7a4 4 0 0 1 7.5-2"/>}</svg>
-            </button>
-          </div>}
-          <button data-tutorial-target="office-character-actions" type="button" className="world-control-trigger" aria-label="Character camera actions" title="Character camera actions" aria-expanded={activeFloatingGroup === "character"} aria-controls="character-camera-actions" onClick={() => setActiveFloatingGroup((group) => group === "character" ? null : "character")}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.3"/></svg>
-          </button>
-        </div>
-        {(canEditMap && onEditMap || onModifyProps) && <div className={`world-control-group${activeFloatingGroup === "edit" ? " is-active" : ""}`}>
-          {activeFloatingGroup === "edit" && <div className="world-control-actions" id="map-edit-actions" role="group" aria-label="Editing actions">
-            {onModifyProps && <button type="button" className="modify-props-control" aria-label="Modify props" title="Modify props" onClick={() => { setActiveFloatingGroup(null); onModifyProps(); }}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m14 6 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z"/><path d="M13 7 17 11"/></svg>
-            </button>}
-            {canEditMap && onEditMap && <button type="button" className="edit-map-control" aria-label={mapEditorUsername ? `Map is being edited by ${mapEditorUsername}` : "Edit map"} title={mapEditorUsername ? `Map is being edited by ${mapEditorUsername}` : "Edit map"} disabled={mapEditLockPending || Boolean(mapEditorUsername)} onClick={() => { setActiveFloatingGroup(null); onEditMap(); }}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6.5 8 4l8 2.5L21 4v13.5L16 20l-8-2.5L3 20V6.5Z"/><path d="M8 4v13.5M16 6.5V20M12.4 13.6l5.9-5.9 2 2-5.9 5.9-2.6.6.6-2.6Z"/></svg>
-            </button>}
-          </div>}
-          <button type="button" className="world-control-trigger" aria-label="Editing tools" title="Editing tools" aria-expanded={activeFloatingGroup === "edit"} aria-controls="map-edit-actions" onClick={() => setActiveFloatingGroup((group) => group === "edit" ? null : "edit")}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m14 6 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z"/><path d="M13 7 17 11"/></svg>
-          </button>
-        </div>}
-        <div className={`world-control-group${activeFloatingGroup === "view" ? " is-active" : ""}`}>
-          {activeFloatingGroup === "view" && <div className="world-control-actions" id="map-view-actions" role="group" aria-label="Camera actions">
-            <button type="button" className="camera-view-control" aria-label={firstPersonView ? "Switch to third-person view" : "Switch to first-person view"} title={firstPersonView ? "Third-person view · V" : "First-person view · V"} onClick={toggleCameraView}>
-              {firstPersonView ? "3P" : "1P"}
-            </button>
-            {firstPersonView && <button type="button" className={`weapon-inventory-control${weaponInventoryOpen ? " is-active" : ""}`} aria-label={weaponInventoryOpen ? "Close weapon inventory" : "Open weapon inventory"} title="Weapon inventory · B" onClick={() => { setWeaponInventoryOpen((open) => !open); if (!weaponInventoryOpen && document.pointerLockElement) document.exitPointerLock(); }}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m4 15 5-5 3 1 3-3 2 2-3 3 1 3-5 5-2-2 2-3-2-2-3 2-2-2Z"/><path d="m14 7 3-3 3 3-3 3M5 19l-2 2"/></svg>
-            </button>}
-          </div>}
-          <button type="button" className="world-control-trigger" aria-label="Camera controls" title="Camera controls" aria-expanded={activeFloatingGroup === "view"} aria-controls="map-view-actions" onClick={() => setActiveFloatingGroup((group) => group === "view" ? null : "view")}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7.5h11a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H3z"/><path d="m16 10 5-3v10l-5-3"/><circle cx="8.5" cy="12" r="2.2"/></svg>
-          </button>
-        </div>
-        <div className={`world-control-group${activeFloatingGroup === "zoom" ? " is-active" : ""}`}>
-          {activeFloatingGroup === "zoom" && <div className="world-control-actions" id="map-zoom-actions" role="group" aria-label="Zoom actions">
-            {cameraState.mode === "tpp" || cameraState.mode === "free" && !cameraState.editing ? <div className="overview-zoom-controls tpp-zoom-controls" role="group" aria-label="3D camera distance">
-              <button className="tpp-zoom-nudge" type="button" aria-label="Zoom in 10 meters" title="Zoom in 10 m" disabled={cameraState.distanceM <= CAMERA.minZoom} onClick={() => { dispatchCamera({ type: "distance", distanceM: cameraStateRef.current.distanceM - CAMERA.zoomStep, maxDistanceM: tppZoomMaxDistanceM }); }}>−</button>
-              <div className="tpp-zoom-panel">
-                <div className="tpp-zoom-readout"><output aria-label="Current camera distance">{Math.round(cameraState.distanceM)} m</output></div>
-              </div>
-              <button className="tpp-zoom-nudge" type="button" aria-label={campusOverview ? "Zoom out 10 meters or switch to 2D" : "Zoom out 10 meters"} title={campusOverview ? "Zoom out 10 m · switch to 2D at map limit" : "Zoom out 10 m"} disabled={cameraState.distanceM >= tppZoomMaxDistanceM} onClick={() => { const distanceM = cameraStateRef.current.distanceM + CAMERA.zoomStep; if (campusOverview && distanceM >= tppTransitionDistanceMRef.current) dispatchCamera({ type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO, distanceM: tppTransitionDistanceMRef.current }); else dispatchCamera({ type: "distance", distanceM, maxDistanceM: tppZoomMaxDistanceM }); }}>+</button>
-            </div> : <div className="overview-zoom-controls"><button type="button" aria-label="Zoom in one level" title="Zoom in 1×" onClick={() => { dispatchCamera(cameraZoomButtonEvent(cameraStateRef.current, CAMERA_ZOOM_BUTTON_RATIO)); }}>+</button><button type="button" aria-label="Zoom out one level" title="Zoom out 1×" onClick={() => { dispatchCamera(cameraZoomButtonEvent(cameraStateRef.current, 1 / CAMERA_ZOOM_BUTTON_RATIO)); }}>−</button></div>}
-          </div>}
-          <button type="button" className="world-control-trigger" aria-label="Zoom controls" title="Zoom controls" aria-expanded={activeFloatingGroup === "zoom"} aria-controls="map-zoom-actions" onClick={() => setActiveFloatingGroup((group) => group === "zoom" ? null : "zoom")}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.5 4.5M8 10.8h5.6M10.8 8v5.6"/></svg>
-          </button>
-        </div>
-      </div>}
+      {campusOverview && !mapEditMode && !buildMode && <WorldControls
+        travelFeedback={travelFeedback} onCancelTravel={onCancelTravel}
+        mapPresentationPreference={mapPresentation.preference} onMapPresentationChange={mapPresentation.setPreference}
+        cameraState={cameraState} campusOverview={campusOverview} firstPersonView={firstPersonView} appPaused={appPaused}
+        personalDeskZone={personalDeskZone} currentPrivateZoneId={currentPrivateZoneId}
+        activeFloatingGroup={activeFloatingGroup} setActiveFloatingGroup={setActiveFloatingGroup}
+        canEditMap={canEditMap} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockPending}
+        onEditMap={onEditMap} onModifyProps={onModifyProps} weaponInventoryOpen={weaponInventoryOpen}
+        onToggleWeaponInventory={() => { setWeaponInventoryOpen((open) => !open); if (!weaponInventoryOpen && document.pointerLockElement) document.exitPointerLock(); }}
+        toggleCameraView={toggleCameraView} toggleMap2d={toggleMap2d} dispatchCamera={dispatchCamera}
+        onGoToDesk={() => { setActiveFloatingGroup(null); onReturnToDesk?.(); }}
+        tppZoomMaxDistanceM={tppZoomMaxDistanceM}
+      />}
       {campusOverview && firstPersonView && !buildMode && <span className="camera-aim-reticle" aria-hidden="true" />}
       {campusOverview && firstPersonView && !buildMode && weaponInventoryOpen && <section className="weapon-inventory" role="dialog" aria-label="Weapon inventory">
         <header><div><span className="eyebrow">FIRST PERSON</span><h2>Weapon inventory</h2></div><button type="button" aria-label="Close weapon inventory" onClick={() => setWeaponInventoryOpen(false)}>×</button></header>

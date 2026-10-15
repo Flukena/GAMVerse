@@ -1,0 +1,148 @@
+/* Use the GAMVerse palette from styles.css for every workspace surface. */
+:root {
+  --workspace-surface: var(--color-surface);
+  --workspace-subtle: var(--color-surface-soft);
+  --workspace-hover: color-mix(in srgb, var(--color-sky) 10%, var(--color-surface));
+  --workspace-selected: color-mix(in srgb, var(--color-sky) 15%, var(--color-surface));
+  --workspace-ink: var(--color-ink);
+  --workspace-muted: var(--color-muted);
+  --workspace-edge: var(--color-border);
+  --workspace-accent: var(--color-primary);
+  --workspace-focus: var(--color-primary);
+  --workspace-action: var(--color-primary);
+  --workspace-on-action: var(--color-surface);
+  --workspace-warning: color-mix(in srgb, var(--color-accent) 25%, var(--workspace-surface));
+  --workspace-danger: #a34d42;
+}
+:root[data-workspace-theme="dark"] {
+  --workspace-surface: var(--color-primary);
+  --workspace-subtle: color-mix(in srgb, var(--color-primary) 80%, black);
+  --workspace-hover: color-mix(in srgb, var(--color-secondary) 20%, var(--color-primary));
+  --workspace-selected: color-mix(in srgb, var(--color-secondary) 35%, var(--color-primary));
+  --workspace-ink: var(--color-surface);
+  --workspace-muted: var(--color-sky);
+  --workspace-edge: color-mix(in srgb, var(--color-sky) 45%, var(--color-primary));
+  --workspace-accent: var(--color-sky);
+  --workspace-focus: var(--color-sky);
+  --workspace-action: var(--color-sky);
+  --workspace-on-action: var(--color-primary);
+  --workspace-danger: #ffb4a8;
+}
+:root[data-workspace-theme] .office-experience {
+  --office-ink: var(--workspace-ink);
+  --office-muted: var(--workspace-muted);
+  --office-edge: var(--workspace-edge);
+  --office-accent: var(--workspace-accent);
+  color: var(--workspace-ink);
+}
+:root[data-workspace-theme] .office-experience .office-rail { background: var(--workspace-subtle); }
+:root[data-workspace-theme] .office-experience .office-header,
+:root[data-workspace-theme] .office-experience .office-sidebar,
+:root[data-workspace-theme] .office-experience .character-drawer,
+:root[data-workspace-theme] .office-experience .bottom-dock,
+:root[data-workspace-theme] .office-experience .user-status-menu,
+:root[data-workspace-theme] .office-experience .reaction-picker-popover { background: var(--workspace-surface); color: var(--workspace-ink); border-color: var(--workspace-edge); }
+:root[data-workspace-theme] .office-experience .office-rail-item,
+:root[data-workspace-theme] .office-experience .dock-button { color: var(--workspace-muted); }
+:root[data-workspace-theme] .office-experience .office-rail-item:hover,
+:root[data-workspace-theme] .office-experience .office-panel-header > button:hover,
+:root[data-workspace-theme] .office-experience .dock-button:hover:not(:disabled) { background: var(--workspace-hover); color: var(--workspace-ink); }
+:root[data-workspace-theme] .office-experience .office-rail-item.is-active,
+:root[data-workspace-theme] .office-experience .dock-button.active { background: var(--workspace-selected); color: var(--workspace-accent); }
+:root[data-workspace-theme] .office-experience .office-online-button,
+:root[data-workspace-theme] .office-experience .office-space-card { background: var(--workspace-subtle); color: var(--workspace-ink); }
+:root[data-workspace-theme] .office-experience .office-rail-brand { color: var(--workspace-accent); }
+:root[data-workspace-theme="dark"] .office-experience .user-status-option,
+:root[data-workspace-theme="dark"] .office-experience .character-account-name strong,
+:root[data-workspace-theme="dark"] .office-experience .character-drawer-header h2,
+:root[data-workspace-theme="dark"] .office-experience .user-settings-section h3,
+:root[data-workspace-theme="dark"] .office-experience .office-activity-copy strong { color: var(--workspace-ink); }
+:root[data-workspace-theme="dark"] .office-experience .user-status-menu-heading,
+:root[data-workspace-theme="dark"] .office-experience .character-account-name span,
+:root[data-workspace-theme="dark"] .office-experience .office-activity-copy small { color: var(--workspace-muted); }
+:root[data-workspace-theme="dark"] .office-experience .user-status-option:hover { background: var(--workspace-hover); }
+:root[data-workspace-theme="dark"] .office-experience .user-status-option.is-selected { background: var(--workspace-selected); }
+:root[data-workspace-theme="dark"] .office-experience .user-status-check { color: var(--workspace-accent); }
+:root[data-workspace-theme] .office-experience .settings-character-summary,
+:root[data-workspace-theme] .office-experience .settings-menu-row,
+:root[data-workspace-theme] .office-experience .settings-dialog,
+:root[data-workspace-theme] .office-experience .profile-edit-dialog,
+:root[data-workspace-theme] .office-experience .settings-dialog .profile-dialog-footer,
+:root[data-workspace-theme] .office-experience .profile-edit-dialog .profile-dialog-footer,
+:root[data-workspace-theme] .office-experience .settings-dialog .profile-dialog-header,
+:root[data-workspace-theme] .office-experience .profile-edit-dialog .profile-dialog-header,
+:root[data-workspace-theme] .office-experience .nickname-settings input,
+:root[data-workspace-theme] .office-experience .sound-device-field select {
+  background: var(--workspace-surface);
+  color: var(--workspace-ink);
+  border-color: var(--workspace-edge);
+}
+:root[data-workspace-theme] .office-experience .character-account,
+:root[data-workspace-theme] .office-experience .profile-edit-identity,
+:root[data-workspace-theme] .office-experience .settings-section-nav { background: var(--workspace-subtle); border-color: var(--workspace-edge); }
+:root[data-workspace-theme] .office-experience .settings-menu-row:hover { background: var(--workspace-hover); border-color: var(--workspace-accent); }
+:root[data-workspace-theme] .office-experience .settings-section-nav button.active { background: var(--workspace-selected); color: var(--workspace-accent); }
+:root[data-workspace-theme] .office-experience .settings-character-summary strong,
+:root[data-workspace-theme] .office-experience .settings-menu-row strong,
+:root[data-workspace-theme] .office-experience .settings-dialog .profile-dialog-header h2,
+:root[data-workspace-theme] .office-experience .profile-edit-dialog .profile-dialog-header h2,
+:root[data-workspace-theme] .office-experience .profile-edit-identity strong,
+:root[data-workspace-theme] .office-experience .settings-section-content h3,
+:root[data-workspace-theme] .office-experience .nickname-settings > label,
+:root[data-workspace-theme] .office-experience .sound-device-field,
+:root[data-workspace-theme] .office-experience .permission-row strong { color: var(--workspace-ink); }
+:root[data-workspace-theme] .office-experience .settings-character-summary small,
+:root[data-workspace-theme] .office-experience .settings-dialog .eyebrow,
+:root[data-workspace-theme] .office-experience .profile-edit-dialog .eyebrow,
+:root[data-workspace-theme] .office-experience .character-drawer .eyebrow,
+:root[data-workspace-theme] .office-experience .settings-dialog .settings-general-row small,
+:root[data-workspace-theme] .office-experience .profile-edit-identity small,
+:root[data-workspace-theme] .office-experience .settings-menu-row small,
+:root[data-workspace-theme] .office-experience .settings-menu-row > span:last-child,
+:root[data-workspace-theme] .office-experience .settings-section-nav button,
+:root[data-workspace-theme] .office-experience .settings-intro,
+:root[data-workspace-theme] .office-experience .nickname-settings > label span,
+:root[data-workspace-theme] .office-experience .nickname-settings > small:not(.nickname-saved):not(.auth-error),
+:root[data-workspace-theme] .office-experience .sound-device-note { color: var(--workspace-muted); }
+:root[data-workspace-theme] .office-experience .settings-menu-row:focus-visible,
+:root[data-workspace-theme] .office-experience .profile-dialog :focus-visible,
+:root[data-workspace-theme] .office-experience .manager-dialog :focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 3px; }
+:root[data-workspace-theme] .office-experience .office-main-menu-trigger { width: 100%; padding: 0; border: 0; border-radius: 8px; background: transparent; cursor: pointer; }
+:root[data-workspace-theme] .office-experience .office-main-menu-trigger:hover { background: var(--workspace-hover); }
+.workspace-dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--workspace-edge); border-radius: 16px; background: var(--workspace-surface); color: var(--workspace-ink); box-shadow: 0 18px 70px #0005; color-scheme: light; }
+.workspace-dialog.settings-dialog { width: min(640px, calc(100vw - 32px)); max-width: none; min-height: 0; max-height: calc(100dvh - 32px); margin: auto; padding: 0; }
+.workspace-dialog.settings-dialog[open] { display: flex; flex-direction: column; }
+.workspace-dialog.settings-dialog .profile-dialog-header { flex-shrink: 0; }
+.workspace-dialog.settings-dialog .settings-dialog-body { min-height: 0; overflow: auto; }
+.workspace-dialog.settings-dialog .settings-section-content { min-width: 0; }
+.workspace-dialog.password-settings-dialog { width: min(420px, calc(100vw - 32px)); max-width: none; margin: auto; }
+.workspace-dialog.password-settings-dialog > .password-dialog { width: 100%; max-height: none; margin: 0; border: 0; border-radius: 0; background: transparent; color: var(--workspace-ink); box-shadow: none; }
+.workspace-dialog.password-settings-dialog h2 { color: var(--workspace-ink); }
+.workspace-dialog.password-settings-dialog label,
+.workspace-dialog.password-settings-dialog .eyebrow { color: var(--workspace-muted); }
+.workspace-dialog.password-settings-dialog input { border-color: var(--workspace-edge); background: var(--workspace-subtle); color: var(--workspace-ink); }
+.workspace-dialog.password-settings-dialog .lobby-button.primary { border-color: var(--workspace-action); background: var(--workspace-action); color: var(--workspace-on-action); }
+.workspace-dialog.password-settings-dialog .auth-error { background: var(--color-surface); }
+:root[data-workspace-theme="dark"] .workspace-dialog,
+:root[data-workspace-theme="dark"] .office-experience { color-scheme: dark; }
+.workspace-dialog::backdrop { background: color-mix(in srgb, var(--color-primary) 50%, transparent); }
+.office-main-menu { padding: 24px; }
+.office-main-menu header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.office-main-menu h2 { margin: 0; font-size: 20px; }
+.office-main-menu h3 { margin: 24px 0 12px; font-size: 12px; color: var(--workspace-muted); }
+.office-main-menu header button { border: 0; background: transparent; color: var(--workspace-muted); font-size: 26px; cursor: pointer; }
+.office-switcher-list { display: grid; gap: 8px; max-height: 40dvh; overflow: auto; }
+.office-switcher-list button { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid var(--workspace-edge); border-radius: 8px; background: var(--workspace-subtle); color: var(--workspace-ink); text-align: left; cursor: pointer; }
+.office-switcher-list button span { overflow-wrap: anywhere; }
+.office-switcher-list button small { flex-shrink: 0; color: var(--workspace-muted); }
+.office-switcher-list button[aria-current] { background: var(--workspace-selected); border-color: var(--workspace-accent); }
+.workspace-theme-control { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--workspace-edge); font-size: 13px; }
+.workspace-theme-control select { padding: 8px; border: 1px solid var(--workspace-edge); border-radius: 8px; background: var(--workspace-subtle); color: var(--workspace-ink); }
+:root[data-workspace-theme] .office-experience .office-search-button { display: flex; align-items: center; gap: 12px; padding: 7px 10px; border: 1px solid var(--workspace-edge); border-radius: 8px; background: var(--workspace-subtle); color: var(--workspace-muted); cursor: pointer; }
+.office-search-button kbd { font-size: 10px; }
+.workspace-dialog :focus-visible,
+.office-main-menu-trigger:focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 3px; }
+@media (max-width: 720px) { .office-search-button kbd { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .workspace-dialog, .workspace-dialog *, .office-rail *, .office-header * { scroll-behavior: auto; transition: none; animation: none; }
+}

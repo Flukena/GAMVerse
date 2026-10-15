@@ -1,4 +1,6 @@
-export type VoiceTarget = { kind: "meeting" | "private" | "proximity" | "spotlight"; id: string; officeId: string; sessionKey: string };
+import type { ConversationGrantBinding, ConversationTokenMode } from "@gammyverse/shared";
+
+export type VoiceTarget = { kind: "meeting" | "private" | "proximity" | "spotlight"; id: string; officeId: string; sessionKey: string; mode?: ConversationTokenMode } & Partial<ConversationGrantBinding>;
 export interface VoiceTargetInputs {
   officeId: string | null;
   sessionKey: string | null;
@@ -19,5 +21,6 @@ export function resolveVoiceTarget(inputs: VoiceTargetInputs): VoiceTarget | nul
 }
 
 export function voiceTargetKey(target: VoiceTarget | null): string {
-  return JSON.stringify(target && [target.officeId, target.sessionKey, target.kind, target.id]);
+  return JSON.stringify(target && [target.officeId, target.sessionKey, target.kind, target.id,
+    target.conversationId, target.conversationGeneration, target.roomIncarnationId, target.mode ?? "join"]);
 }

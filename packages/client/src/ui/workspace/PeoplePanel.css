@@ -1,0 +1,33 @@
+.directory-panel { display: flex; flex-direction: column; gap: 18px; flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 4px 16px 20px; color: var(--workspace-ink, #26343e); }
+.directory-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--workspace-edge, #dbe2e7); border-radius: 9px; padding: 0 11px; background: var(--workspace-subtle, #f6f8fa); color: var(--workspace-muted, #667783); }
+.directory-search > span { font-size: 24px; }
+.directory-search input { width: 100%; min-width: 0; height: 38px; padding: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; color: inherit; }
+.directory-search:focus-within { outline: 2px solid var(--workspace-accent, #237c92); outline-offset: 2px; }
+.directory-group h3 { display: flex; align-items: center; gap: 8px; margin: 0 4px 7px; color: var(--workspace-muted, #677680); font-size: 11px; font-weight: 650; letter-spacing: .035em; text-transform: uppercase; }
+.directory-group h3 span { font-size: 10px; font-weight: 500; }
+.directory-group ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px; }
+.directory-person { min-width: 0; border-radius: 10px; }
+.directory-person.is-selected { background: var(--workspace-selected, #edf4f7); }
+.directory-person-summary { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 8px; border: 0; border-radius: 10px; text-align: left; background: transparent; color: inherit; cursor: pointer; font: inherit; }
+.directory-person-summary:hover:not(:disabled) { background: var(--workspace-hover, #f0f4f6); }
+.directory-person-summary:disabled { opacity: 1; cursor: default; }
+.directory-avatar { position: relative; display: grid; place-items: center; flex: 0 0 34px; height: 34px; background: var(--workspace-selected, #dce8df); border-radius: 11px; color: var(--workspace-ink, #38584b); font-size: 14px; font-weight: 650; }
+.directory-presence { position: absolute; right: -2px; bottom: -1px; width: 9px; height: 9px; border: 2px solid var(--workspace-surface, white); border-radius: 50%; background: #39a771; }
+.directory-presence.away { background: #d79c42; }
+.directory-person-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.directory-person-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.directory-person-copy small { color: var(--workspace-muted, #72808a); font-size: 11px; }
+.directory-expand { color: var(--workspace-muted, #7a8992); font-size: 18px; }
+.directory-person-details { padding: 0 10px 12px 52px; }
+.directory-username { display: block; overflow-wrap: anywhere; margin-bottom: 9px; font-size: 11px; color: var(--workspace-muted, #70808b); }
+.directory-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.directory-actions button { border: 1px solid var(--workspace-edge, #d6e1e7); border-radius: 6px; padding: 6px 9px; background: var(--workspace-surface, white); color: var(--workspace-ink, #335267); cursor: pointer; font: inherit; font-size: 11px; }
+.directory-actions button:hover:not(:disabled), .directory-actions button[aria-pressed="true"] { border-color: var(--workspace-accent, #4d8495); color: var(--workspace-ink, #15536a); background: var(--workspace-selected, #e1eff3); }
+.directory-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.directory-person-summary:focus-visible, .directory-actions button:focus-visible { outline: 2px solid var(--workspace-accent, #237c92); outline-offset: 2px; }
+.directory-notice, .directory-empty { color: var(--workspace-muted, #72808a); font-size: 12px; line-height: 1.5; }
+.directory-notice { margin: 10px 0 0; }
+.directory-empty { margin: 4px 0; }
+.directory-presence.offline { background: #87939b; }
+.directory-avatar img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+.directory-person-details > .directory-avatar { display: inline-grid; width: 34px; margin: 0 8px 8px 0; vertical-align: middle; }

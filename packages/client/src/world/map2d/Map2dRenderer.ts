@@ -1,7 +1,8 @@
+import type { Map2dPresentation } from "./map2dPresentation";
+import { drawMap2dRoomLabels } from "./map2dRoomLabels";
 import type { RoomLayout } from "@gammyverse/shared";
 import {
   MAP2D_COLORS,
-  MAP2D_DRAG_THRESHOLD_PX,
   MAP2D_VIEW_STORAGE_KEY,
 } from "./constants";
 import { Map2dPlayerFrames } from "./map2dPlayerFrames";
@@ -13,7 +14,7 @@ import {
   type Map2dDecoration,
   type Map2dPlayer,
 } from "./map2dDynamicLayer";
-import { pickMap2dPlayer } from "./map2dInput";
+import { isMap2dDrag, pickMap2dPlayer } from "./map2dInput";
 import { Map2dStaticLayer } from "./map2dStaticLayer";
 import { AvatarPortraits } from "./avatarPortraits";
 import {
@@ -31,6 +32,7 @@ export interface Map2dListener {
   selectPlayer(sessionId: string, screenX: number, screenY: number): void;
 }
 export type Map2dFrame = {
+  presentation?: Map2dPresentation;
   visible: boolean;
   view: "2d" | "3d";
   layout: RoomLayout | null;
@@ -85,6 +87,7 @@ export class Map2dRenderer {
     canvas.addEventListener("pointermove", this.pointerMove);
     canvas.addEventListener("pointerup", this.pointerUp);
     canvas.addEventListener("pointercancel", this.pointerCancel);
+    canvas.addEventListener("lostpointercapture", this.pointerCancel);
     canvas.addEventListener("wheel", this.wheel, { passive: false });
   }
   private point(event: PointerEvent | WheelEvent): ScreenPoint {
@@ -92,7 +95,7 @@ export class Map2dRenderer {
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
   private readonly pointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0 || !this.state?.visible) return;
+    if (event.button !== 0 || this.pointer || !this.state?.visible) return;
     this.canvas.focus();
     this.canvas.setPointerCapture(event.pointerId);
     const point = this.point(event);
@@ -106,11 +109,9 @@ export class Map2dRenderer {
   private readonly pointerMove = (event: PointerEvent): void => {
     const pointer = this.pointer;
     const state = this.state;
-    if (!pointer || !state) return;
+    if (!pointer || pointer.id !== event.pointerId || !state?.visible) return;
     const point = this.point(event);
-    pointer.dragged ||=
-      Math.hypot(point.x - pointer.start.x, point.y - pointer.start.y) >=
-      MAP2D_DRAG_THRESHOLD_PX;
+    pointer.dragged ||= isMap2dDrag(pointer.start, point);
     if (pointer.dragged)
       this.listener.pan({
         x:
@@ -124,10 +125,11 @@ export class Map2dRenderer {
   };
   private readonly pointerUp = (event: PointerEvent): void => {
     const pointer = this.pointer;
+    if (!pointer || pointer.id !== event.pointerId) return;
     this.pointer = null;
     const state = this.state;
-    if (!pointer || pointer.dragged || !state) return;
     const point = this.point(event);
+    if (pointer.dragged || isMap2dDrag(pointer.start, point) || !state?.visible) return;
     const playerId = pickMap2dPlayer(
       this.projection,
       this.playerFrames.players,
@@ -144,8 +146,8 @@ export class Map2dRenderer {
     )
       this.listener.walk(world);
   };
-  private readonly pointerCancel = (): void => {
-    this.pointer = null;
+  private readonly pointerCancel = (event: PointerEvent): void => {
+    if (this.pointer?.id === event.pointerId) this.pointer = null;
   };
   private readonly wheel = (event: WheelEvent): void => {
     const state = this.state;
@@ -178,6 +180,7 @@ export class Map2dRenderer {
     this.state = state;
     this.canvas.style.display = state.visible ? "block" : "none";
     if (!state.visible) {
+      this.pointer = null;
       this.changes.invalidate();
       return;
     }
@@ -203,8 +206,10 @@ export class Map2dRenderer {
       state.depthM,
       state.configVersion,
       p.pxPerM,
+      state.presentation,
     );
     this.staticLayer.blit(ctx, p);
+    drawMap2dRoomLabels(ctx, p, state.layout?.zones ?? []);
     if (state.destination) drawMap2dDestination(ctx, p, state.destination);
     drawMap2dInteraction(
       ctx,
@@ -221,6 +226,7 @@ export class Map2dRenderer {
       this.changes.activeDecorations,
       state.nowMs,
       this.portraits,
+      state.presentation,
     );
   }
   dispose(): void {
@@ -231,6 +237,7 @@ export class Map2dRenderer {
     this.canvas.removeEventListener("pointermove", this.pointerMove);
     this.canvas.removeEventListener("pointerup", this.pointerUp);
     this.canvas.removeEventListener("pointercancel", this.pointerCancel);
+    this.canvas.removeEventListener("lostpointercapture", this.pointerCancel);
     this.canvas.removeEventListener("wheel", this.wheel);
   }
 }

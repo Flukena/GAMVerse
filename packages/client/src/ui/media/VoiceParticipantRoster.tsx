@@ -1,8 +1,9 @@
+import type { UserStatus } from "@gammyverse/shared";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { playerName } from "../../identity/playerName";
 
-export type VoiceRosterStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
+export type VoiceRosterStatus = UserStatus;
 export type VoiceRosterPerson = {
   sessionId: string;
   displayName: string;
@@ -18,6 +19,7 @@ export type VoiceRosterMediaSource = "camera" | "screen";
 
 const STATUS_LABELS: Record<VoiceRosterStatus, string> = {
   available: "Available",
+  away: "Away",
   "do-not-disturb": "Do not disturb",
   "in-meeting": "In meeting",
   toilet: "Toilet",
@@ -27,6 +29,7 @@ const STATUS_LABELS: Record<VoiceRosterStatus, string> = {
 
 const STATUS_COLORS: Record<VoiceRosterStatus, string> = {
   available: "#2f9e62",
+  away: "#8a949e",
   "do-not-disturb": "#dc3545",
   "in-meeting": "#7950c7",
   toilet: "#168aad",

@@ -1,0 +1,29 @@
+.conversation-controls, .conversation-cues, .meet-offer-tray { min-width: 0; color: var(--workspace-ink); }
+.conversation-controls { display: flex; flex-direction: column; gap: 10px; }
+.conversation-mode-buttons, .meet-offer-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.conversation-controls button, .conversation-cues button, .meet-offer-card button { border: 1px solid var(--workspace-edge); border-radius: 8px; padding: 8px 10px; background: var(--workspace-subtle); color: var(--workspace-ink); font: inherit; cursor: pointer; }
+.conversation-controls button:disabled, .conversation-cues button:disabled, .meet-offer-card button:disabled { opacity: .55; cursor: default; }
+.conversation-controls button[aria-pressed="true"] { background: var(--workspace-selected); border-color: var(--workspace-accent); }
+.conversation-controls :focus-visible, .conversation-cues :focus-visible, .meet-offer-tray :focus-visible { outline: 2px solid var(--workspace-accent); outline-offset: 2px; }
+.conversation-auto-listen { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.conversation-explanation { margin: 0; color: var(--workspace-muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.conversation-controls.is-compact { max-width: 320px; padding: 12px; }
+.conversation-cues, .meet-offer-tray { padding: 16px; }
+.conversation-cues h2, .meet-offer-tray h2 { margin: 0 0 12px; font-size: 16px; }
+.conversation-cues ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.conversation-cues li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border: 1px solid var(--workspace-edge); border-radius: 10px; }
+.conversation-cues li > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+.conversation-cues small, .meet-offer-card small { color: var(--workspace-muted); font-size: 12px; }
+.meet-offer-card { margin: 10px 0; padding: 12px; border: 1px solid var(--workspace-edge); border-radius: 10px; overflow-wrap: anywhere; }
+.meet-offer-card h3 { margin: 0; font-size: 14px; }
+.meet-offer-card p { font-size: 12px; line-height: 1.5; }
+.meet-offer-actions { margin: 10px 0; }
+.public-conversation-dialog { box-sizing: border-box; width: min(560px, calc(100vw - 32px)); padding: 24px; overflow: hidden; }
+.public-conversation-dialog[open] { display: flex; flex-direction: column; }
+.public-conversation-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px; }
+.public-conversation-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.public-conversation-header h2 { margin: 0; font-size: 20px; }
+.public-conversation-header button { border: 1px solid var(--workspace-edge); border-radius: 7px; padding: 4px 10px; background: var(--workspace-subtle); color: var(--workspace-ink); font: inherit; font-size: 24px; cursor: pointer; }
+.public-conversation-dialog .conversation-cues { padding: 20px 0 0; }
+
+.conversation-invitation-alert { position: fixed; top: 80px; right: 20px; z-index: 32; max-width: calc(100vw - 40px); border: 1px solid var(--workspace-edge, #dce3e8); border-radius: 12px; padding: 12px 16px; color: var(--workspace-ink, #25364a); background: var(--workspace-surface, #fff); cursor: pointer; box-shadow: 0 5px 20px #182d3926; }

@@ -1174,7 +1174,8 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 }
 
 .world-control-dock { position: absolute; z-index: 7; inset: 0 0 0 auto; display: flex; box-sizing: border-box; flex-direction: column-reverse; align-items: flex-end; justify-content: flex-start; gap: 8px; padding: 84px 16px calc(24px + env(safe-area-inset-bottom, 0px)); pointer-events: none; }
-.world-control-dock > .world-control-group { pointer-events: auto; }
+.world-control-dock > .world-control-group,
+.world-control-dock > .world-control-trigger { pointer-events: auto; }
 .nickname-settings { display: grid; gap: 7px; margin: 14px 0 18px; }
 .nickname-settings > label { color: var(--color-primary); font-size: .9rem; font-weight: 700; }
 .nickname-settings > label span,.nickname-settings > small { color: var(--color-muted); font-size: .78rem; font-weight: 400; }

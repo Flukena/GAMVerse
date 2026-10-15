@@ -1,13 +1,20 @@
 import type { Room } from "livekit-client";
 import type { VoiceRoomAdapter } from "./voiceRoomSession";
 import { isVoiceDeniedStatus } from "./voiceToken";
+import { mediaDeviceCaptureDefaults, readMediaDevicePreferences } from "./mediaDevicePreferences";
 
 const VOICE_DISCONNECTED_ERROR_LABEL = "Voice disconnected.";
 
 export async function createVoiceRoom(): Promise<VoiceRoomAdapter<Room>> {
   const { Room, RoomEvent, ConnectionError, DisconnectReason } = await import("livekit-client");
+  const devices = readMediaDevicePreferences();
   return {
-    room: new Room({ adaptiveStream: true, dynacast: true }),
+    room: new Room({
+      adaptiveStream: true, dynacast: true,
+      ...mediaDeviceCaptureDefaults(devices),
+      ...(typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype
+        ? { audioOutput: { deviceId: devices.audiooutput } } : {}),
+    }),
     events: RoomEvent,
     disconnectError: reason => reason === DisconnectReason.CLIENT_INITIATED
       ? ConnectionError.cancelled(VOICE_DISCONNECTED_ERROR_LABEL)

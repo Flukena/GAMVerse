@@ -1,0 +1,15 @@
+.meeting-share-zoom-stage { min-width: 0; }
+.meeting-share-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.meeting-share-toolbar > strong { min-width: 0; overflow-wrap: anywhere; }
+.meeting-share-zoom-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.meeting-share-zoom-controls output { min-width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
+.meeting-share-zoom-controls button:disabled { opacity: .55; cursor: default; }
+.meeting-share-viewport { width: 100%; height: clamp(12rem, 50dvh, 36rem); overflow: auto; overscroll-behavior: contain; border-radius: 8px; background: var(--meeting-subtle); }
+.meeting-share-viewport:focus-visible { outline: 3px solid var(--meeting-accent); outline-offset: 3px; }
+.meeting-share-surface { min-width: 100%; min-height: 100%; }
+.meeting-share-zoom-stage .meeting-share-surface .meeting-video { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; object-fit: contain; }
+@media (max-width: 600px) {
+  .meeting-share-toolbar { align-items: start; flex-direction: column; }
+  .meeting-share-zoom-controls { width: 100%; }
+  .meeting-share-viewport { height: 40dvh; min-height: 10rem; }
+}

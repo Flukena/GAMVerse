@@ -1,0 +1,101 @@
+.map2d-controls {
+  position: absolute;
+  z-index: 7;
+  right: 20px;
+  bottom: 16px;
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 7px;
+  max-width: calc(100% - 88px);
+  color: #243f4c;
+  font: 500 12px/1.4 "DM Sans", sans-serif;
+}
+.map2d-controls-hint {
+  margin: 0;
+  padding: 5px 9px;
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #fffffff2;
+  font-size: 11px;
+}
+.map2d-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid #dce4e1;
+  border-radius: 13px;
+  background: #fffffff5;
+  box-shadow: 0 4px 18px #173b4b12;
+}
+.map2d-controls button {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.map2d-controls button:hover:not(:disabled) { background: #edf3ef; }
+.map2d-controls button:focus-visible { outline: 2px solid #138eab; outline-offset: 2px; }
+.map2d-controls button:disabled { opacity: .4; cursor: default; }
+.map2d-controls button.is-following { color: #247a5b; background: #e9f5ec; }
+.map2d-controls svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.map2d-desk-action { display: inline-flex; }
+.map2d-zoom-controls { display: flex; align-items: center; border-left: 1px solid #dce4e1; padding-left: 4px; }
+.map2d-zoom-controls output { min-width: 43px; text-align: center; font-variant-numeric: tabular-nums; font-size: 11px; }
+.map2d-zoom-controls button { padding: 0 7px; font-size: 18px; }
+.map2d-controls .world-control-group { position: relative; }
+.map2d-controls .world-control-actions { position: absolute; right: 0; bottom: calc(100% + 14px); padding: 5px; border: 1px solid #dce4e1; border-radius: 10px; background: #fff; box-shadow: 0 4px 18px #173b4b12; }
+.map2d-controls .world-control-trigger { width: 34px; min-height: 34px; box-shadow: none; transform: none; }
+@media (max-width: 1440px) {
+  .map2d-controls { right: 14px; bottom: calc(88px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 600px) {
+  .map2d-controls { max-width: calc(100% - 80px); right: 10px; }
+  .map2d-controls-hint { max-width: 220px; font-size: 10px; text-align: right; }
+}
+
+.map2d-presentation-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.map2d-presentation-control select {
+  color: inherit;
+  background: var(--workspace-surface, #fff);
+  border: 1px solid var(--workspace-border, #d7dfdc);
+  border-radius: 8px;
+  padding: 7px;
+  font: inherit;
+}
+.map2d-presentation-control select:focus-visible {
+  outline: 2px solid var(--workspace-accent, #159bb4);
+  outline-offset: 2px;
+}
+
+
+.map2d-travel-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 5px 9px;
+  border: 1px solid var(--workspace-border, #dce4e1);
+  border-radius: 8px;
+  background: var(--workspace-surface, #fff);
+  color: var(--workspace-text, #243f4c);
+}
+.map2d-travel-feedback span { overflow-wrap: anywhere; }
+.map2d-travel-feedback button { flex-shrink: 0; border-color: currentColor; }

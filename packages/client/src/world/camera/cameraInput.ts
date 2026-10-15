@@ -1,7 +1,7 @@
 import { CAMERA } from "@gammyverse/shared";
 import { MathUtils, Vector3 } from "three";
 import type { CameraEvent, CameraState } from "./cameraState";
-import { CAMERA_BACKWARD_KEY_CODES, CAMERA_FORWARD_KEY_CODES, CAMERA_LEFT_KEY_CODES, CAMERA_MOVEMENT_KEY_CODES, CAMERA_RIGHT_KEY_CODES, CAMERA_WHEEL_SENSITIVITY_PER_PIXEL, CAMPUS_2D_ZOOM_THRESHOLD_RATIO, FPP_PITCH_LIMIT_DEG, MAP_EDIT_PAN_SPEED_M_PER_SEC, MIN_CAMERA_VIEWPORT_HEIGHT_PIXEL } from "./constants";
+import { CAMERA_BACKWARD_KEY_CODES, CAMERA_FORWARD_KEY_CODES, CAMERA_LEFT_KEY_CODES, CAMERA_MOVEMENT_KEY_CODES, CAMERA_RIGHT_KEY_CODES, CAMERA_WHEEL_SENSITIVITY_PER_PIXEL, FPP_PITCH_LIMIT_DEG, MAP_EDIT_PAN_SPEED_M_PER_SEC, MIN_CAMERA_VIEWPORT_HEIGHT_PIXEL } from "./constants";
 
 export function rotateFirstPersonAim(yawRad: number, pitchRad: number, deltaXPixel: number, deltaYPixel: number, sensitivityRadPerPixel: number) {
   const limitRad = MathUtils.degToRad(FPP_PITCH_LIMIT_DEG);
@@ -31,17 +31,13 @@ export function panCameraTarget(input: CameraPanInput): Vector3 {
   ));
 }
 
-export function cameraWheelEvent(state: CameraState, deltaYPixel: number, tppTransitionDistanceM: number = CAMERA.maxZoom): CameraEvent {
+export function cameraWheelEvent(state: CameraState, deltaYPixel: number, maxDistanceM: number = CAMERA.maxZoom): CameraEvent {
   if (state.campus && (state.mode === "tpp" || state.mode === "free" && !state.editing) && state.arrival === "ready") {
     const distanceM = state.distanceM + Math.sign(deltaYPixel) * CAMERA.zoomStep;
-    if (deltaYPixel > 0 && distanceM >= tppTransitionDistanceM) return { type: "zoom", ratio: CAMPUS_2D_ZOOM_THRESHOLD_RATIO, distanceM: tppTransitionDistanceM };
-    return { type: "distance", distanceM, maxDistanceM: tppTransitionDistanceM };
+    return { type: "distance", distanceM, maxDistanceM };
   }
   if (state.campus) {
     const ratio = state.zoomRatio * Math.exp(deltaYPixel * CAMERA_WHEEL_SENSITIVITY_PER_PIXEL);
-    if (state.mode === "map2d" && ratio < CAMPUS_2D_ZOOM_THRESHOLD_RATIO) {
-      return { type: "zoom", ratio, distanceM: Math.max(CAMERA.minZoom, tppTransitionDistanceM - CAMERA.zoomStep) };
-    }
     return { type: "zoom", ratio };
   }
   return { type: "distance", distanceM: state.distanceM + Math.sign(deltaYPixel) * CAMERA.zoomStep };

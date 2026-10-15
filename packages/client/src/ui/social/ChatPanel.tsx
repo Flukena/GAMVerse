@@ -1,31 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  appendChatMessage,
-  chatThreadKey,
-  dmThreadForUsername,
-} from "./socialState";
+import { appendChatMessage, chatThreadKey } from "./socialState";
+import { ChatPanelView } from "./ChatPanelView";
+import { chatThreads } from "./chatPresentation";
+import type { ChatMessage, ChatTransport } from "./chatTypes";
 
-export interface ChatMessage {
-  id: string;
-  officeId: string;
-  scope: "nearby" | "office" | "dm";
-  senderUsername: string;
-  recipientUsername?: string;
-  text: string;
-  createdAt: string;
-  sessionId: string;
-}
-export interface ChatTransport {
-  send(type: string, payload: unknown): void;
-  onMessage(type: string, callback: (message: never) => void): () => void;
-}
+export type { ChatMessage, ChatTransport } from "./chatTypes";
+
 interface ChatPanelProps {
   room: ChatTransport | null;
   endpoint: string;
   officeId: string;
   username: string;
   target: string | null;
+  targetRevision?: number;
   visible: boolean;
   container: HTMLElement | null;
   onUnread(count: number): void;
@@ -40,6 +28,7 @@ export function ChatPanel({
   officeId,
   username,
   target,
+  targetRevision = 0,
   visible,
   container,
   onUnread,
@@ -48,6 +37,7 @@ export function ChatPanel({
   const [thread, setThread] = useState("nearby");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [dmUsername, setDmUsername] = useState("");
+  const [openedThreads, setOpenedThreads] = useState<string[]>([]);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [unread, setUnread] = useState<Record<string, number>>({});
@@ -55,9 +45,13 @@ export function ChatPanel({
   officeRef.current = officeId;
   const selectionRef = useRef({ thread, visible });
   selectionRef.current = { thread, visible };
+  const selectThread = useCallback((nextThread: string) => {
+    setThread(nextThread);
+    setOpenedThreads((current) => [...new Set([...current, nextThread])]);
+  }, []);
   useEffect(() => {
-    if (target) setThread(`dm:${target}`);
-  }, [target]);
+    if (target) selectThread(`dm:${target}`);
+  }, [target, targetRevision, selectThread]);
   useEffect(() => {
     if (visible) setUnread((current) => ({ ...current, [thread]: 0 }));
   }, [visible, thread]);
@@ -129,20 +123,11 @@ export function ChatPanel({
     return () => abort.abort();
   }, [loadHistory, room]);
   if (!visible || !container) return null;
-  const threads = [
-    "nearby",
-    "office",
-    ...new Set(
-      messages
-        .filter((message) => message.scope === "dm")
-        .map((message) => chatThreadKey(message, username)),
-    ),
-    ...(target ? [`dm:${target}`] : []),
-  ];
   return createPortal(
     <ChatPanelView
       thread={thread}
-      threads={[...new Set(threads)]}
+      threads={chatThreads(messages, username, openedThreads)}
+      username={username}
       unread={unread}
       messages={threadMessages}
       text={text}
@@ -151,7 +136,7 @@ export function ChatPanel({
       connected={Boolean(room)}
       onText={setText}
       onDmUsername={setDmUsername}
-      onThread={setThread}
+      onThread={selectThread}
       onEarlier={() => void loadHistory(threadMessages[0]?.id)}
       onSend={() => {
         if (!text.trim() || !room) return;
@@ -166,82 +151,5 @@ export function ChatPanel({
       }}
     />,
     container,
-  );
-}
-
-interface ChatViewProps {
-  thread: string;
-  threads: string[];
-  unread: Record<string, number>;
-  messages: ChatMessage[];
-  text: string;
-  dmUsername: string;
-  error: string | null;
-  connected: boolean;
-  onText(text: string): void;
-  onDmUsername(username: string): void;
-  onThread(thread: string): void;
-  onEarlier(): void;
-  onSend(): void;
-}
-function ChatPanelView(props: ChatViewProps) {
-  return (
-    <section aria-label="Chat" className="gather-chat">
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          const targetThread = dmThreadForUsername(props.dmUsername);
-          if (targetThread) props.onThread(targetThread);
-        }}
-      >
-        <input
-          aria-label="DM username (including offline members)"
-          value={props.dmUsername}
-          onChange={(event) => props.onDmUsername(event.target.value)}
-        />
-        <button>Open DM</button>
-      </form>
-      <nav aria-label="Chat threads">
-        {props.threads.map((key) => (
-          <button
-            type="button"
-            key={key}
-            aria-pressed={props.thread === key}
-            onClick={() => props.onThread(key)}
-          >
-            {key.startsWith("dm:") ? key.slice("dm:".length) : key}
-            {props.unread[key] ? ` (${props.unread[key]})` : ""}
-          </button>
-        ))}
-      </nav>
-      {props.thread !== "nearby" && (
-        <button type="button" onClick={props.onEarlier}>
-          Load earlier messages
-        </button>
-      )}
-      <ol aria-live="polite">
-        {props.messages.map((message) => (
-          <li key={message.id}>
-            <strong>{message.senderUsername}</strong>{" "}
-            <span>{message.text}</span>
-          </li>
-        ))}
-      </ol>
-      {props.error && <p role="alert">{props.error}</p>}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          props.onSend();
-        }}
-      >
-        <input
-          aria-label="Message"
-          value={props.text}
-          onChange={(event) => props.onText(event.target.value)}
-          autoComplete="off"
-        />
-        <button disabled={!props.connected || !props.text.trim()}>Send</button>
-      </form>
-    </section>
   );
 }

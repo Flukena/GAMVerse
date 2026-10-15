@@ -121,6 +121,8 @@ function createTestCanvas() {
       handlers.delete(type);
     },
     setAttribute() {},
+    focus() {},
+    setPointerCapture() {},
     getContext() {
       return null;
     },
@@ -142,4 +144,82 @@ test("map canvas leaves M to the single window handler", () => {
     assert.equal(handlers.has("keydown"), false);
     renderer.dispose();
   } finally { globalThis.document = originalDocument; }
+});
+
+const PRIMARY_POINTER_ID = 1;
+const SECONDARY_POINTER_ID = 2;
+const CLICK_CLIENT_PX = 200;
+const DRAG_END_CLIENT_PX = 240;
+
+function pointerEvent(pointerId: number, clientX = CLICK_CLIENT_PX): PointerEvent {
+  return { pointerId, clientX, clientY: CLICK_CLIENT_PX, button: 0 } as PointerEvent;
+}
+
+function withPointerRenderer(check: (handlers: Map<string, EventListener>, walks: unknown[], pans: unknown[], renderer: Map2dRenderer, frame: Map2dFrame) => void): void {
+  const { canvas, handlers } = createTestCanvas();
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => canvas } as unknown as Document;
+  const walks: unknown[] = [];
+  const pans: unknown[] = [];
+  const renderer = new Map2dRenderer(canvas, {
+    walk(destination) { walks.push(destination); },
+    pan(center) { pans.push(center); },
+    selectPlayer() {}, zoom() {}, zoomOverview() {},
+  });
+  const frame: Map2dFrame = {
+    visible: true, view: "2d", layout: null, widthM: TEST_MAP_DIMENSION_M,
+    depthM: TEST_MAP_DIMENSION_M, configVersion: 0, projection: PROJECTION,
+    players: new Map(), localId: null, speaking: new Set(), decorations: [], nowMs: 0, deltaS: 0,
+  };
+  try {
+    renderer.frame(frame);
+    check(handlers, walks, pans, renderer, frame);
+  } finally {
+    renderer.dispose();
+    globalThis.document = originalDocument;
+  }
+}
+
+test("map click walks once and drag release without move event never walks", () => {
+  withPointerRenderer((handlers, walks) => {
+    handlers.get("pointerdown")!(pointerEvent(PRIMARY_POINTER_ID));
+    handlers.get("pointerup")!(pointerEvent(PRIMARY_POINTER_ID));
+    assert.equal(walks.length, 1);
+    handlers.get("pointerdown")!(pointerEvent(PRIMARY_POINTER_ID));
+    handlers.get("pointerup")!(pointerEvent(PRIMARY_POINTER_ID, DRAG_END_CLIENT_PX));
+    assert.equal(walks.length, 1);
+  });
+});
+
+test("another pointer cannot pan or release the active map gesture", () => {
+  withPointerRenderer((handlers, walks, pans) => {
+    handlers.get("pointerdown")!(pointerEvent(PRIMARY_POINTER_ID));
+    handlers.get("pointermove")!(pointerEvent(SECONDARY_POINTER_ID, DRAG_END_CLIENT_PX));
+    handlers.get("pointerup")!(pointerEvent(SECONDARY_POINTER_ID));
+    assert.equal(pans.length, 0);
+    assert.equal(walks.length, 0);
+    handlers.get("pointerup")!(pointerEvent(PRIMARY_POINTER_ID));
+    assert.equal(walks.length, 1);
+  });
+});
+
+for (const cancelEvent of ["pointercancel", "lostpointercapture"]) {
+  test(`${cancelEvent} ends a gesture without walking`, () => {
+    withPointerRenderer((handlers, walks) => {
+      handlers.get("pointerdown")!(pointerEvent(PRIMARY_POINTER_ID));
+      handlers.get(cancelEvent)?.(pointerEvent(PRIMARY_POINTER_ID));
+      handlers.get("pointerup")!(pointerEvent(PRIMARY_POINTER_ID));
+      assert.equal(walks.length, 0);
+    });
+  });
+}
+
+test("hiding the map invalidates a pending click", () => {
+  withPointerRenderer((handlers, walks, _pans, renderer, frame) => {
+    handlers.get("pointerdown")!(pointerEvent(PRIMARY_POINTER_ID));
+    renderer.frame({ ...frame, visible: false });
+    renderer.frame(frame);
+    handlers.get("pointerup")!(pointerEvent(PRIMARY_POINTER_ID));
+    assert.equal(walks.length, 0);
+  });
 });

@@ -1,3 +1,23 @@
+import { affectedDeskOwners, sendDeskAssignmentNotices } from "./deskAssignmentNotices.js";
+import { deskAssignmentFences } from "./deskAssignmentFences.js";
+import { readOfficeMapProjection } from "./officeMapProjection.js";
+import { DESK_ASSIGNMENT_MAP_CHANGED_LABEL, DESK_ASSIGNMENT_MEDIA_UNAVAILABLE_LABEL, DeskAssignmentError } from "./deskAssignments.js";
+import { type DeskAssignmentFence } from "@gammyverse/shared";
+import { MeetingHandCoordinator } from "./meetingHandCoordinator.js";
+import { registerMeetingHandMessages, deliverMeetingHandEvents } from "./meetingHandMessages.js";
+import { restrictedZoneWorld, findAccessibleSpawn } from "./privateMovement.js";
+import { vehicleExitPosition } from "./vehicleExitPosition.js";
+import { PrivateConversations } from "./privateConversations.js";
+import { privateAccessFrame } from "./privateAccessFrame.js";
+import { registerPrivateConversationMessages, deliverPrivateAccessEvents } from "./privateConversationMessages.js";
+import type { ZoneMediaDescriptor } from "../media/zoneMediaDescriptor.js";
+import { ConversationActions } from "./conversationActions.js";
+import type { MeetGeometry, MeetRoutePlan } from "./meetRoutePlanner.js";
+import { SpatialConversations, type SpatialConversationMember } from "./spatialConversations.js";
+import { registerConversationMessages } from "./conversationMessages.js";
+import { CONVERSATION_SNAPSHOT_EVENT, type ConversationSnapshot } from "@gammyverse/shared";
+import { DeskMessages, registerDeskMessages } from "./deskMessages.js";
+import { AvailabilityMessages, applyPlayerAvailability, registerAvailabilityMessages } from "./availabilityMessages.js";
 import { disposedRoomSpotlightUsernames } from "./spotlightRoomDisposal.js";
 import { trackReconnectionSeat } from "./reconnectionSeat.js";
 import { readReconnectAccess, SessionSecurity } from "./sessionSecurity.js";
@@ -7,11 +27,11 @@ import { defineRoom, Room, type AuthContext, type Client } from "@colyseus/core"
 import { randomBytes } from "node:crypto";
 import { RouteSearchBudget, RouteWorkLimiter } from "./routeWorkBudget.js";
 import { findAutoRoute, findSeatApproachRoute } from "./routeNavigation.js";
-import { isValidAutoMoveInput, isValidTargetPlayerInput, shouldClearHandRaise, INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidJumpInput, isValidMediaActivity, isValidMovementInput, JUMP_DURATION_MS, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
+import { isValidAutoMoveInput, isValidTargetPlayerInput, shouldClearHandRaise, INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidJumpInput, isValidMediaActivity, isValidMovementInput, JUMP_DURATION_MS, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type AvailabilityProfile, defaultAvailability, type WorldConfig } from "@gammyverse/shared";
 import { getAccountNickname, getSession, markUserActive } from "../auth/service.js";
 import { isCustomCharacterId, userOwnsCharacterModel } from "../auth/characterModels.js";
 import { getOfficeRole, markOfficeActive } from "./repository.js";
-import { liveKitIdentity, revokeMeetingParticipant, revokePrivateVoiceParticipant, revokeProximityParticipants } from "../media/service.js";
+import { liveKitIdentity, proximityRoomName, revokeProximityParticipants } from "../media/service.js";
 import { recordOfficeActivity } from "./activity.js";
 import { ghostCollisionWorld, movementBlockedByProps } from "./ghostCollision.js";
 import { database } from "../infra/db.js";
@@ -20,8 +40,10 @@ import { logServerError, logServerEvent } from "../infra/logger.js";
 // At most ceil(1000 / 30) = 34 input messages/s. Allow a three-second
 // buffered movement burst (102) plus 26 control/handshake messages.
 const OFFICE_MAX_MESSAGES_PER_SECOND_COUNT = 128;
+const DESK_MAP_CHANGED_LABEL = "The office desk map changed. Choose your desk again.";
 const INITIAL_MESSAGE_COUNT = 0;
 const PROXIMITY_GROUP_ID_BYTES = 12;
+const SPAWN_ACCESS_UNAVAILABLE_LABEL = "No accessible spawn point is available.";
 const REPLACED_SESSION_CLOSE_CODE = 4001;
 const OFFICE_ACCESS_REVOKED_REASON = "Office access changed. Reopen the office.";
 const REPLACED_SESSION_REASON = "This account connected from another session.";
@@ -41,7 +63,7 @@ type MediaZoneTransition = { sessionId: string; zone: RoomLayoutZone; direction:
 
 type InputState = MovementInput & { sprint: boolean; receivedAt: number };
 type Position = { x: number; z: number };
-type AutoRoute = { points: Position[]; index: number; stalledTicks: number; followTargetSessionId?: string; sitOnArrivalPropId?: string; sitOnArrivalZoneId?: string; destination?: Position; fastWalkFallback?: boolean };
+type AutoRoute = { points: Position[]; index: number; stalledTicks: number; followTargetSessionId?: string; sitOnArrivalPropId?: string; sitOnArrivalZoneId?: string; destination?: Position; fastWalkFallback?: boolean; deskZoneId?: string };
 
 function autoMoveLandingPoint(destination: Position, world: WorldConfig, zone?: RoomLayoutZone) {
   const isInsideZone = (point: Position) => !zone || (Math.abs(point.x - zone.x) <= zone.width / 2 - world.playerRadius && Math.abs(point.z - zone.z) <= zone.depth / 2 - world.playerRadius);
@@ -82,6 +104,11 @@ function worldGeometrySignature(layout: RoomLayout) {
 }
 
 export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }> {
+  private conversations?: SpatialConversations;
+  private meetingHands?: MeetingHandCoordinator;
+  private privacy?: PrivateConversations;
+  private conversationActions?: ConversationActions;
+  private navigationGeometryRevision = 0;
   private static roomsByOffice = new Map<string, Set<OfficeRoom>>();
 
   static getOperationsCounts() {
@@ -97,6 +124,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private spotlight?: Spotlight;
+  private availability?: AvailabilityMessages;
+  private disposeAvailability?: () => void;
   state = new OfficeState();
   private officeId = "";
   private roomKey = "lobby";
@@ -131,6 +160,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   private mediaIdentityBySessionId = new Map<string, string>();
   private sessionSecurity = new SessionSecurity();
   private shuttingDown = false;
+  private deskTravel?: DeskMessages;
+  private mapConfigVersion = 1;
   private officeRolesBySessionId = new Map<string, string>();
   private mapEditorSessionId: string | null = null;
   private mapEditorUsername: string | null = null;
@@ -141,16 +172,21 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     }
     this.setMetadata({ officeId: options.officeId });
     this.officeId = options.officeId;
+    this.conversations = new SpatialConversations(this.officeId);
+    registerConversationMessages(this, this.conversations);
+    this.privacy = new PrivateConversations(this.officeId,this.conversations.roomIncarnationId);
+    registerPrivateConversationMessages(this,this.privacy);
+    this.meetingHands = new MeetingHandCoordinator(this.officeId, this.conversations.roomIncarnationId, {
+      players: this.state.players, security: this.sessionSecurity, conversations: this.conversations,
+      zones: this.mediaZoneBySessionId, privacy: this.privacy,
+    });
+    registerMeetingHandMessages(this, this.meetingHands);
+    this.initializeConversationActions();
     this.roomKey = "lobby";
     if (database) {
-      const savedMap = await database.query<{ config: unknown; office_props: unknown | null }>(
-        `SELECT maps.config, office_props.props AS office_props
-         FROM app_offices offices
-         LEFT JOIN app_office_map_layouts maps ON maps.office_id = offices.id
-         LEFT JOIN app_office_props office_props ON office_props.office_id = offices.id
-         WHERE offices.id = $1`, [this.officeId],
-      );
-      if (savedMap.rows[0]) this.mapConfig = OfficeRoom.mergeSavedProps(savedMap.rows[0].config ?? this.mapConfig, savedMap.rows[0].office_props);
+      const savedMap = await readOfficeMapProjection(database, this.officeId);
+      this.mapConfigVersion = savedMap.configVersion;
+      this.mapConfig = savedMap.config;
     }
     this.mapLayout = readRoomLayout(this.mapConfig);
     this.world = campusWorldFromConfig(this.mapConfig);
@@ -162,6 +198,11 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     const rooms = OfficeRoom.roomsByOffice.get(options.officeId) ?? new Set<OfficeRoom>();
     rooms.add(this);
     OfficeRoom.roomsByOffice.set(options.officeId, rooms);
+    const assignment = deskAssignmentFences.current(this.officeId);
+    if (assignment) {
+      this.privacy.reconcile(this.privateFrame());
+      void this.privacy.prepareAssignment(assignment);
+    }
     this.patchRate = 50;
     this.maxMessagesPerSecond = OFFICE_MAX_MESSAGES_PER_SECOND_COUNT;
     logServerEvent("realtime", "office.room.created", { roomId: this.roomId, officeId: this.officeId, maxClients });
@@ -169,9 +210,16 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.spotlight = registerSocialMessages(this, this.officeId, {
       username: id => this.usernamesBySessionId.get(id),
       player: id => this.state.players.get(id),
-      people: () => socialPeople(this.state.players.entries(), this.mediaZoneBySessionId, this.proximityGroupBySessionId),
+      people: () => socialPeople(this.state.players.entries(), this.mediaZoneBySessionId, this.proximityGroupBySessionId, this.privacy?.audienceSessions()),
       client: id => this.clients.find(client => client.sessionId === id),
     });
+    this.availability = new AvailabilityMessages(this.officeId, this, {
+      username: id => !this.sessionSecurity.isRevoked(id) && this.sessionSecurity.activeSession(this.usernamesBySessionId.get(id) ?? "") === id ? this.usernamesBySessionId.get(id) : undefined,
+      player: id => this.state.players.get(id),
+      sessions: () => this.state.players.keys(),
+      maintainer: id => this.officeRolesBySessionId.get(id) === "maintainer",
+    });
+    this.disposeAvailability = registerAvailabilityMessages(this, this.availability);
     this.onMessage("request-spatial-state", (client: Client) => {
       client.send("spotlight-state", this.spotlight?.snapshot());
       client.send("proximity", { sessionIds: [...(this.proximityBySessionId.get(client.sessionId) ?? [])] });
@@ -196,20 +244,11 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         client.send("map-edit-lock-result", { granted: false, editorUsername: this.mapEditorUsername });
         return;
       }
+      this.conversationActions?.mapChanged();
       this.mapEditorSessionId = client.sessionId;
       this.mapEditorUsername = this.usernamesBySessionId.get(client.sessionId) ?? null;
       this.broadcast("map-edit-lock", { editorUsername: this.mapEditorUsername });
       client.send("map-edit-lock-result", { granted: true });
-    });
-    this.onMessage("zone-lock", (client: Client, payload: unknown) => {
-      if (typeof payload !== "object" || payload === null || !("zoneId" in payload) || !("locked" in payload) || typeof payload.zoneId !== "string" || typeof payload.locked !== "boolean") return;
-      const zone = this.mediaZoneBySessionId.get(client.sessionId);
-      if (!zone || zone.id !== payload.zoneId) return;
-      if (zone.kind === "private" && zone.ownerUsername !== this.usernamesBySessionId.get(client.sessionId)) return;
-      if (payload.locked) this.lockedZoneIds.add(zone.id);
-      else this.lockedZoneIds.delete(zone.id);
-      const current = this.lockedZoneIds.has(zone.id);
-      this.broadcast("zone-locks", { zoneIds: [...this.lockedZoneIds], zoneId: zone.id, locked: current });
     });
     this.onMessage("character", async (client: Client, payload: unknown) => {
       const player = this.state.players.get(client.sessionId);
@@ -240,7 +279,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.onMessage("jump", (client: Client, payload: unknown) => {
       if (!isValidJumpInput(payload)) return;
       const player = this.state.players.get(client.sessionId);
-      if (!player || player.presence !== "online" || player.vehicleId || player.sittingPropId || player.status === "do-not-disturb" || player.status === "in-meeting") return;
+      if (!player || player.presence !== "online" || player.vehicleId || player.sittingPropId) return;
       const now = performance.now();
       if (now - (this.lastJumpAtBySessionId.get(client.sessionId) ?? -JUMP_DURATION_MS) < JUMP_DURATION_MS) return;
       this.lastJumpAtBySessionId.set(client.sessionId, now);
@@ -251,25 +290,6 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       if (!player || (payload !== "" && (typeof payload !== "string" || !KENNEY_BLASTER_IDS.includes(payload as KenneyBlasterId)))) return;
       player.weaponId = payload as string;
     });
-    this.onMessage("user-status", (client: Client, payload: unknown) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || typeof payload !== "object" || payload === null || !("status" in payload) || typeof payload.status !== "string" || !USER_STATUSES.includes(payload.status as UserStatus)) return;
-      const previousStatus = player.status;
-      player.status = payload.status;
-      if (previousStatus !== player.status) logServerEvent("realtime", "office.status.changed", { roomId: this.roomId, officeId: this.officeId, sessionId: client.sessionId, username: this.usernamesBySessionId.get(client.sessionId), previousStatus, status: player.status });
-      if (player.status === "do-not-disturb" || player.status === "in-meeting") {
-        this.stopFollowing(client.sessionId, "stopped");
-        this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
-        this.pendingSitsBySessionId.delete(client.sessionId);
-        if (this.autoRoutes.delete(client.sessionId)) {
-          client.send("auto-move-status", { status: "cancelled" });
-          if (player.vehicleMode === "auto") this.exitVehicle(client.sessionId, player);
-        }
-      }
-      // The schema is the durable-in-session source of truth. This event gives
-      // clients a lightweight explicit notification for status UI and audio policy.
-      this.broadcast("user-status", { sessionId: client.sessionId, status: player.status });
-    });
     this.onMessage("media-activity", (client: Client, payload: unknown) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || !isValidMediaActivity(payload)) return;
@@ -279,7 +299,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     });
     this.onMessage("blaster-shot", (client: Client, payload: unknown) => {
       const shooter = this.state.players.get(client.sessionId);
-      if (!shooter || shooter.status === "do-not-disturb" || shooter.status === "in-meeting" || !shooter.weaponId || typeof payload !== "object" || payload === null) return;
+      if (!shooter || !shooter.weaponId || typeof payload !== "object" || payload === null) return;
       const shot = payload as { start?: unknown; end?: unknown; targetSessionId?: unknown };
       const readVector = (value: unknown) => {
         if (typeof value !== "object" || value === null || !("x" in value) || !("y" in value) || !("z" in value)) return null;
@@ -345,21 +365,24 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       this.clients.find((recipient) => recipient.sessionId === shot.targetSessionId)?.send("blaster-hit", { shooterName: username });
     });
     this.onMessage("vehicle", (client: Client, payload: unknown) => {
+      this.deskTravel?.invalidate(client.sessionId);
       const player = this.state.players.get(client.sessionId);
       if (!player || payload !== "") return;
+      this.navigationIntent(client.sessionId);
       this.exitVehicle(client.sessionId, player);
       this.autoRoutes.delete(client.sessionId);
       this.pendingSitsBySessionId.delete(client.sessionId);
     });
     this.onMessage("vehicle-interact", (client: Client, payload: unknown) => {
+      this.deskTravel?.invalidate(client.sessionId);
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+      this.navigationIntent(client.sessionId);
       if (player.vehicleId) {
         this.autoRoutes.delete(client.sessionId);
         this.exitVehicle(client.sessionId, player);
         return;
       }
-      if (player.status === "do-not-disturb" || player.status === "in-meeting") return;
       if (typeof payload !== "object" || payload === null || !("propId" in payload) || typeof payload.propId !== "string") return;
       const placed = this.mapLayout.props.find((item) => item.id === payload.propId);
       const vehicleId = placed && ROOM_PROP_CATALOG.find((entry) => entry.asset === placed.asset)?.vehicleId;
@@ -392,12 +415,19 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       if (username) void recordOfficeActivity(this.officeId, username, "vehicle.enter", vehicleId);
       client.send("vehicle-interact-status", { status: "entered", vehicleId });
     });
+    this.deskTravel = new DeskMessages(this.officeId, {
+      username: sessionId => this.usernamesBySessionId.get(sessionId),
+      navigationIntent: sessionId => this.navigationIntent(sessionId),
+      player: sessionId => this.state.players.get(sessionId),
+      start: (sessionId, player, zone) => this.startDeskRoute(sessionId, player, zone),
+    });
+    registerDeskMessages(this, this.deskTravel);
     this.onMessage("auto-move", this.handleAutoMove.bind(this));
     this.onMessage("ghost-mode", (client: Client, payload: unknown) => {
+      this.deskTravel?.invalidate(client.sessionId);
       const player = this.state.players.get(client.sessionId);
       if (!player || typeof payload !== "object" || payload === null || !("enabled" in payload) || typeof payload.enabled !== "boolean") return;
       const enabled = payload.enabled;
-      if (enabled && (player.status === "do-not-disturb" || player.status === "in-meeting")) return;
       this.ghostModeBySessionId.set(client.sessionId, enabled);
       if (enabled && this.autoRoutes.delete(client.sessionId)) {
         this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
@@ -407,7 +437,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       this.broadcastGhostMode(client.sessionId, enabled);
     });
     this.onMessage("follow-player", this.handleFollowPlayer.bind(this));
-    this.onMessage("follow-stop", (client: Client) => this.stopFollowing(client.sessionId, "stopped"));
+    this.onMessage("follow-stop", (client: Client) => { this.navigationIntent(client.sessionId); this.stopFollowing(client.sessionId, "stopped"); });
     this.onMessage("follow-cancel", (client: Client, payload: unknown) => {
       if (typeof payload !== "object" || payload === null || !("followerSessionId" in payload) || typeof payload.followerSessionId !== "string") return;
       if (this.activeFollowsBySessionId.get(payload.followerSessionId)?.targetSessionId === client.sessionId) {
@@ -416,7 +446,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     });
     this.onMessage("wave", (client: Client, payload: unknown) => {
       const initiatingPlayer = this.state.players.get(client.sessionId);
-      if (!initiatingPlayer || initiatingPlayer.status === "do-not-disturb" || initiatingPlayer.status === "in-meeting") return;
+      if (!initiatingPlayer) return;
       if (typeof payload !== "object" || payload === null || !("targetSessionId" in payload) || typeof payload.targetSessionId !== "string" || payload.targetSessionId === client.sessionId) return;
       const target = this.state.players.get(payload.targetSessionId);
       if (!target || target.presence !== "online") return;
@@ -434,12 +464,14 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     });
     this.onMessage("auto-move-to-player", this.handleAutoMoveToPlayer.bind(this));
     this.onMessage("auto-move-cancel", (client: Client) => {
+      const pendingDesk = this.deskTravel?.invalidate(client.sessionId);
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+      this.navigationIntent(client.sessionId);
       this.stopFollowing(client.sessionId, "stopped", false);
       this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
       this.pendingSitsBySessionId.delete(client.sessionId);
-      if (this.autoRoutes.delete(client.sessionId)) {
+      if (this.autoRoutes.delete(client.sessionId) || pendingDesk) {
         client.send("auto-move-status", { status: "cancelled" });
         if (player.vehicleMode === "auto") this.exitVehicle(client.sessionId, player);
       }
@@ -452,19 +484,17 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
 
       if (!isValidMovementInput(payload)) return;
       const player = this.state.players.get(client.sessionId);
-      if (player?.status === "do-not-disturb" || player?.status === "in-meeting") {
-        this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: now });
-        return;
-      }
       this.movementInputs.set(client.sessionId, { x: payload.x, z: payload.z, sprint: payload.sprint === true, facingYaw: payload.facingYaw, receivedAt: now });
       if (payload.x !== 0 || payload.z !== 0) {
+        this.navigationIntent(client.sessionId);
+        const pendingDesk = this.deskTravel?.invalidate(client.sessionId);
         const player = this.state.players.get(client.sessionId);
         if (player) {
           player.sittingPropId = "";
           player.dancing = false;
         }
         this.stopFollowing(client.sessionId, "stopped");
-        if (this.autoRoutes.delete(client.sessionId)) {
+        if (this.autoRoutes.delete(client.sessionId) || pendingDesk) {
           client.send("auto-move-status", { status: "cancelled" });
           const player = this.state.players.get(client.sessionId);
           if (player?.vehicleMode === "auto") this.exitVehicle(client.sessionId, player);
@@ -482,6 +512,12 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       }
     });
 
+    // Registration precedes this final read: a concurrent assignment either refreshes this room,
+    // or commits before this read. An older result cannot replace a newer applied version.
+    if (database) {
+      const latest = await readOfficeMapProjection(database, this.officeId);
+      this.applyMapConfig(latest.config, latest.configVersion);
+    }
     this.setFixedTimestep((context) => this.step(context.dt), 20);
   }
 
@@ -502,6 +538,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     await markOfficeActive(options.officeId);
     // One avatar per username in an office room. A fresh connection replaces a
     // stale tab/session; reconnects keep the same Colyseus session id.
+    const availability = await this.availability?.load(session.username, session.role === "maintainer") ?? defaultAvailability();
     const activeSessionId = this.sessionSecurity.activeSession(session.username);
     const existingSessionIds = new Set([
       ...(activeSessionId ? [activeSessionId] : []),
@@ -511,7 +548,24 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     for (const existingSessionId of existingSessionIds) {
       if (existingSessionId !== client.sessionId) this.replaceSession(existingSessionId, client, session.username);
     }
-    return { ...session, officeId: options.officeId, roomKey: "lobby", officeRole: role, mediaIdentity: identity };
+    return { ...session, officeId: options.officeId, roomKey: "lobby", officeRole: role, mediaIdentity: identity, availability };
+  }
+
+  private startDeskRoute(sessionId: string, player: PlayerState, zone: RoomLayoutZone) {
+    const current = this.mapLayout.zones.find(entry => entry.id === zone.id && entry.kind === "private");
+    if (!current || current.ownerUsername !== player.username || current.x !== zone.x || current.z !== zone.z || !this.canEnterMediaZone(sessionId,zone.id) || player.vehicleId) return false;
+    const points = findAutoRoute({ x: player.x, z: player.z }, { x: zone.x, z: zone.z }, this.world);
+    if (!points) return false;
+    const landing = points.at(-1) ?? { x: player.x, z: player.z };
+    if (Math.abs(landing.x - zone.x) > zone.width / 2 || Math.abs(landing.z - zone.z) > zone.depth / 2) return false;
+    this.stopFollowing(sessionId, "stopped", false);
+    player.sittingPropId = "";
+    player.dancing = false;
+    this.pendingSitsBySessionId.delete(sessionId);
+    this.movementInputs.set(sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
+    if (!points.length) { this.autoRoutes.delete(sessionId); return "arrived"; }
+    this.autoRoutes.set(sessionId, { points, index: 0, stalledTicks: 0, deskZoneId: zone.id });
+    return "started";
   }
 
   private replaceSession(existingSessionId: string, client: Client, username: string) {
@@ -534,11 +588,14 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     for (const client of this.clients) client.send("ghost-mode-status", payload);
   }
 
-  onJoin(client: Client, _options: unknown, auth: { username: string; nickname?: string | null; mediaIdentity: string; characterId: string | null; officeRole: string }) {
-    const spawn = findSafeSpawn(
-      [...this.state.players.values()].map((player) => ({ x: player.x, z: player.z })),
-      this.world,
+  onJoin(client: Client, _options: unknown, auth: { username: string; nickname?: string | null; mediaIdentity: string; characterId: string | null; officeRole: string; availability?: AvailabilityProfile }) {
+    const spawn = findAccessibleSpawn(
+      [...this.state.players.entries()]
+        .filter(([sessionId]) => sessionId !== client.sessionId)
+        .map(([, player]) => ({ x: player.x, z: player.z })),
+      this.movementAccessWorld(client.sessionId,this.world),
     );
+    if(!spawn){this.sessionSecurity.finish(auth.username,client.sessionId);client.leave(OFFICE_ACCESS_REVOKED_CLOSE_CODE,SPAWN_ACCESS_UNAVAILABLE_LABEL);return;}
     const player = new PlayerState();
     player.x = spawn.x;
     player.z = spawn.z;
@@ -559,7 +616,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     player.sittingPropId = "";
     player.dancing = false;
     player.weaponId = "";
-    player.status = "available";
+    applyPlayerAvailability(player, auth.availability ?? defaultAvailability());
     player.presence = "online";
     player.microphoneEnabled = false;
     player.cameraEnabled = false;
@@ -573,7 +630,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.ghostModeBySessionId.set(client.sessionId, false);
     this.autoRoutes.delete(client.sessionId);
     this.pendingSitsBySessionId.delete(client.sessionId);
-    client.send("office-map", { config: this.mapConfig });
+    client.send("office-map", { config: this.mapConfig, configVersion: this.mapConfigVersion });
     client.send("map-edit-lock", { editorUsername: this.mapEditorUsername });
     client.send("ghost-mode-status", { sessionId: client.sessionId, enabled: false });
     void recordOfficeActivity(this.officeId, auth.username, "office.join");
@@ -584,6 +641,9 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private prepareSessionDeparture(sessionId: string, player: PlayerState | undefined) {
+    this.meetingHands?.removeSession(sessionId);
+    this.conversationActions?.removeSession(sessionId);
+    this.privacy?.removeSession(sessionId,true);
     if (player) {
       player.presence = "away";
       if (shouldClearHandRaise(this.mediaZoneBySessionId.get(sessionId)?.id ?? "", "", false)) player.handRaised = false;
@@ -642,17 +702,24 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       client.leave(OFFICE_ACCESS_REVOKED_CLOSE_CODE, OFFICE_ACCESS_REVOKED_REASON);
       return;
     }
+    const profile = await this.availability?.load(username, this.officeRolesBySessionId.get(client.sessionId) === "maintainer");
+    if (this.sessionSecurity.isRevoked(client.sessionId) || this.sessionSecurity.activeSession(username) !== client.sessionId) {
+      client.leave(OFFICE_ACCESS_REVOKED_CLOSE_CODE, OFFICE_ACCESS_REVOKED_REASON);
+      return;
+    }
     const player = this.state.players.get(client.sessionId);
     if (player) {
       player.isMaintainer = access.officeRole === "maintainer";
       this.officeRolesBySessionId.set(client.sessionId, access.officeRole!);
+      if (profile) applyPlayerAvailability(player, profile);
       if (player.worldVersion !== this.worldVersion) {
-        const spawn = findSafeSpawn(
+        const spawn = findAccessibleSpawn(
           [...this.state.players.entries()]
             .filter(([sessionId]) => sessionId !== client.sessionId)
             .map(([, other]) => ({ x: other.x, z: other.z })),
-          this.world,
+          this.movementAccessWorld(client.sessionId,this.world),
         );
+        if(!spawn){client.leave(OFFICE_ACCESS_REVOKED_CLOSE_CODE,SPAWN_ACCESS_UNAVAILABLE_LABEL);return;}
         player.x = spawn.x;
         player.z = spawn.z;
         player.rotation = 0;
@@ -699,10 +766,6 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.lastBlasterShotAtBySessionId.delete(client.sessionId);
     this.lastWaveAtBySessionId.delete(client.sessionId);
     this.lastJumpAtBySessionId.delete(client.sessionId);
-    if (this.meetingMembersBySessionId.has(client.sessionId)) {
-      const identity = this.mediaIdentityBySessionId.get(client.sessionId);
-      if (identity) void revokeMeetingParticipant(this.officeId, this.roomKey, identity).catch(() => console.warn("Could not revoke meeting audio participant."));
-    }
     if (username) void recordOfficeActivity(this.officeId, username, "office.leave");
     this.clearSessionState(client.sessionId);
     this.sessionSecurity.finish(username, client.sessionId);
@@ -711,6 +774,10 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
 
   private clearSessionState(sessionId: string) {
     this.routeWorkLimiter.forget(sessionId);
+    this.meetingHands?.removeSession(sessionId);
+    this.conversationActions?.removeSession(sessionId);
+    this.privacy?.removeSession(sessionId,false);
+    this.deskTravel?.invalidate(sessionId);
     const collections = [
       this.usernamesBySessionId, this.officeRolesBySessionId, this.movementInputs,
       this.ghostModeBySessionId, this.ghostHintAtBySessionId, this.autoRoutes, this.pendingSitsBySessionId,
@@ -742,6 +809,11 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   onDispose() {
+    this.meetingHands?.dispose();
+    void this.privacy?.dispose();
+    this.conversationActions?.dispose();
+    this.deskTravel?.invalidateAll();
+    this.disposeAvailability?.();
     const rooms = OfficeRoom.roomsByOffice.get(this.officeId);
     const lastRoom = rooms?.size === 1 && rooms.has(this);
     const peers = [...(rooms ?? [])].filter(room => room !== this).map(room => room.sessionSecurity);
@@ -758,6 +830,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
 
   private releaseMapEditLock(sessionId: string) {
     if (this.mapEditorSessionId !== sessionId) return;
+    this.conversationActions?.mapChanged();
     this.mapEditorSessionId = null;
     this.mapEditorUsername = null;
     this.broadcast("map-edit-lock", { editorUsername: null });
@@ -799,20 +872,38 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     }
   }
 
+  static deskAssignmentAppliedVersion(officeId: string): number | null {
+    const rooms = [...(OfficeRoom.roomsByOffice.get(officeId) ?? [])];
+    return rooms.length ? Math.min(...rooms.map(room => room.mapConfigVersion)) : null;
+  }
+
+  static async prepareDeskAssignment(fence: DeskAssignmentFence) {
+    const rooms = OfficeRoom.roomsByOffice.get(fence.officeId) ?? new Set<OfficeRoom>();
+    if ([...rooms].some(room => room.mapConfigVersion > fence.expectedConfigVersion))
+      throw new DeskAssignmentError("conflict", DESK_ASSIGNMENT_MAP_CHANGED_LABEL);
+    const operation = deskAssignmentFences.prepare(fence);
+    const preparations = [...rooms].map(room => {
+      room.refreshPrivateAccess();
+      const preparation = room.privacy?.prepareAssignment(operation) ?? Promise.resolve(true);
+      room.refreshConversations();
+      return preparation;
+    });
+    if (!(await Promise.all(preparations)).every(Boolean))
+      throw new DeskAssignmentError("unavailable", DESK_ASSIGNMENT_MEDIA_UNAVAILABLE_LABEL);
+  }
+
+  static rollbackDeskAssignment(fence: DeskAssignmentFence) {
+    if (!deskAssignmentFences.rollback(fence)) return;
+    for (const room of OfficeRoom.roomsByOffice.get(fence.officeId) ?? []) {
+      room.privacy?.releaseAssignment(fence.operationId);
+      room.refreshConversations();
+    }
+  }
+
   static async updateMap(officeId: string) {
-    const rooms = OfficeRoom.roomsByOffice.get(officeId) ?? new Set<OfficeRoom>();
-    logServerEvent("realtime", "office.map.refresh.started", { officeId, roomCount: rooms.size });
-    const result = await database?.query<{ config: unknown; office_props: unknown | null }>(
-      `SELECT maps.config, office_props.props AS office_props
-       FROM app_offices offices
-       LEFT JOIN app_office_map_layouts maps ON maps.office_id = offices.id
-       LEFT JOIN app_office_props office_props ON office_props.office_id = offices.id
-       WHERE offices.id = $1`, [officeId],
-    );
-    const rawConfig = result?.rows[0]?.config ?? { version: 1, layout: { version: 1, props: [], zones: [], walls: [], doors: [] } };
-    const config = OfficeRoom.mergeSavedProps(rawConfig, result?.rows[0]?.office_props ?? null);
-    for (const room of rooms) room.applyMapConfig(config);
-    logServerEvent("realtime", "office.map.refresh.completed", { officeId, roomCount: rooms.size });
+    const projection = await readOfficeMapProjection(database, officeId);
+    for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) room.applyMapConfig(projection.config, projection.configVersion);
+    deskAssignmentFences.applied(officeId, projection.configVersion);
   }
 
   static updateDeskZone(officeId: string, update: { id: string; name: string; ownerUsername: string | null }) {
@@ -838,21 +929,30 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       const client = this.clients.find((entry) => entry.sessionId === sessionId);
       if (client) this.sendMediaZone(client, sessionId);
     }
+    this.privacy?.mapChanged(this.privateFrame());
     this.broadcast("desk-zone-updated", { zoneId: update.id, name: update.name, ownerUsername: update.ownerUsername });
   }
 
-  private static mergeSavedProps(config: unknown, rawProps: unknown | null) {
-    if (rawProps === null) return config;
-    const parsed = readRoomLayout({ layout: { props: rawProps } });
-    const current = readRoomLayout(config);
-    return { version: 1, layout: { ...current, props: parsed.props } };
-  }
-
-  private applyMapConfig(config: unknown) {
+  private applyMapConfig(config: unknown, configVersion = this.mapConfigVersion) {
+    if (configVersion < this.mapConfigVersion) return;
+    this.mapConfigVersion = configVersion;
+    this.navigationGeometryRevision += 1;
+    this.conversationActions?.mapChanged();
+    const pendingDesks = new Set(this.deskTravel?.invalidateAll());
     const nextLayout = readRoomLayout(config);
+    const affectedOwners = affectedDeskOwners(this.mapLayout, nextLayout);
     const worldGeometryChanged = worldGeometrySignature(this.mapLayout) !== worldGeometrySignature(nextLayout);
     this.mapConfig = config;
     this.mapLayout = nextLayout;
+    this.privacy?.mapChanged(this.privateFrame());
+    const assignment = deskAssignmentFences.current(this.officeId);
+    if (assignment && configVersion >= assignment.newConfigVersion) this.privacy?.releaseAssignment(assignment.operationId);
+    for (const [sessionId, route] of this.autoRoutes) {
+      if (!route.deskZoneId) continue;
+      this.autoRoutes.delete(sessionId);
+      pendingDesks.add(sessionId);
+    }
+    for (const sessionId of pendingDesks) this.clients.find(client => client.sessionId === sessionId)?.send("auto-move-status", { status: "cancelled", message: DESK_MAP_CHANGED_LABEL });
     this.refreshVehicleCollisionWorlds();
     if (worldGeometryChanged) this.worldVersion += 1;
     this.lockedZoneIds = new Set([...this.lockedZoneIds].filter((id) => this.mapLayout.zones.some((zone) => zone.id === id)));
@@ -869,19 +969,21 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         return prop.id === seat.propId && roomPropSeatAnchors(prop).some((anchor) => anchor.index === seat.seatIndex);
       })) this.pendingSitsBySessionId.delete(sessionId);
       if (worldGeometryChanged && !isPositionWalkable({ x: player.x, z: player.z }, this.world)) {
-        const spawn = findSafeSpawn(
+        const spawn = findAccessibleSpawn(
           [...this.state.players.entries()].filter(([otherId]) => otherId !== sessionId).map(([, other]) => ({ x: other.x, z: other.z })),
-          this.world,
+          this.movementAccessWorld(sessionId,this.world),
         );
+        if(!spawn){player.presence="away";this.clients.find(client=>client.sessionId===sessionId)?.leave(OFFICE_ACCESS_REVOKED_CLOSE_CODE,SPAWN_ACCESS_UNAVAILABLE_LABEL);continue;}
         player.x = spawn.x;
         player.z = spawn.z;
         relocatedPlayers += 1;
       }
     }
     logServerEvent("realtime", "office.map.applied", { roomId: this.roomId, officeId: this.officeId, worldGeometryChanged, worldVersion: this.worldVersion, playerCount: this.state.players.size, relocatedPlayers });
-    this.broadcast("office-map", { config });
+    this.broadcast("office-map", { config, configVersion: this.mapConfigVersion });
     this.updatePrivateMembership();
     this.updateProximity();
+    sendDeskAssignmentNotices(this.clients, this.usernamesBySessionId, affectedOwners, this.officeId, this.mapConfigVersion);
   }
 
   /** Keep collision footprints aligned with movable vehicle props in the scene. */
@@ -906,6 +1008,106 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     }
   }
 
+  private navigationGeometry(): MeetGeometry {
+    return {world: this.world, layout: this.mapLayout, lockedZoneIds: this.lockedZoneIds, revision: this.navigationGeometryRevision};
+  }
+
+  private navigationIntent(sessionId: string) { this.conversationActions?.navigationIntent(sessionId); }
+
+  private commitConversationRoutes(plan: MeetRoutePlan) {
+    if (plan.geometryRevision !== this.navigationGeometryRevision || !plan.routes.every(route => this.conversationActions?.participant(route.sessionId)?.active)) throw new Error("The conversation route changed. Try again.");
+    for (const route of plan.routes) this.commitConversationRoute(route);
+  }
+
+  private commitConversationRoute(route: MeetRoutePlan["routes"][number]) {
+    const player = this.state.players.get(route.sessionId)!;
+    this.conversationActions?.invalidateApproach(route.sessionId);
+    this.deskTravel?.invalidate(route.sessionId);
+    this.stopFollowing(route.sessionId, "stopped", false);
+    this.pendingSitsBySessionId.delete(route.sessionId);
+    this.seatApproachWorldsBySessionId.delete(route.sessionId);
+    player.sittingPropId = "";
+    player.dancing = false;
+    this.movementInputs.set(route.sessionId, {x: 0, z: 0, sprint: false, receivedAt: performance.now()});
+    if (route.points.length) this.autoRoutes.set(route.sessionId, {points: route.points, index: 0, stalledTicks: 0});
+    else this.autoRoutes.delete(route.sessionId);
+    this.clients.find(client => client.sessionId === route.sessionId)?.send("auto-move-status", {status: route.points.length ? "started" : "arrived", destination: route.destination});
+  }
+
+  private initializeConversationActions() {
+    if (!this.conversations) return;
+    this.conversationActions = new ConversationActions(this.officeId,this,{players:this.state.players,security:this.sessionSecurity,conversations:this.conversations,
+      editingSessionId:()=>this.mapEditorSessionId,geometry:()=>this.navigationGeometry(),commit:plan=>this.commitConversationRoutes(plan),
+      send:(id,event,payload)=>{this.clients.find(client=>client.sessionId===id)?.send(event,payload);},broadcast:(event,payload)=>this.broadcast(event,payload)});
+  }
+
+  private privateFrame() { return privateAccessFrame(this.mapLayout.zones,this.state.players,this.sessionSecurity,this.mediaZoneBySessionId); }
+
+  private movementAccessWorld(sessionId:string,world:WorldConfig) {
+    const locks=this.privacy?.lockedIds()??this.lockedZoneIds;
+    return restrictedZoneWorld(world,this.mapLayout.zones.filter(zone=>zone.kind!=="restroom"&&locks.has(zone.id)&&!this.canEnterMediaZone(sessionId,zone.id)));
+  }
+
+  private canEnterMediaZone(sessionId:string,zoneId:string) {
+    const locks=this.privacy?.lockedIds()??this.lockedZoneIds;
+    return !locks.has(zoneId)||(this.privacy?.canEnter(sessionId,zoneId)??false);
+  }
+
+  private refreshPrivateAccess() {
+    if(!this.privacy)return;
+    this.privacy.reconcile(this.privateFrame());
+    const locks=this.privacy.lockedIds();
+    if(!sameSet(locks,this.lockedZoneIds)){this.lockedZoneIds=locks;this.navigationGeometryRevision+=1;this.conversationActions?.mapChanged();this.broadcast("zone-locks",{zoneIds:[...locks]});}
+    deliverPrivateAccessEvents(this,this.privacy.drainEvents());
+  }
+
+  private refreshConversations() {
+    if (!this.conversations) return;
+    this.refreshPrivateAccess();
+    const members: SpatialConversationMember[] = [];
+    for (const [sessionId, player] of this.state.players) {
+      if (player.presence !== "online" || this.sessionSecurity.isRevoked(sessionId) || this.sessionSecurity.activeSession(player.username) !== sessionId) continue;
+      const mediaIdentity = this.mediaIdentityBySessionId.get(sessionId);
+      const zone = this.mediaZoneBySessionId.get(sessionId);
+      if(zone && this.privacy && !this.privacy.mayHear(sessionId,zone.id))continue;
+      const descriptor=zone?this.privacy?.descriptor(zone.id):undefined;
+      const targetId = zone?.id ?? this.proximityGroupBySessionId.get(sessionId);
+      if (!targetId || !mediaIdentity) continue;
+      members.push({ id: player.username, sessionId, username: player.username, displayName: player.displayName || player.username,
+        characterId: player.characterId || DEFAULT_CHARACTER_ID, mediaIdentity, mediaTarget:descriptor?{id:zone!.id,generation:descriptor.generation,available:descriptor.available}:undefined,admissionLeaseId:zone?this.privacy?.admissionLeaseId(sessionId,zone.id):undefined, kind: zone?.kind === "meeting" ? "meeting" : zone ? "private" : "proximity", targetId });
+    }
+    const changed = this.conversations.reconcile(members);
+    if (changed) for (const client of this.clients) client.send(CONVERSATION_SNAPSHOT_EVENT, this.conversations.snapshot(client.sessionId));
+    this.conversationActions?.refresh(changed);
+    if (this.meetingHands) deliverMeetingHandEvents(this, this.meetingHands.refresh());
+  }
+
+  static async getConversationMediaGrant(officeId:string,username:string,identity:string):Promise<{snapshot:ConversationSnapshot;descriptor:ZoneMediaDescriptor|null}|null> {
+    for(const room of OfficeRoom.roomsByOffice.get(officeId)??[]){
+      const sessionId=room.sessionSecurity.activeSession(username);
+      if(!sessionId||room.sessionSecurity.isRevoked(sessionId)||room.mediaIdentityBySessionId.get(sessionId)!==identity)continue;
+      room.refreshConversations();
+      const zoneId=room.mediaZoneBySessionId.get(sessionId)?.id;
+      if(zoneId&&!(await room.privacy?.authorizeMedia(sessionId)))return null;
+      room.refreshConversations();
+      const snapshot=room.conversations?.snapshot(sessionId);
+      if(!snapshot?.conversation||room.sessionSecurity.isRevoked(sessionId)||room.sessionSecurity.activeSession(username)!==sessionId)return null;
+      return {snapshot,descriptor:zoneId?room.privacy?.descriptor(zoneId)??null:null};
+    }
+    return null;
+  }
+
+  static getConversationSnapshot(officeId: string, username: string, identity: string): ConversationSnapshot | null {
+    for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) {
+      const sessionId = room.sessionSecurity.activeSession(username);
+      if (!sessionId || room.sessionSecurity.isRevoked(sessionId) || room.mediaIdentityBySessionId.get(sessionId) !== identity) continue;
+      room.refreshConversations();
+      const snapshot = room.conversations?.snapshot(sessionId);
+      if (snapshot?.conversation) return snapshot;
+    }
+    return null;
+  }
+
   private updateMeetingMembership() {
     this.updatePrivateMembership();
   }
@@ -913,7 +1115,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   static isMeetingMember(officeId: string, username: string, identity: string, roomKey = "lobby") {
     for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) {
       for (const [sessionId, memberUsername] of room.usernamesBySessionId) {
-        if (memberUsername === username && room.mediaIdentityBySessionId.get(sessionId) === identity && room.meetingMembersBySessionId.has(sessionId) && (roomKey === "lobby" || room.mediaZoneBySessionId.get(sessionId)?.id === roomKey)) return true;
+        if (memberUsername === username && room.mediaIdentityBySessionId.get(sessionId) === identity && room.meetingMembersBySessionId.has(sessionId) && (!room.privacy || room.privacy.mayHear(sessionId,room.mediaZoneBySessionId.get(sessionId)?.id??"")) && (room.mediaZoneBySessionId.get(sessionId)?.id === roomKey) && !room.sessionSecurity.isRevoked(sessionId) && room.sessionSecurity.activeSession(username) === sessionId) return true;
       }
     }
     return false;
@@ -935,44 +1137,22 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) {
       for (const [sessionId, memberUsername] of room.usernamesBySessionId) {
         if (memberUsername === username && room.mediaIdentityBySessionId.get(sessionId) === identity) {
-          return room.privateZoneIdBySessionId.get(sessionId) ?? null;
+          const id=room.privateZoneIdBySessionId.get(sessionId);return id&&(!room.privacy||room.privacy.mayHear(sessionId,id))?id:null;
         }
       }
     }
     return null;
   }
 
-  static getVoiceRoomForModeration(officeId: string, actorUsername: string, actorIdentity: string, targetUsername?: string) {
-    const membershipFor = (room: OfficeRoom, sessionId: string) => {
-      const meetingZone = room.mediaZoneBySessionId.get(sessionId);
-      if (room.meetingMembersBySessionId.has(sessionId) && meetingZone?.kind === "meeting") return { kind: "meeting" as const, id: meetingZone.id };
-      const privateZoneId = room.privateZoneIdBySessionId.get(sessionId);
-      if (privateZoneId) return { kind: "private" as const, id: privateZoneId };
-      const proximityGroupId = room.proximityGroupBySessionId.get(sessionId);
-      if (proximityGroupId) return { kind: "proximity" as const, id: proximityGroupId };
-      return null;
-    };
-
-    for (const room of OfficeRoom.roomsByOffice.get(officeId) ?? []) {
-      const actorSessionId = [...room.usernamesBySessionId].find(([sessionId, username]) =>
-        username === actorUsername && room.mediaIdentityBySessionId.get(sessionId) === actorIdentity && room.state.players.get(sessionId)?.presence === "online",
-      )?.[0];
-      if (!actorSessionId) continue;
-      const actorMembership = membershipFor(room, actorSessionId);
-      if (!actorMembership) continue;
-      const participantIdentities = [...room.usernamesBySessionId]
-        .filter(([sessionId, username]) => {
-          if (targetUsername && username !== targetUsername) return false;
-          if ((targetUsername && sessionId === actorSessionId) || room.state.players.get(sessionId)?.presence !== "online") return false;
-          const identity = room.mediaIdentityBySessionId.get(sessionId);
-          const membership = membershipFor(room, sessionId);
-          return Boolean(identity && membership?.kind === actorMembership.kind && membership.id === actorMembership.id);
-        })
-        .map(([sessionId]) => room.mediaIdentityBySessionId.get(sessionId))
-        .filter((identity): identity is string => Boolean(identity));
-      return { ...actorMembership, participantIdentities };
-    }
-    return null;
+  static async getVoiceRoomForModeration(officeId: string, actorUsername: string, actorIdentity: string, targetUsername?: string) {
+    const grant = await OfficeRoom.getConversationMediaGrant(officeId, actorUsername, actorIdentity);
+    const conversation = grant?.snapshot.conversation;
+    if (!grant || !conversation || conversation.mediaTarget.available === false) return null;
+    const participantIdentities = conversation.members
+      .filter(member => !targetUsername || member.username === targetUsername && member.mediaIdentity !== actorIdentity)
+      .map(member => member.mediaIdentity);
+    return { kind: conversation.kind, id: conversation.mediaTarget.id,
+      roomName: grant.descriptor?.roomName ?? proximityRoomName(officeId, conversation.mediaTarget.id), participantIdentities };
   }
 
   private updatePrivateMembership() {
@@ -981,12 +1161,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       roomTransitions.push(...this.updatePlayerMediaZone(sessionId, player));
     }
     for (const transition of roomTransitions) this.notifyMediaZoneTransition(transition);
-    // A lock belongs to active occupants; clear it once the last occupant leaves.
-    const previousLocks = this.lockedZoneIds.size;
-    this.lockedZoneIds = new Set([...this.lockedZoneIds].filter((zoneId) =>
-      [...this.mediaZoneBySessionId.values()].some((zone) => zone.id === zoneId),
-    ));
-    if (this.lockedZoneIds.size !== previousLocks) this.broadcast("zone-locks", { zoneIds: [...this.lockedZoneIds] });
+
   }
 
   private updatePlayerMediaZone(sessionId: string, player: PlayerState): MediaZoneTransition[] {
@@ -1014,13 +1189,6 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private exitMediaZone(sessionId: string, zone: RoomLayoutZone) {
-    const identity = this.mediaIdentityBySessionId.get(sessionId);
-    if (identity) {
-      const revocation = zone.kind === "meeting"
-        ? revokeMeetingParticipant(this.officeId, zone.id, identity)
-        : revokePrivateVoiceParticipant(this.officeId, zone.id, identity);
-      void revocation.catch(() => console.warn("Could not revoke zone media participant."));
-    }
     this.recordMediaZoneActivity(sessionId, zone, "exit");
   }
 
@@ -1130,15 +1298,18 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     }
     this.proximityGroupBySessionId = nextGroupBySessionId;
     this.proximityGroupMembersById = nextMembersByGroupId;
+    this.refreshConversations();
   }
 
   private handleAutoMove(client: Client, payload: unknown) {
+    this.deskTravel?.invalidate(client.sessionId);
     const player = this.state.players.get(client.sessionId);
-    if (!player || player.status === "do-not-disturb" || player.status === "in-meeting" || !isValidAutoMoveInput(payload)) return;
+    if (!player || !isValidAutoMoveInput(payload)) return;
     const { x, z } = payload;
     if (Math.abs(x) > this.world.width / 2 || Math.abs(z) > this.world.depth / 2) return;
     if (!this.routeWorkLimiter.admit(client.sessionId)) return;
     const budget = new RouteSearchBudget();
+    this.navigationIntent(client.sessionId);
     this.stopFollowing(client.sessionId, "stopped", false);
     player.sittingPropId = "";
     player.dancing = false;
@@ -1199,8 +1370,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       points = findAutoRoute(start, destination, this.world, budget);
     }
     if (!points) {
-      const lockedDestination = Boolean(destinationZone && this.lockedZoneIds.has(destinationZone.id) && sourceZone?.id !== destinationZone.id);
-      const landing = !budget.exhausted && !lockedDestination && randomVehicle ? autoMoveLandingPoint(destination, this.world, destinationZone) : null;
+      const lockedDestination = Boolean(destinationZone && !this.canEnterMediaZone(client.sessionId,destinationZone.id) && sourceZone?.id !== destinationZone.id);
+      const landing = !budget.exhausted && !lockedDestination && randomVehicle ? autoMoveLandingPoint(destination, this.movementAccessWorld(client.sessionId,this.world), destinationZone) : null;
       if (landing) {
         if (player.vehicleId) this.exitVehicle(client.sessionId, player);
         player.x = landing.x;
@@ -1248,15 +1419,17 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private handleAutoMoveToPlayer(client: Client, payload: unknown) {
+    this.deskTravel?.invalidate(client.sessionId);
     if (!isValidTargetPlayerInput(payload)) return;
     const follower = this.state.players.get(client.sessionId);
     const target = this.state.players.get(payload.targetSessionId);
-    if (!follower || follower.status === "do-not-disturb" || follower.status === "in-meeting" || !target || target.presence !== "online" || client.sessionId === payload.targetSessionId || follower.vehicleMode === "manual") {
+    if (!follower || !target || target.presence !== "online" || client.sessionId === payload.targetSessionId || follower.vehicleMode === "manual") {
       client.send("auto-move-status", { status: "unreachable" });
       return;
     }
     if (!this.routeWorkLimiter.admit(client.sessionId)) return;
     const budget = new RouteSearchBudget();
+    this.navigationIntent(client.sessionId);
     this.stopFollowing(client.sessionId, "stopped", false);
     const destination = this.followApproachPoint(client.sessionId, follower, target);
     const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) } : this.world;
@@ -1270,9 +1443,10 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
 
   private handleFollowPlayer(client: Client, payload: unknown) {
     const player = this.state.players.get(client.sessionId);
-    if (!player || player.status === "do-not-disturb" || player.status === "in-meeting") return;
+    if (!player) return;
     if (!isValidTargetPlayerInput(payload)) return;
     if (!this.routeWorkLimiter.admit(client.sessionId)) return;
+    this.navigationIntent(client.sessionId);
     this.startFollowing(client.sessionId, payload.targetSessionId);
   }
 
@@ -1293,6 +1467,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private startFollowing(followerSessionId: string, targetSessionId: string) {
+    this.deskTravel?.invalidate(followerSessionId);
     const follower = this.state.players.get(followerSessionId);
     const target = this.state.players.get(targetSessionId);
     const followerClient = this.clients.find((client) => client.sessionId === followerSessionId);
@@ -1327,6 +1502,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private stopFollowing(followerSessionId: string, reason: "stopped" | "cancelled" | "target-left" | "blocked" = "stopped", notifyFollower = true) {
+    this.deskTravel?.invalidate(followerSessionId);
     const follow = this.activeFollowsBySessionId.get(followerSessionId);
     if (!follow) return;
     this.activeFollowsBySessionId.delete(followerSessionId);
@@ -1450,14 +1626,14 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       const next = movePlayer(currentPosition, intent, movementSeconds, movementWorld);
       const previousZoneId = this.mediaZoneBySessionId.get(sessionId)?.id ?? null;
       const destinationZone = roomLayoutZoneAt(next, this.mapConfig);
-      const blockedByLockedZone = Boolean(destinationZone && destinationZone.id !== previousZoneId && this.lockedZoneIds.has(destinationZone.id));
+      const blockedByLockedZone = Boolean(destinationZone && destinationZone.id !== previousZoneId && !this.canEnterMediaZone(sessionId,destinationZone.id));
       if (blockedByLockedZone) {
         next.x = player.x;
         next.z = player.z;
       } else if (!this.ghostModeBySessionId.get(sessionId) && !player.vehicleId && (intent.x !== 0 || intent.z !== 0)) {
         const withoutProps = movePlayer(currentPosition, intent, movementSeconds, ghostCollisionWorld(movementWorld));
         const withoutPropsZone = roomLayoutZoneAt(withoutProps, this.mapConfig);
-        const wouldEnterLockedZone = Boolean(withoutPropsZone && withoutPropsZone.id !== previousZoneId && this.lockedZoneIds.has(withoutPropsZone.id));
+        const wouldEnterLockedZone = Boolean(withoutPropsZone && withoutPropsZone.id !== previousZoneId && !this.canEnterMediaZone(sessionId,withoutPropsZone.id));
         const lastHintAt = this.ghostHintAtBySessionId.get(sessionId);
         const cooldownElapsed = lastHintAt === undefined || now - lastHintAt >= 3_500;
         if (!wouldEnterLockedZone && cooldownElapsed && movementBlockedByProps(next, withoutProps)) {
@@ -1491,8 +1667,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
               .filter((zone) => Math.abs(route.destination!.x - zone.x) <= zone.width / 2 && Math.abs(route.destination!.z - zone.z) <= zone.depth / 2)
               .sort((first, second) => first.width * first.depth - second.width * second.depth)[0];
             const sourceZone = roomLayoutZoneAt({ x: player.x, z: player.z }, this.mapConfig);
-            const lockedDestination = Boolean(destinationZone && this.lockedZoneIds.has(destinationZone.id) && sourceZone?.id !== destinationZone.id);
-            const landing = !lockedDestination ? autoMoveLandingPoint(route.destination, this.world, destinationZone) : null;
+            const lockedDestination = Boolean(destinationZone && !this.canEnterMediaZone(sessionId,destinationZone.id) && sourceZone?.id !== destinationZone.id);
+            const landing = !lockedDestination ? autoMoveLandingPoint(route.destination, this.movementAccessWorld(sessionId,this.world), destinationZone) : null;
             if (landing) {
               if (player.vehicleId) this.exitVehicle(sessionId, player);
               player.x = landing.x;
@@ -1591,48 +1767,22 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private exitVehicle(sessionId: string, player: InstanceType<typeof PlayerState>) {
-    if (!player.vehicleId) return;
-    const exitedVehicleId = player.vehicleId;
-    player.sittingPropId = "";
-    const username = this.usernamesBySessionId.get(sessionId);
-    let parkedPropMoved = false;
-    if (player.vehiclePropId) {
-      parkedPropMoved = true;
-      player.vehiclePropX = player.x;
-      player.vehiclePropZ = player.z;
-      player.vehiclePropRotation = player.rotation;
-      const prop = this.mapLayout.props.find((item) => item.id === player.vehiclePropId);
-      if (prop) {
-        const footprint = roomPropCollisionFootprint({ ...prop, rotation: player.vehiclePropRotation });
-        const exitWorld = this.vehicleWorldsBySessionId.get(sessionId) ?? this.world;
-        const clearance = exitWorld.playerRadius + 0.12;
-        const offsets = [0, 0.45, 0.9, 1.35];
-        const candidates = offsets.flatMap((extra) => [
-          { x: player.x + footprint.width / 2 + clearance + extra, z: player.z },
-          { x: player.x - footprint.width / 2 - clearance - extra, z: player.z },
-          { x: player.x, z: player.z + footprint.depth / 2 + clearance + extra },
-          { x: player.x, z: player.z - footprint.depth / 2 - clearance - extra },
-        ]);
-        const exit = candidates.find((candidate) => isPositionWalkable(candidate, exitWorld));
-        if (exit) {
-          player.x = exit.x;
-          player.z = exit.z;
-        } else {
-          const safeSpawn = findSafeSpawn(
-            [...this.state.players.entries()].filter(([otherSessionId]) => otherSessionId !== sessionId).map(([, other]) => ({ x: other.x, z: other.z })),
-            exitWorld,
-          );
-          player.x = safeSpawn.x;
-          player.z = safeSpawn.z;
-        }
-      }
-    }
-    player.vehicleId = "";
-    player.vehicleMode = "";
+    if (!player.vehicleId) return false;
+    const prop=player.vehiclePropId?this.mapLayout.props.find(item=>item.id===player.vehiclePropId):undefined;
+    const footprint=prop?roomPropCollisionFootprint({...prop,rotation:player.rotation}):undefined;
+    const exitWorld=this.movementAccessWorld(sessionId,this.vehicleWorldsBySessionId.get(sessionId)??this.world);
+    const occupied=[...this.state.players.entries()].filter(([id])=>id!==sessionId).map(([,other])=>({x:other.x,z:other.z}));
+    const exit=vehicleExitPosition(player,footprint,exitWorld,occupied);
+    if(!exit)return false;
+    const exitedVehicleId=player.vehicleId;
+    const username=this.usernamesBySessionId.get(sessionId);
+    if(player.vehiclePropId){player.vehiclePropX=player.x;player.vehiclePropZ=player.z;player.vehiclePropRotation=player.rotation;}
+    player.x=exit.x;player.z=exit.z;player.sittingPropId="";player.vehicleId="";player.vehicleMode="";
     this.vehicleWorldsBySessionId.delete(sessionId);
-    if (parkedPropMoved) this.refreshVehicleCollisionWorlds();
-    if (username) void recordOfficeActivity(this.officeId, username, "vehicle.leave", exitedVehicleId);
-    this.clients.find((client) => client.sessionId === sessionId)?.send("vehicle-exited", {});
+    if(player.vehiclePropId)this.refreshVehicleCollisionWorlds();
+    if(username)void recordOfficeActivity(this.officeId,username,"vehicle.leave",exitedVehicleId);
+    this.clients.find(client=>client.sessionId===sessionId)?.send("vehicle-exited",{});
+    return true;
   }
 
   private seatPlayerOnProp(player: InstanceType<typeof PlayerState>, seatReference: string) {
@@ -1694,23 +1844,3 @@ export function closeOfficeRooms(officeId: string) {
 function sameSet(first: Set<string>, second: Set<string>) {
   return first.size === second.size && [...first].every((value) => second.has(value));
 }
-
-function findSafeSpawn(occupied: Array<{ x: number; z: number }>, world: WorldConfig) {
-  const gridStep = world.width > 30 ? 2.2 : 0.94;
-  const columns = Math.max(1, Math.floor((world.width - 2) / gridStep));
-  const rows = Math.max(1, Math.floor((world.depth - 2) / gridStep));
-  const candidates = [
-    ...world.spawnPoints,
-    ...Array.from({ length: rows }, (_, row) =>
-      Array.from({ length: columns }, (_, column) => ({
-        x: -world.width / 2 + 1 + column * gridStep,
-        z: -world.depth / 2 + 1 + row * gridStep,
-      })),
-    ).flat(),
-  ];
-  return candidates.find((candidate) =>
-    isPositionWalkable(candidate, world) &&
-    occupied.every((player) => Math.hypot(player.x - candidate.x, player.z - candidate.z) >= 0.9),
-  ) ?? world.spawnPoints[0]!;
-}
-

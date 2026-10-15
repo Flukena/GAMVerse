@@ -1,0 +1,13 @@
+.availability-dialog { box-sizing: border-box; width: min(440px, calc(100vw - 32px)); padding: 24px; overflow-y: auto; }
+.availability-dialog h2 { margin: 0; font-size: 20px; }
+.availability-dialog form, .availability-dialog fieldset { display: flex; flex-direction: column; min-width: 0; gap: 10px; }
+.availability-dialog fieldset { border: 0; padding: 0; margin: 0; }
+.availability-dialog input, .availability-dialog select, .availability-menu select { box-sizing: border-box; min-width: 0; max-width: 100%; padding: 9px; border: 1px solid var(--workspace-edge); border-radius: 7px; background: var(--workspace-surface); color: var(--workspace-ink); font: inherit; }
+.availability-dialog button, .availability-menu button { padding: 8px 10px; border: 1px solid var(--workspace-edge); border-radius: 7px; background: var(--workspace-subtle); color: var(--workspace-ink); cursor: pointer; }
+.availability-dialog button:disabled { cursor: wait; opacity: .6; }
+.availability-policy, .availability-dialog small { color: var(--workspace-muted); font-size: 12px; line-height: 1.5; }
+.availability-error { color: var(--workspace-ink); border-inline-start: 3px solid #dc3545; padding-inline-start: 9px; }
+.availability-presets, .availability-dialog footer { display: flex; gap: 8px; flex-wrap: wrap; }
+.availability-dialog footer { justify-content: flex-end; margin-top: 16px; }
+.availability-menu { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.directory-custom-status { overflow-wrap: anywhere; white-space: normal; color: var(--workspace-muted); font-size: 12px; }

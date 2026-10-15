@@ -3,7 +3,13 @@ export function SocialControls({
 }: {
   nearestTitle: string | null;
 }) {
+  if (!nearestTitle) return null;
   return (
-    nearestTitle ? <div className="gather-social-controls" aria-label="Interaction hint"><span role="status">X to open: {nearestTitle}</span></div> : null
+    <div
+      className="gather-social-controls"
+      aria-label="Interaction"
+    >
+      <span role="status">X to open: {nearestTitle}</span>
+    </div>
   );
 }

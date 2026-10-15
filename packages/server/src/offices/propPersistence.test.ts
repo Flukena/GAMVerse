@@ -39,8 +39,9 @@ class PersistenceSeam {
   async query(
     sql: string,
     values: unknown[] = [],
-  ): Promise<{ rows: unknown[] }> {
+  ): Promise<{ rows: unknown[]; rowCount?: number }> {
     this.calls.push(sql);
+    if (sql.includes("SELECT 1 FROM app_offices")) return { rows: [{}], rowCount: 1 };
     if (sql.startsWith("SELECT config,"))
       return { rows: [{ config: this.map, config_version: INITIAL_VERSION }] };
     if (sql.startsWith("SELECT config "))

@@ -55,7 +55,7 @@ function enqueueUserWrite<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
-function tokenHash(token: string) {
+export function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 

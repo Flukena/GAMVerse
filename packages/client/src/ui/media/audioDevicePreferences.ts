@@ -1,28 +1,19 @@
-const INPUT_DEVICE_KEY = "gammyverse.audioInputDeviceId";
-const OUTPUT_DEVICE_KEY = "gammyverse.audioOutputDeviceId";
+import { browserDeviceStorage, DEFAULT_MEDIA_DEVICE_ID, persistMediaDevicePreferences, readMediaDevicePreferences } from "./mediaDevicePreferences";
 
 export type AudioDevicePreferences = { inputDeviceId: string; outputDeviceId: string };
 export type AudioDeviceSwitcher = { switchActiveDevice(kind: "audioinput" | "audiooutput", deviceId: string): Promise<boolean> };
 
 export function readAudioDevicePreferences(): AudioDevicePreferences {
-  try {
-    return {
-      inputDeviceId: window.localStorage.getItem(INPUT_DEVICE_KEY) ?? "",
-      outputDeviceId: window.localStorage.getItem(OUTPUT_DEVICE_KEY) ?? "",
-    };
-  } catch {
-    return { inputDeviceId: "", outputDeviceId: "" };
-  }
+  const preferences = readMediaDevicePreferences();
+  return { inputDeviceId: preferences.audioinput, outputDeviceId: preferences.audiooutput };
 }
 
 export function saveAudioInputDevice(deviceId: string): void {
-  try { window.localStorage.setItem(INPUT_DEVICE_KEY, deviceId); }
-  catch { /* Keep the selection in memory if browser storage is unavailable. */ }
+  persistMediaDevicePreferences({ ...readMediaDevicePreferences(), audioinput: deviceId || DEFAULT_MEDIA_DEVICE_ID }, browserDeviceStorage());
 }
 
 export function saveAudioOutputDevice(deviceId: string): void {
-  try { window.localStorage.setItem(OUTPUT_DEVICE_KEY, deviceId); }
-  catch { /* Keep the selection in memory if browser storage is unavailable. */ }
+  persistMediaDevicePreferences({ ...readMediaDevicePreferences(), audiooutput: deviceId || DEFAULT_MEDIA_DEVICE_ID }, browserDeviceStorage());
 }
 
 export async function applyAudioInputPreference(room: AudioDeviceSwitcher, preferences: AudioDevicePreferences): Promise<void> {

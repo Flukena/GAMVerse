@@ -12,6 +12,7 @@ interface OfficeSocialOverlayProps {
   username: string;
   sessionKey: string | null;
   chatTarget: string | null;
+  chatTargetRevision?: number;
   chatContainer: HTMLElement | null;
   chatVisible: boolean;
   onUnread(count: number): void;
@@ -29,6 +30,7 @@ export function OfficeSocialOverlay(props: OfficeSocialOverlayProps) {
         officeId={props.officeId}
         username={props.username}
         target={props.chatTarget}
+        targetRevision={props.chatTargetRevision}
         container={props.chatContainer}
         visible={props.chatVisible}
         onUnread={props.onUnread}
