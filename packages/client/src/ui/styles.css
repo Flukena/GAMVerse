@@ -423,8 +423,12 @@ button.voice-participant-media:disabled { opacity: .45; cursor: default; }
 .personal-avatar-remove { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 19px; height: 19px; padding: 0; border: 1px solid #e5ebe6; border-radius: 50%; background: rgba(255,255,255,.95); color: #8a5c54; font: 14px/1 sans-serif; cursor: pointer; }
 .personal-avatar-remove:disabled { color: #abb5ad; cursor: not-allowed; opacity: .6; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; clip-path: inset(50%); border: 0; }
-.character-drawer-footer { padding: 12px 24px max(104px, calc(90px + env(safe-area-inset-bottom))); border-top: 1px solid #e9eeea; background: #fafcfa; }
+.character-drawer-footer { display: grid; flex: 0 0 auto; gap: 9px; padding: 12px 24px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid #e9eeea; background: #fafcfa; }
 .character-drawer-footer .auth-submit { margin-top: 0; }
+.right-drawer-map-mode { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid rgba(2,48,71,.14); border-radius: 10px; background: rgba(255,255,255,.72); color: #315b6b; font: 650 11px "DM Sans", sans-serif; cursor: pointer; }
+.right-drawer-map-mode:hover { border-color: rgba(33,158,188,.45); background: #fff; color: #023047; }
+.character-drawer-footer .account-action.signout { width: 100%; min-height: 40px; padding: 0 12px; border-color: rgba(156,90,80,.22); background: rgba(255,255,255,.76); font: 650 11px "DM Sans", sans-serif; }
+.character-drawer-footer .account-action.signout:hover { border-color: rgba(156,90,80,.38); background: #fff7f5; }
 .character-onboarding { display: grid; min-height: 100vh; place-items: center; padding: 24px; background: #eef2ee; }
 .character-onboarding-card { width: min(680px, 100%); padding: 24px; border: 1px solid #e2e9e3; border-radius: 16px; background: #fbfcfb; box-shadow: 0 10px 36px rgba(32, 55, 42, .08); }
 .character-onboarding-card h1 { margin: 7px 0 4px; color: #27362d; font: 750 24px "Manrope", sans-serif; }

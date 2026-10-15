@@ -69,6 +69,7 @@ interface Props {
   firstPersonViewRef: MutableRefObject<boolean>;
   map2dDecorationsRef?: MutableRefObject<Map2dDecoration[]>;
   map2dViewRef?: MutableRefObject<boolean>;
+  map2dToggleRef?: MutableRefObject<() => void>;
   locateRequestRef?: MutableRefObject<Map2dLocateRequest | null>;
   propsConfigVersion?: number;
   autoMoveStatusRevisionRef?: MutableRefObject<number>;
@@ -117,6 +118,7 @@ interface Props {
   mapEditLockPending?: boolean;
   onEditMap?: () => void;
   onModifyProps?: () => void;
+  onMapViewChange?: (isMap2d: boolean) => void;
 }
 
 const ghostMaterialOverrides = new WeakMap<THREE.Mesh, { original: THREE.Material | THREE.Material[]; faded: THREE.Material[] }>();
@@ -737,7 +739,7 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
-export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, locateRequestRef, autoMoveStatusRevisionRef, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
+export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, map2dToggleRef, locateRequestRef, autoMoveStatusRevisionRef, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps, onMapViewChange }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compassRoseRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -779,6 +781,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const previousWorldKeyRef = useRef(activeRoomKey);
   const cameraStateRef = useRef(createCameraState(activeRoomKey === "lobby"));
   const [cameraState, setCameraState] = useState(cameraStateRef.current);
+  useEffect(() => { onMapViewChange?.(cameraState.mode === "map2d"); }, [cameraState.mode, onMapViewChange]);
   const map2dCenterRef = useRef({ x: 0, z: 0 });
   const locateDecorationsRef = useRef<Map2dDecoration[]>([]);
   const lastLocateRequestRef = useRef(0);
@@ -797,6 +800,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     setCameraState(cameraStateRef.current);
   };
   const toggleMap2d = () => setMap2dView(cameraStateRef.current.mode === "map2d" ? "3d" : "2d");
+  if (map2dToggleRef) map2dToggleRef.current = toggleMap2d;
   useEffect(() => { if (readMap2dPreference()) setMap2dView("2d"); }, []);
   const dispatchCamera = (event: CameraEvent) => {
     const nextState = cameraReducer(cameraStateRef.current, event);
