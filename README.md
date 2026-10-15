@@ -5,11 +5,11 @@ GAMVerse is a self-hosted virtual office that runs in a browser. Members share a
 ## Features in this repository
 
 - Account registration and sign-in, office invitations, office-scoped owner/admin/member roles, and a separate maintainer portal.
-- Platform operations for maintainers: account recovery and suspension, office-management audit history, and an aggregate system health overview.
+- Platform operations for maintainers: account recovery, account role management and suspension, office-management audit history, and an aggregate system health overview.
 - A server-authoritative multiplayer world with movement, collision, presence, room zones, automatic travel, vehicles, and seats.
 - Spacebar jumps in 3D view; jumps are shared with other players and do not bypass ground collision.
 - A campus map generator driven by total people and team count. Office owners and admins can edit room zones, doors, spawn point, and roads; office members can edit props and their interactions. Each member can claim one private workroom.
-- A full top-down 2D play view (M toggles 2D/3D) alongside Three.js avatars, with labelled rooms, floor detail, catalog prop icons, player head portraits and names, a minimap on the left and player locate controls. Both views use the same server-owned movement and media membership. Kenney, Quaternius, and Poly Pizza assets are served from the client package.
+- A full top-down 2D play view (M toggles 2D/3D) alongside Three.js avatars, with labelled rooms, floor detail, catalog prop icons, player head portraits and names, a minimap on the left and player locate controls. Both views use the same server-owned movement and media membership. Kenney, Quaternius, Poly Pizza, a curated 22-model Polygonal Mind CC0 avatar subset, six KayKit Adventurers CC0 characters, and 68 Gobkit CC0 pets are served from the client package.
 - Nearby chat, persisted office and direct-message threads, emoji reactions from the bottom dock picker, and raised hands. Office and direct messages share a 10,000-message retention pool per office.
 - Member-editable prop notes, HTTPS links, and embeds for YouTube, Google Docs/Slides, Figma, Miro, and Excalidraw. Links show their destination hostname before opening.
 - Owner/admin spotlight controls with a separate office-wide media session and explicit speaker publishing consent.

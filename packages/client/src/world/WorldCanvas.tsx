@@ -1,14 +1,17 @@
+import { playerName } from "../identity/playerName";
 import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, JUMP_DURATION_MS, jumpHeightAt, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, parseRoomPropSeatReference, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone } from "@gammyverse/shared";
 import type { MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
-import { loadCharacterAsset, type LoadedCharacterAsset } from "../assets/characterAssets";
+import { loadCharacterAsset, petModelUrl, type LoadedCharacterAsset } from "../assets/characterAssets";
 import { loadGltfAsset, loadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
 import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { createOfficePropGeometry } from "./officePropGeometry";
+import { createPetModelInstance, disposePetAsset, type PetModelInstance } from "./petModelInstance";
+import { createProceduralHumanoidRig, updateProceduralHumanoidRig, type ProceduralHumanoidRig } from "./proceduralHumanoidMotion";
 import { fitWallAssetModel } from "./wallAssetTransform";
 import { cameraReducer, createCameraState, isBehindCharacterLocked, type CameraEvent } from "./camera/cameraState";
 import { computeCameraFrame, applyCameraProjection, campusOverviewDistance } from "./camera/cameraFrame";
@@ -24,10 +27,11 @@ import { registerMap2dShortcut } from "./map2d/map2dShortcut";
 import { applyCameraView } from "./camera/cameraView";
 import { locateMap2d, type Map2dLocateRequest } from "./map2d/map2dInput";
 import type { Map2dDecoration } from "./map2d/map2dDynamicLayer";
+import { campusOverviewMapScalePxPerM } from "./map2d/map2dProjection";
 
 type CharacterModelId = KenneyCharacterId | `custom-${string}`;
 type PlayerStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
-type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; characterId: CharacterModelId; petId?: string; weaponId?: KenneyBlasterId | ""; vehicleId?: string; vehicleMode?: "" | "manual" | "auto"; vehiclePropId?: string; vehiclePropX?: number; vehiclePropZ?: number; vehiclePropRotation?: number; sittingPropId?: string; dancing?: boolean; status?: PlayerStatus; handRaised?: boolean };
+type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; isMaintainer?: boolean; characterId: CharacterModelId; petId?: string; weaponId?: KenneyBlasterId | ""; vehicleId?: string; vehicleMode?: "" | "manual" | "auto"; vehiclePropId?: string; vehiclePropX?: number; vehiclePropZ?: number; vehiclePropRotation?: number; sittingPropId?: string; dancing?: boolean; status?: PlayerStatus; handRaised?: boolean };
 type RoomPortalVisual = { roomKey: string; name: string; x: number; z: number; isLocked: boolean };
 type BlasterVector = { x: number; y: number; z: number };
 type BlasterShotEvent = { shooterSessionId: string; start: BlasterVector; end: BlasterVector };
@@ -62,6 +66,7 @@ interface Props {
   cameraRoomKey?: string;
   playersRef: MutableRefObject<Map<string, PlayerSnapshot>>;
   localSessionIdRef: MutableRefObject<string | null>;
+  localPetIdRef?: MutableRefObject<string>;
   speakingUsernamesRef?: MutableRefObject<Set<string>>;
   heldKeysRef?: MutableRefObject<Set<string>>;
   cameraYawRef: MutableRefObject<number>;
@@ -69,6 +74,7 @@ interface Props {
   firstPersonViewRef: MutableRefObject<boolean>;
   map2dDecorationsRef?: MutableRefObject<Map2dDecoration[]>;
   map2dViewRef?: MutableRefObject<boolean>;
+  map2dToggleRef?: MutableRefObject<() => void>;
   locateRequestRef?: MutableRefObject<Map2dLocateRequest | null>;
   propsConfigVersion?: number;
   autoMoveStatusRevisionRef?: MutableRefObject<number>;
@@ -117,6 +123,7 @@ interface Props {
   mapEditLockPending?: boolean;
   onEditMap?: () => void;
   onModifyProps?: () => void;
+  onMapViewChange?: (isMap2d: boolean) => void;
 }
 
 const ghostMaterialOverrides = new WeakMap<THREE.Mesh, { original: THREE.Material | THREE.Material[]; faded: THREE.Material[] }>();
@@ -335,6 +342,7 @@ interface AvatarAnimationState {
   danceBasePosition?: THREE.Vector3;
   danceBaseRotation?: THREE.Euler;
   proceduralDanceActive?: boolean;
+  proceduralRig?: ProceduralHumanoidRig;
 }
 
 function disposeAvatar(avatar: THREE.Group) {
@@ -737,7 +745,7 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
-export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, locateRequestRef, autoMoveStatusRevisionRef, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps }: Props) {
+export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, localPetIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, map2dToggleRef, locateRequestRef, autoMoveStatusRevisionRef, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps, onMapViewChange }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compassRoseRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -779,6 +787,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const previousWorldKeyRef = useRef(activeRoomKey);
   const cameraStateRef = useRef(createCameraState(activeRoomKey === "lobby"));
   const [cameraState, setCameraState] = useState(cameraStateRef.current);
+  useEffect(() => { onMapViewChange?.(cameraState.mode === "map2d"); }, [cameraState.mode, onMapViewChange]);
   const map2dCenterRef = useRef({ x: 0, z: 0 });
   const locateDecorationsRef = useRef<Map2dDecoration[]>([]);
   const lastLocateRequestRef = useRef(0);
@@ -797,6 +806,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     setCameraState(cameraStateRef.current);
   };
   const toggleMap2d = () => setMap2dView(cameraStateRef.current.mode === "map2d" ? "3d" : "2d");
+  if (map2dToggleRef) map2dToggleRef.current = toggleMap2d;
   useEffect(() => { if (readMap2dPreference()) setMap2dView("2d"); }, []);
   const dispatchCamera = (event: CameraEvent) => {
     const nextState = cameraReducer(cameraStateRef.current, event);
@@ -1198,6 +1208,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     zoneDraftPreview.renderOrder = 4;
     campusRoot.add(zoneDraftPreview);
     const mapCollisionOverlays: THREE.Object3D[] = [];
+    const movableVehicleEditHandles = new Map<string, THREE.Object3D[]>();
+    const trackMovableVehicleHandle = (propId: string, object: THREE.Object3D) => {
+      const handles = movableVehicleEditHandles.get(propId) ?? [];
+      handles.push(object);
+      movableVehicleEditHandles.set(propId, handles);
+    };
     const mapPropSelectionHighlights = new Map<string, THREE.Group>();
     const mapZoneSelectionHighlights = new Map<string, THREE.Group>();
     const campusRoomNameLabels: THREE.Sprite[] = [];
@@ -1757,6 +1773,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           selection.visible = false;
           selection.userData.officeMapPropId = prop.id;
           selection.userData.mapPropSelection = true;
+          if (catalog.vehicleId) trackMovableVehicleHandle(prop.id, selection);
           const selectedFootprint = new THREE.Mesh(
             new THREE.BoxGeometry(collisionFootprint.width, 0.035, collisionFootprint.depth),
             new THREE.MeshBasicMaterial({ color: "#ffb703", transparent: true, opacity: 0.22, depthWrite: false }),
@@ -1787,6 +1804,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           );
           dragTarget.userData.officeMapPropId = prop.id;
           dragTarget.userData.mapPropDragHitTarget = true;
+          if (catalog.vehicleId) trackMovableVehicleHandle(prop.id, dragTarget);
           campusMapProps.add(dragTarget);
         }
         // Driveable props are rendered by the vehicle layer so they can be
@@ -1827,6 +1845,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           proxy.userData.officeMapPropId = prop.id;
           proxy.userData.mapCollisionOverlay = true;
           proxy.userData.collision = true;
+          if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, proxy);
           campusMapProps.add(proxy);
           mapCollisionOverlays.push(proxy);
           // The movement solver keeps the player's center one radius outside
@@ -1840,6 +1859,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           clearanceOutline.position.set(prop.x + mapWorld.width / 2, (prop.elevation ?? 0) + 0.018, prop.z + mapWorld.depth / 2);
           clearanceOutline.userData.officeMapPropId = prop.id;
           clearanceOutline.userData.mapCollisionOverlay = true;
+          if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, clearanceOutline);
           campusMapProps.add(clearanceOutline);
           mapCollisionOverlays.push(clearanceOutline);
           const outline = new THREE.LineSegments(
@@ -1849,6 +1869,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           outline.position.set(prop.x + mapWorld.width / 2, (prop.elevation ?? 0) + 0.04, prop.z + mapWorld.depth / 2);
           outline.userData.officeMapPropId = prop.id;
           outline.userData.mapCollisionOverlay = true;
+          if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, outline);
           campusMapProps.add(outline);
           mapCollisionOverlays.push(outline);
         }
@@ -1991,8 +2012,15 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const petGroups = new Map<string, THREE.Group>();
     const petIds = new Map<string, string>();
     const petSides = new Map<string, number>();
-    const petMixers = new Map<string, { mixer: THREE.AnimationMixer; idle?: THREE.AnimationAction; walk?: THREE.AnimationAction; current?: THREE.AnimationAction }>();
+    const petMixers = new Map<string, PetModelInstance>();
     const petPositions = new Map<string, THREE.Vector3>();
+    const petMotionPhases = new Map<string, number>();
+    const removePet = (id: string) => {
+      petGroups.get(id)?.removeFromParent();
+      petMixers.get(id)?.dispose();
+      petGroups.delete(id); petMixers.delete(id); petPositions.delete(id);
+      petMotionPhases.delete(id); petIds.delete(id); petSides.delete(id);
+    };
     const vehicleGroups = new Map<string, THREE.Group>();
     const vehicleIds = new Map<string, string>();
     const vehiclePositions = new Map<string, THREE.Vector3>();
@@ -2002,11 +2030,13 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       if (!model) {
         model = loadGltfAsset(path);
         cache.set(id, model);
-        void model.catch(() => undefined);
+        void model.catch(() => {
+          if (cache.get(id) === model) cache.delete(id);
+        });
       }
       return model;
     };
-    const getPetModel = (petId: string) => loadKenneyModel(petModels, petId, `/assets/kenney/cube-pets/Models/${petId}.glb`);
+    const getPetModel = (petId: string) => loadKenneyModel(petModels, petId, petModelUrl(petId));
     const getVehicleModel = (vehicleId: string) => {
       const models: Record<string, string> = {
         "vehicle-speedster": "/assets/kenney/toy-car-kit/Models/GLB format/vehicle-speedster.glb",
@@ -2732,11 +2762,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       }
       let nearestVehicle: { vehicleId: KenneyVehicleId; propId: string } | null = null;
       let nearestDistance = 3.2;
-      const occupiedVehicleIds = new Set<string>();
+      const occupiedVehiclePropIds = new Set<string>();
       const occupantsByProp = new Map<string, PlayerSnapshot>();
       const parkedByProp = new Map<string, PlayerSnapshot>();
       for (const player of players.values()) {
-        if (player.vehicleId) occupiedVehicleIds.add(player.vehicleId);
+        if (player.vehicleId && player.vehiclePropId) occupiedVehiclePropIds.add(player.vehiclePropId);
         if (!player.vehiclePropId) continue;
         if (player.vehicleId) {
           if (!occupantsByProp.has(player.vehiclePropId)) occupantsByProp.set(player.vehiclePropId, player);
@@ -2745,8 +2775,17 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       for (const prop of driveableProps) {
         const occupant = occupantsByProp.get(prop.id);
         const parkedAt = parkedByProp.get(prop.id);
+        const vehicleState = occupant ?? parkedAt;
+        if (vehicleState) {
+          const worldX = vehicleState.vehiclePropX ?? prop.x;
+          const worldZ = vehicleState.vehiclePropZ ?? prop.z;
+          for (const handle of movableVehicleEditHandles.get(prop.id) ?? []) {
+            handle.position.x = worldX + mapWorld.width / 2;
+            handle.position.z = worldZ + mapWorld.depth / 2;
+          }
+        }
         let parked = parkedVehicleGroups.get(prop.id);
-        if (occupant || (occupiedVehicleIds.has(prop.vehicleId) && !parkedAt)) {
+        if (occupant || (occupiedVehiclePropIds.has(prop.id) && !parkedAt)) {
           if (parked) scene.remove(parked);
         } else {
           if (!parked) {
@@ -2756,7 +2795,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             parkedVehicleGroups.set(prop.id, parkedRoot);
             void getVehicleModel(prop.vehicleId).then((gltf) => {
               if (disposed || parkedVehicleGroups.get(prop.id) !== parkedRoot) return;
-              const model = SkeletonUtils.clone(gltf.scene) as THREE.Group;
+              const model = gltf.scene.clone(true) as THREE.Group;
               fitVehicleToDriveScale(model);
               model.traverse((child) => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
               parkedRoot.add(model);
@@ -2777,7 +2816,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           }
         }
         // A just-exited car is parked at its driver's position and remains usable there.
-        const canInteract = !occupant && (!occupiedVehicleIds.has(prop.vehicleId) || Boolean(parkedAt));
+        const canInteract = !occupant && (!occupiedVehiclePropIds.has(prop.id) || Boolean(parkedAt));
         if (localPlayer && !localPlayer.vehicleId && canInteract) {
           const dx = localPlayer.x - (parkedAt?.vehiclePropX ?? prop.x);
           const dz = localPlayer.z - (parkedAt?.vehiclePropZ ?? prop.z);
@@ -2802,7 +2841,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       for (const [id, player] of players) {
         const characterId = player.characterId || DEFAULT_CHARACTER_ID;
         const vehicleId = player.vehicleId ?? "";
-        const petId = player.petId ?? "";
+        const petId = id === localSessionIdRef.current
+          ? localPetIdRef?.current || player.petId || ""
+          : player.petId ?? "";
         let avatar = avatars.get(id);
         if (avatar && avatarCharacterIds.get(id) !== characterId) {
           scene.remove(avatar);
@@ -2892,6 +2933,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               proceduralMotion: false,
               rotationOffset: 0,
               phase: 0,
+              proceduralRig: characterId.startsWith("character-pm-") || characterId.startsWith("character-kaykit-") ? createProceduralHumanoidRig(model) ?? undefined : undefined,
               mixer,
               idleAction,
               walkAction,
@@ -2916,7 +2958,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           avatar.add(speakingBubble);
           avatarSpeakingBubbles.set(id, speakingBubble);
         }
-          speakingBubble.visible = Boolean(speakingUsernamesRef?.current.has(player.username.trim().toLocaleLowerCase()));
+          speakingBubble.visible = Boolean(
+            typeof player.username === "string" &&
+            speakingUsernamesRef?.current.has(player.username.trim().toLocaleLowerCase())
+          );
 
         const requestedWeapon = player.weaponId && KENNEY_BLASTER_IDS.includes(player.weaponId) ? player.weaponId : "";
         let heldWeapon = heldWeaponBySessionId.get(id);
@@ -2953,6 +2998,13 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         const moving = !sittingProp && Math.hypot(renderX - current.x, renderZ - current.z) > 0.008;
         const sprinting = id === localId && Boolean(heldKeysRef?.current.has("ShiftLeft") || heldKeysRef?.current.has("ShiftRight"));
         const animation = avatarAnimations.get(id);
+        if (animation?.proceduralRig) {
+          const idleEnabled = idleAnimationsEnabledRef.current;
+          const rigMoving = moving && !sittingProp && !vehicleId;
+          animation.phase += delta * (rigMoving ? (sprinting ? 12 : 8) : idleEnabled ? 1.8 : 0) * motionScale;
+          updateProceduralHumanoidRig(animation.proceduralRig, animation.phase, rigMoving, sprinting, idleEnabled);
+          animation.model.position.y = (animation.danceBasePosition?.y ?? animation.model.position.y) + (rigMoving ? Math.max(0, Math.sin(animation.phase * 2)) * 0.018 : 0);
+        }
         if (animation?.mixer) {
           const idleEnabled = idleAnimationsEnabledRef.current;
           const dancing = Boolean(player.dancing) && !moving && !sittingProp && !vehicleId;
@@ -3025,11 +3077,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         if (avatarModel) setGhostModelOpacity(avatarModel, ghostSessionIdsRef.current.has(id));
 
         if (petIds.get(id) !== petId) {
-          const previousPet = petGroups.get(id);
-          if (previousPet) scene.remove(previousPet);
-          petMixers.get(id)?.mixer.stopAllAction();
-          petGroups.delete(id); petMixers.delete(id); petPositions.delete(id); petIds.delete(id);
-          petSides.delete(id);
+          removePet(id);
           if (petId) {
             petIds.set(id, petId);
             // Keep the randomized side stable and consistent across clients.
@@ -3038,43 +3086,39 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             const petRoot = new THREE.Group();
             scene.add(petRoot);
             petGroups.set(id, petRoot);
-            void getPetModel(petId).then((gltf) => {
-              if (disposed || petGroups.get(id) !== petRoot) return;
-              const model = SkeletonUtils.clone(gltf.scene) as THREE.Group;
-              const bounds = new THREE.Box3().setFromObject(model);
-              const size = bounds.getSize(new THREE.Vector3());
-              const center = bounds.getCenter(new THREE.Vector3());
-              const scale = 0.62 / Math.max(size.y, 0.001);
-              model.scale.setScalar(scale);
-              model.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale);
-              model.traverse((child) => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
-              petRoot.add(model);
-              const mixer = new THREE.AnimationMixer(model);
-              const idleClip = gltf.animations.find((clip) => clip.name.toLowerCase() === "idle") ?? gltf.animations.find((clip) => clip.name.toLowerCase() === "static");
-              const walkClip = gltf.animations.find((clip) => clip.name.toLowerCase() === "walk") ?? gltf.animations.find((clip) => clip.name.toLowerCase() === "run");
-              const idle = idleClip ? mixer.clipAction(idleClip) : undefined;
-              const walk = walkClip ? mixer.clipAction(walkClip) : undefined;
-              const current = idle ?? walk;
-              current?.play();
-              petMixers.set(id, { mixer, idle, walk, current });
+            petMotionPhases.set(id, 0);
+            void getPetModel(petId).then(async (gltf) => {
+              const isCurrent = () => !disposed && petGroups.get(id) === petRoot;
+              const instance = await createPetModelInstance(gltf, () => loadGltfAsset(petModelUrl(petId)), isCurrent);
+              if (!instance) return;
+              if (!isCurrent()) { instance.dispose(); return; }
+              petRoot.add(instance.model);
+              petMixers.set(id, instance);
             }).catch((error: unknown) => console.warn(`Could not load pet model ${petId}.`, error));
           }
         }
         const petRoot = petGroups.get(id);
         if (petRoot && petId) {
           const side = petSides.get(id) ?? 1;
-          const besideX = renderX + Math.cos(player.rotation) * side * 1.2;
-          const besideZ = renderZ - Math.sin(player.rotation) * side * 1.2;
+          const besideX = renderX + Math.cos(player.rotation) * side * 1.3;
+          const besideZ = renderZ - Math.sin(player.rotation) * side * 1.3;
           const petPosition = petPositions.get(id) ?? new THREE.Vector3(besideX, 0, besideZ);
           const petBlend = 1 - Math.pow(0.88, delta * 60);
-          const oldPetX = petPosition.x, oldPetZ = petPosition.z;
           petPosition.x = THREE.MathUtils.lerp(petPosition.x, besideX, petBlend);
           petPosition.z = THREE.MathUtils.lerp(petPosition.z, besideZ, petBlend);
           petPositions.set(id, petPosition);
-          petRoot.position.set(petPosition.x, 0, petPosition.z);
-          petRoot.rotation.y = player.rotation;
           const petAnimation = petMixers.get(id);
-          const petWalking = Math.hypot(petPosition.x - oldPetX, petPosition.z - oldPetZ) > 0.006;
+          // Use the owner's movement state rather than the pet's smoothed
+          // follow delta. The per-frame follow delta can stay below a fixed
+          // threshold, leaving the walk clip unselected while the owner walks.
+          const petWalking = moving && !vehicleId && !sittingProp;
+          const petPhase = (petMotionPhases.get(id) ?? 0) + delta * (petWalking ? 9 : 1.8) * motionScale;
+          petMotionPhases.set(id, petPhase);
+          // Keep a visible idle breath and walking bounce even on compact rigs
+          // whose authored idle pose has very little body movement.
+          petRoot.position.set(petPosition.x, petWalking ? Math.abs(Math.sin(petPhase)) * 0.04 : Math.sin(petPhase) * 0.022, petPosition.z);
+          petRoot.rotation.y = player.rotation;
+          petRoot.rotation.z = petWalking ? Math.sin(petPhase) * 0.06 : Math.sin(petPhase) * 0.032;
           const nextPetAction = petWalking ? petAnimation?.walk : idleAnimationsEnabledRef.current ? petAnimation?.idle : undefined;
           if (petAnimation && nextPetAction !== petAnimation.current) {
             petAnimation.current?.fadeOut(0.18);
@@ -3133,10 +3177,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           jumpStartedAtRef?.current.delete(id);
         }
       }
-      for (const [id, petRoot] of petGroups) {
-        if (players.has(id)) continue;
-        scene.remove(petRoot); petMixers.get(id)?.mixer.stopAllAction();
-        petGroups.delete(id); petMixers.delete(id); petPositions.delete(id); petIds.delete(id); petSides.delete(id);
+      for (const id of petGroups.keys()) {
+        if (!players.has(id)) removePet(id);
       }
       for (const [id, vehicleRoot] of vehicleGroups) {
         if (players.has(id)) continue;
@@ -3406,7 +3448,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           vehicleNameOverlay.appendChild(label);
           vehicleNameLabels.set(id, label);
         }
-        const labelText = id === localId ? "You" : player.displayName;
+        const labelText = playerName(player, id === localId);
         if (label.textContent !== labelText) label.textContent = labelText;
         const statusIcon = PLAYER_STATUS_ICONS[player.status ?? "available"];
         if (statusIcon && label.dataset.statusIcon !== statusIcon) label.dataset.statusIcon = statusIcon;
@@ -3436,8 +3478,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
       }
       for (const [id, label] of vehicleNameLabels) if (!playersRef.current.has(id)) { label.remove(); vehicleNameLabels.delete(id); }
+      const mapScalePxPerM = cameraStateRef.current.view === "3d"
+        ? campusOverviewMapScalePxPerM(mapWorld.width, mapWorld.depth, host.clientWidth, host.clientHeight, cameraStateRef.current.zoomRatio, CAMPUS_2D_ZOOM_THRESHOLD_RATIO)
+        : cameraStateRef.current.map2dScalePxPerM;
       map2dCenterRef.current = map2dRenderer.frame({ visible: showMap2d, following: cameraStateRef.current.following, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
-        projection: { center: map2dCenterRef.current, pxPerM: cameraStateRef.current.map2dScalePxPerM, widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
+        projection: { center: map2dCenterRef.current, pxPerM: mapScalePxPerM, widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
         players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: map2dDestinationRef.current }) ?? map2dCenterRef.current;
       socialOverlay.frame({ camera, players: playersRef.current, decorations: map2dDecorationsRef?.current ?? [], localId, layout: roomLayout, offsetX: campusOverviewRef.current ? mapWorld.width / 2 : 0, offsetZ: campusOverviewRef.current ? mapWorld.depth / 2 : 0, visible: !showMap2d, nowMs: performance.now() });
       if (!showMap2d) renderer.render(scene, camera);
@@ -3513,6 +3558,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       for (const model of characterModels.values()) {
         void model.then((gltf) => disposeObjectResources(gltf.scene)).catch(() => undefined);
       }
+      for (const id of petGroups.keys()) removePet(id);
+      for (const model of petModels.values()) {
+        void model.then(disposePetAsset).catch(() => undefined);
+      }
+      petModels.clear();
       avatarAnimations.clear();
       avatarCharacterIds.clear();
       fallbackParts.clear();
@@ -3561,12 +3611,14 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         {isDriving ? "Exit vehicle" : "Drive vehicle"}
       </div>}
       {campusOverview && !mapEditMode && !buildMode && <div ref={worldControlDockRef} className="world-control-dock" aria-label="Map controls">
-        <div className="world-control-group" role="group" aria-label="Workspace actions">
-          <button type="button" className="world-control-trigger" aria-label="Toggle 2D / 3D view (M)" title="2D / 3D · M" onClick={() => { setActiveFloatingGroup(null); toggleMap2d(); }}>2D / 3D</button>
-          {personalDeskZone && currentPrivateZoneId !== personalDeskZone.id && <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={appPaused} onClick={() => { setActiveFloatingGroup(null); buildCallbacksRef.current.onAutoMove?.({ x: personalDeskZone.x, z: personalDeskZone.z }, false); }}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 20 4l-7.5 17-2.2-7.3L3 11.5Z"/><path d="m10.3 13.7 4.6-4.6"/></svg>
-          </button>}
+        <div className="world-control-group map-mode-control">
+          <button type="button" className="world-control-trigger" aria-label={cameraState.mode === "map2d" ? "Switch to 3D view" : "Switch to 2D view"} title={cameraState.mode === "map2d" ? "Switch to 3D view · M" : "Switch to 2D view · M"} onClick={() => { setActiveFloatingGroup(null); toggleMap2d(); }}><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg></button>
         </div>
+        {personalDeskZone && currentPrivateZoneId !== personalDeskZone.id && <div className="world-control-group" role="group" aria-label="Workspace actions">
+          <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={appPaused} onClick={() => { setActiveFloatingGroup(null); buildCallbacksRef.current.onAutoMove?.({ x: personalDeskZone.x, z: personalDeskZone.z }, false); }}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 20 4l-7.5 17-2.2-7.3L3 11.5Z"/><path d="m10.3 13.7 4.6-4.6"/></svg>
+          </button>
+        </div>}
         <div className={`world-control-group${activeFloatingGroup === "character" ? " is-active" : ""}`}>
           {activeFloatingGroup === "character" && <div className="world-control-actions character-camera-actions" id="character-camera-actions" role="group" aria-label="Character camera actions">
             <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "focus-character" }); }}>

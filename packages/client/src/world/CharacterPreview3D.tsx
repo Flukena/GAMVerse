@@ -2,15 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { loadCharacterAsset } from "../assets/characterAssets";
+import { loadGltfAsset } from "../assets/loaders";
+import { hasLargeSkinnedMeshScale } from "./petModelCompatibility";
+import { createProceduralHumanoidRig, updateProceduralHumanoidRig } from "./proceduralHumanoidMotion";
 
 type CharacterPreview3DProps = {
   characterId: string;
+  modelUrl?: string;
   endpoint: string;
   label: string;
   fallbackImage?: string | null;
 };
 
-export function CharacterPreview3D({ characterId, endpoint, label, fallbackImage }: CharacterPreview3DProps) {
+export function CharacterPreview3D({ characterId, modelUrl, endpoint, label, fallbackImage }: CharacterPreview3DProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
 
@@ -22,6 +26,8 @@ export function CharacterPreview3D({ characterId, endpoint, label, fallbackImage
     let animationFrame = 0;
     let model: THREE.Group | null = null;
     let mixer: THREE.AnimationMixer | null = null;
+    let proceduralRig: ReturnType<typeof createProceduralHumanoidRig> = null;
+    let proceduralPhase = 0;
     let dragPointer: number | null = null;
     let lastPointerX = 0;
     let yaw = 0;
@@ -92,20 +98,26 @@ export function CharacterPreview3D({ characterId, endpoint, label, fallbackImage
     renderer.domElement.addEventListener("pointercancel", onPointerUp);
 
     setLoadState("loading");
-    void loadCharacterAsset(characterId, endpoint).then((asset) => {
+    const assetRequest = modelUrl
+      ? loadGltfAsset(modelUrl).then((gltf) => ({ scene: gltf.scene, animations: gltf.animations }))
+      : loadCharacterAsset(characterId, endpoint);
+    void assetRequest.then((asset) => {
       if (disposed) return;
-      model = SkeletonUtils.clone(asset.scene) as THREE.Group;
+      const isolatedRig = modelUrl ? hasLargeSkinnedMeshScale(asset.scene) : false;
+      model = (isolatedRig ? asset.scene : SkeletonUtils.clone(asset.scene)) as THREE.Group;
       const bounds = new THREE.Box3().setFromObject(model);
       const size = bounds.getSize(new THREE.Vector3());
       const center = bounds.getCenter(new THREE.Vector3());
       const scale = 1.55 / Math.max(size.y, 0.001);
       model.scale.setScalar(scale);
       model.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale);
+      proceduralRig = characterId.startsWith("character-pm-") || characterId.startsWith("character-kaykit-") ? createProceduralHumanoidRig(model) : null;
+      if (proceduralRig) updateProceduralHumanoidRig(proceduralRig, 0, false, false, false);
       scene.add(model);
 
       const idleClip = asset.animations.find((clip) => clip.name.toLowerCase() === "idle");
       const firstClip = idleClip ?? asset.animations[0];
-      if (!reduceMotion && firstClip) {
+      if (!reduceMotion && firstClip && !isolatedRig) {
         mixer = new THREE.AnimationMixer(model);
         mixer.clipAction(firstClip).play();
       }
@@ -118,6 +130,10 @@ export function CharacterPreview3D({ characterId, endpoint, label, fallbackImage
       if (disposed) return;
       const delta = Math.min(clock.getDelta(), 0.05);
       mixer?.update(delta);
+      if (proceduralRig && !reduceMotion) {
+        proceduralPhase += delta * 1.8;
+        updateProceduralHumanoidRig(proceduralRig, proceduralPhase, false, false, true);
+      }
       if (model && !reduceMotion && dragPointer === null) yaw += delta * 0.16;
       if (model) model.rotation.y = yaw;
       renderer.render(scene, camera);
@@ -139,9 +155,14 @@ export function CharacterPreview3D({ characterId, endpoint, label, fallbackImage
       platformGeometry.dispose();
       platformMaterial.dispose();
       renderer.dispose();
+      // This preview remounts whenever the selected character or pet changes.
+      // Explicitly release the WebGL context so opening the picker or stepping
+      // through many pets cannot exhaust the browser's per-page context limit
+      // and blank out the office renderer.
+      renderer.forceContextLoss();
       renderer.domElement.remove();
     };
-  }, [characterId, endpoint]);
+  }, [characterId, modelUrl, endpoint]);
 
   return <div ref={hostRef} className="character-preview-stage" role="img" aria-label={`3D preview of ${label}. Drag to rotate.`}>
     <div className={`character-preview-loading${loadState === "loading" ? " visible" : ""}`} aria-hidden="true"><span /></div>

@@ -96,7 +96,7 @@ export async function readReconnectAccess(username: string | undefined, token: s
     const account = await queries.account(token);
     if (!username || account?.username !== username) return { accountActive: false, officeMember: false };
     const role = await queries.officeRole(username, officeId, account.role === MAINTAINER_ROLE_LABEL);
-    return { accountActive: true, officeMember: !!role };
+    return { accountActive: true, officeMember: !!role, officeRole: role };
   } catch (error) {
     return { accountActive: false, officeMember: false, error };
   }

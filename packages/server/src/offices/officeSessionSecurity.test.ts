@@ -9,6 +9,7 @@ import { Spotlight, OFFICE_ACCESS_REVOKED_CLOSE_CODE } from "./spotlight.js";
 process.env.PGDATABASE = "session-security-test";
 const { database } = await import("../infra/db.js");
 const { OfficeRoom } = await import("./OfficeRoom.js");
+const { listOffices } = await import("./repository.js");
 const OFFICE_ID = "session-security-office";
 const VALID_OFFICE_ID = "12345678-1234-1234-1234-123456789abc";
 const PEER_USERNAME = "bob";
@@ -33,6 +34,7 @@ interface RoomInternals {
   officeId: string;
   spotlight: Spotlight;
   usernamesBySessionId: Map<string, string>;
+  officeRolesBySessionId: Map<string, string>;
   movementInputs: Map<string, unknown>;
   sessionSecurity: { activate(username: string, id: string, token?: string): void; activeSession(username: string): string | undefined; finish(username: string, id: string): void; revoke(id: string): boolean };
 }
@@ -91,6 +93,98 @@ function queryBoundary(accountActive = true, membership?: Promise<unknown>) {
     return { rows: [] };
   });
 }
+
+test("active maintainer can list every office without membership while regular user cannot", async () => {
+  assert.ok(database);
+  mock.method(database, "query", async (sql: string, values: unknown[]) => {
+    assert.match(sql, /offices\.archived_at IS NULL/);
+    assert.match(sql, /\$2::boolean OR offices\.owner_username = \$1 OR memberships\.username IS NOT NULL/);
+    assert.deepEqual(values.slice(0, 1), [USERNAME]);
+    return { rows: values[1] ? [{ id: OFFICE_ID, name: "Other office", owner_username: PEER_USERNAME, membership_role: null }] : [] };
+  });
+  try {
+    assert.deepEqual(await listOffices(USERNAME, true), [{ id: OFFICE_ID, name: "Other office", ownerUsername: PEER_USERNAME, role: "maintainer" }]);
+    assert.deepEqual(await listOffices(USERNAME), []);
+  } finally { mock.restoreAll(); }
+});
+
+test("active maintainer joins unrelated office with authoritative maintainer state", async () => {
+  const f = fixture();
+  try {
+    assert.ok(database);
+    mock.method(database, "query", async (sql: string) => {
+      if (sql.includes(SESSION_SQL_LABEL)) return { rows: [{ ...ACTIVE_ACCOUNT_ROW, is_maintainer: true, nickname: "Support" }] };
+      if (sql.includes(MEMBERSHIP_SQL_LABEL)) return { rows: [{ owner_username: PEER_USERNAME, membership_role: null }] };
+      return { rows: [] };
+    });
+    const auth = await f.room.onAuth(f.client, { officeId: OFFICE_ID }, authContext());
+    assert.equal(auth.officeRole, "maintainer");
+    f.room.onJoin(f.client, {}, auth);
+    assert.equal(f.room.state.players.get(SESSION_ID)?.displayName, "Support");
+    assert.equal(f.room.state.players.get(SESSION_ID)?.isMaintainer, true);
+    f.room.onDrop(f.client, TRANSPORT_DROP_CLOSE_CODE);
+    await f.room.onReconnect(f.client);
+    assert.equal(f.room.state.players.get(SESSION_ID)?.presence, "online");
+    assert.deepEqual(f.leaveCodes, []);
+  } finally { f.cleanup(); }
+});
+
+test("regular office member cannot set maintainer state through join options", async () => {
+  const f = fixture();
+  try {
+    assert.equal(new PlayerState().isMaintainer, false);
+    queryBoundary();
+    const auth = await f.room.onAuth(f.client, { officeId: OFFICE_ID }, authContext());
+    f.room.onJoin(f.client, { isMaintainer: true, role: "maintainer" }, auth);
+    assert.equal(f.room.state.players.get(SESSION_ID)?.isMaintainer, false);
+  } finally { f.cleanup(); }
+});
+
+test("reconnect refreshes a former maintainer badge and office role from current session", async () => {
+  const f = fixture();
+  try {
+    f.player.isMaintainer = true;
+    f.internals.officeRolesBySessionId.set(SESSION_ID, "maintainer");
+    queryBoundary();
+    f.room.onDrop(f.client, TRANSPORT_DROP_CLOSE_CODE);
+    await f.room.onReconnect(f.client);
+    assert.equal(f.player.presence, "online");
+    assert.equal(f.player.isMaintainer, false);
+    assert.equal(f.internals.officeRolesBySessionId.get(SESSION_ID), "owner");
+  } finally { f.cleanup(); }
+});
+
+test("regular nonmember cannot join by claiming maintainer role in options", async () => {
+  const f = fixture();
+  try {
+    assert.ok(database);
+    mock.method(database, "query", async (sql: string) => {
+      if (sql.includes(SESSION_SQL_LABEL)) return { rows: [ACTIVE_ACCOUNT_ROW] };
+      if (sql.includes(MEMBERSHIP_SQL_LABEL)) return { rows: [{ owner_username: PEER_USERNAME, membership_role: null }] };
+      return { rows: [] };
+    });
+    const options = { officeId: OFFICE_ID, role: "maintainer", officeRole: "maintainer", isMaintainer: true };
+    await assert.rejects(f.room.onAuth(f.client, options, authContext()), /invitation/);
+  } finally { f.cleanup(); }
+});
+
+test("suspended maintainer cannot authenticate even with an office that exists", async () => {
+  const f = fixture();
+  let officeChecks = 0;
+  try {
+    assert.ok(database);
+    mock.method(database, "query", async (sql: string) => {
+      if (sql.includes(SESSION_SQL_LABEL)) {
+        assert.match(sql, /users\.suspended_at IS NULL/);
+        return { rows: [] };
+      }
+      if (sql.includes(MEMBERSHIP_SQL_LABEL)) officeChecks += 1;
+      return { rows: [] };
+    });
+    await assert.rejects(f.room.onAuth(f.client, { officeId: OFFICE_ID }, authContext()), /Authentication required/);
+    assert.equal(officeChecks, 0);
+  } finally { f.cleanup(); }
+});
 
 test("OfficeRoom drop then suspension rejects seat and never restores revoked state", async () => {
   const f = fixture();

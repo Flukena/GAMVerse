@@ -15,6 +15,7 @@ import {
 } from "./map2dProjection";
 import type { AvatarPose } from "./avatarPoseSmoother";
 import type { AvatarPortraits } from "./avatarPortraits";
+import { playerName } from "../../identity/playerName";
 import { map2dHeadRadiusPx, map2dNameFontPx, map2dNamePillTopPx, NAME_PILL_HEIGHT_PADDING_PX } from "./avatarPortraitGeometry";
 export type Map2dDecoration = {
   sessionId: string;
@@ -23,6 +24,7 @@ export type Map2dDecoration = {
 };
 export type Map2dPlayer = AvatarPose & {
   displayName: string;
+  isMaintainer?: boolean;
   username: string;
   status?: string;
   handRaised?: boolean;
@@ -77,7 +79,7 @@ function drawName(ctx: CanvasRenderingContext2D, x: number, y: number, radiusPx:
   ctx.font = `${fontPx}px system-ui`;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  const name = `${player.displayName}${player.handRaised ? " ✋" : ""}`;
+  const name = `${playerName(player)}${player.handRaised ? " ✋" : ""}`;
   const pillWidthPx = ctx.measureText(name).width + NAME_PILL_PADDING_PX * 2;
   const pillHeightPx = fontPx + NAME_PILL_HEIGHT_PADDING_PX;
   const pillTopPx = map2dNamePillTopPx(y, radiusPx, fontPx);

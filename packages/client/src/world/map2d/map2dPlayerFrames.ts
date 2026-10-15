@@ -2,11 +2,12 @@ import { smoothAvatarPose, isPoseSettled } from "./avatarPoseSmoother";
 import type { Map2dPlayer } from "./map2dDynamicLayer";
 
 function sameMetadata(current: Map2dPlayer, target: Map2dPlayer): boolean {
-  return current.displayName === target.displayName && current.username === target.username &&
+  return current.displayName === target.displayName && current.username === target.username && current.isMaintainer === target.isMaintainer &&
     current.status === target.status && current.handRaised === target.handRaised && current.characterId === target.characterId;
 }
 function writeMetadata(current: Map2dPlayer, target: Map2dPlayer): void {
   current.displayName = target.displayName;
+  current.isMaintainer = target.isMaintainer;
   current.username = target.username;
   current.status = target.status;
   current.handRaised = target.handRaised;

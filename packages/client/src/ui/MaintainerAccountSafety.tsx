@@ -6,6 +6,7 @@ export type MaintainerAccount = {
   email: string | null;
   lastActiveAt: string | null;
   suspendedAt: string | null;
+  role: "user" | "maintainer";
 };
 
 type SuspensionResponse = {
@@ -14,6 +15,8 @@ type SuspensionResponse = {
   activeSessionsDisconnected?: boolean;
   error?: string;
 };
+
+type RoleResponse = { role?: "user" | "maintainer"; activeSessionsDisconnected?: boolean; error?: string };
 
 type MaintainerAccountSafetyProps = {
   accounts: MaintainerAccount[];
@@ -37,6 +40,7 @@ export function MaintainerAccountSafety({ accounts, loading = false, loadError =
   const [pendingUsername, setPendingUsername] = useState<string | null>(null);
   const [pendingResetUsername, setPendingResetUsername] = useState<string | null>(null);
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string | null>>({});
+  const [roleOverrides, setRoleOverrides] = useState<Record<string, "user" | "maintainer">>({});
   const [feedback, setFeedback] = useState<Record<string, { message: string; error: boolean }>>({});
 
   const setRowFeedback = (username: string, message: string, error: boolean) => {
@@ -105,15 +109,45 @@ export function MaintainerAccountSafety({ accounts, loading = false, loadError =
     }
   };
 
+  const updateRole = async (account: MaintainerAccount) => {
+    const currentRole = roleOverrides[account.username] ?? account.role;
+    const nextRole = currentRole === "maintainer" ? "user" : "maintainer";
+    const action = nextRole === "maintainer" ? "grant maintainer access to" : "remove maintainer access from";
+    if (!window.confirm(`Are you sure you want to ${action} ${account.username}? Their active sessions will be signed out.`)) return;
+
+    setPendingUsername(account.username);
+    setFeedback((current) => ({ ...current, [account.username]: { message: "", error: false } }));
+    try {
+      const response = await fetch(`${endpoint}/maintainer/users/${encodeURIComponent(account.username)}/role`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: nextRole }),
+      });
+      const result = await response.json().catch(() => ({})) as RoleResponse;
+      if (result.role === nextRole) {
+        setRoleOverrides((current) => ({ ...current, [account.username]: nextRole }));
+        onAccountUpdated({ ...account, role: nextRole });
+      }
+      if (!response.ok || result.role !== nextRole) throw new Error(result.error ?? "Could not change this account's role.");
+      setRowFeedback(account.username, nextRole === "maintainer" ? "Maintainer access granted. They must sign in again." : "Maintainer access removed. They must sign in again.", false);
+    } catch (cause) {
+      setRowFeedback(account.username, cause instanceof Error ? cause.message : "Could not change this account's role.", true);
+    } finally {
+      setPendingUsername(null);
+    }
+  };
+
   return <section className="lobby-panel maintainer-account-safety" aria-labelledby="maintainer-account-safety-title">
     <div className="card-heading">
-      <div><span className="eyebrow">ACCOUNT ACCESS</span><h2 id="maintainer-account-safety-title">Suspension</h2></div>
+      <div><span className="eyebrow">ACCOUNT ACCESS</span><h2 id="maintainer-account-safety-title">Accounts</h2></div>
       <span className="count-chip">{accounts.length}</span>
     </div>
-    <p className="empty-people">Suspend an account to block sign-in and revoke its active sessions. Reactivate it to restore access.</p>
+    <p className="empty-people">Grant or remove maintainer access, or suspend an account to block sign-in and revoke active sessions.</p>
     {loading ? <p className="empty-people" role="status">Loading platform accounts…</p> : loadError && accounts.length === 0 ? <div><p className="auth-error" role="alert">{loadError}</p>{onRetry && <button className="lobby-button" type="button" onClick={onRetry}>Retry</button>}</div> : accounts.length === 0 ? <p className="empty-people">No accounts found.</p> : <ul className="manager-member-list maintainer-account-safety-list">
       {accounts.map((account) => {
         const suspendedAt = statusOverrides[account.username] ?? account.suspendedAt;
+        const role = roleOverrides[account.username] ?? account.role;
         const isSelf = account.username === currentUsername;
         const isPending = pendingUsername === account.username;
         const isResetPending = pendingResetUsername === account.username;
@@ -123,10 +157,18 @@ export function MaintainerAccountSafety({ accounts, loading = false, loadError =
           <div className="maintainer-account-safety-info">
             <strong>{account.username}</strong>
             <small>{account.email || "No email"} · Last active {formatTimestamp(account.lastActiveAt)}</small>
+            <small>{role === "maintainer" ? "Platform role: Maintainer" : "Platform role: User"}</small>
             <small>{suspendedAt ? `Suspended ${formatTimestamp(suspendedAt)}` : "Active account"}</small>
           </div>
           <div className="maintainer-account-safety-actions">
             <span className={`maintainer-account-status${suspendedAt ? " is-suspended" : ""}`} role="status">{suspendedAt ? "Suspended" : "Active"}</span>
+            <button
+              className={`lobby-button${role === "maintainer" ? " danger" : " primary"}`}
+              type="button"
+              disabled={Boolean(pendingUsername) || isSelf}
+              title={isSelf ? "You cannot change your own platform role." : undefined}
+              onClick={() => void updateRole(account)}
+            >{isPending ? "Saving…" : role === "maintainer" ? "Remove maintainer" : "Make maintainer"}</button>
             {onGenerateResetLink && <button className="lobby-button" type="button" disabled={isResetPending || Boolean(pendingUsername)} onClick={() => void generateResetLink(account.username)}>{isResetPending ? "Generating…" : "Generate reset link"}</button>}
             <button
               className={`lobby-button${suspendedAt ? " primary" : " danger"}`}

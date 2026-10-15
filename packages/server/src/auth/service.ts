@@ -179,12 +179,14 @@ export async function changeAccountPassword(usernameValue: unknown, currentPassw
 }
 
 export async function listAccountsForMaintainer() {
-  if (!database) return (await users()).map(({ username, email = null, lastActiveAt = null, suspendedAt = null }) => ({ username, email, lastActiveAt, suspendedAt }));
-  const result = await database.query<{ username: string; email: string | null; lastActiveAt: string | null; suspendedAt: string | null }>(
-    'SELECT username, email, last_active_at AS "lastActiveAt", suspended_at AS "suspendedAt" FROM app_users ORDER BY username',
+  if (!database) return (await users()).map(({ username, email = null, lastActiveAt = null, suspendedAt = null, isMaintainer = false }) => ({ username, email, lastActiveAt, suspendedAt, role: isMaintainer ? "maintainer" as const : "user" as const }));
+  const result = await database.query<{ username: string; email: string | null; lastActiveAt: string | null; suspendedAt: string | null; isMaintainer: boolean }>(
+    'SELECT username, email, last_active_at AS "lastActiveAt", suspended_at AS "suspendedAt", is_maintainer AS "isMaintainer" FROM app_users ORDER BY username',
   );
-  return result.rows;
+  return result.rows.map(({ username, email, lastActiveAt, suspendedAt, isMaintainer }) => ({ username, email, lastActiveAt, suspendedAt, role: isMaintainer ? "maintainer" as const : "user" as const }));
 }
+
+export { setAccountPlatformRole } from "./platformRole.js";
 
 /** Suspend or reactivate an account without deleting it. Suspension revokes every session. */
 export async function setAccountSuspended(actorValue: unknown, usernameValue: unknown, suspended: unknown) {

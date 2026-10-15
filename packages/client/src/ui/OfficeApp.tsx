@@ -1,3 +1,4 @@
+import { playerName } from "../identity/playerName";
 import { createOfficeMediaSession } from "./media/officeMediaSession";
 import { voiceParticipantUsername } from "./media/mediaIdentity";
 import { mediaTileKey } from "./social/socialState";
@@ -13,15 +14,18 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent,
 import { createPortal } from "react-dom";
 import { createVoiceRoom } from "./media/voiceRoomSdk";
 import { VoiceRoomSession, VOICE_MEDIA_STOPPED_LABEL, type VoiceSessionListener } from "./media/voiceRoomSession";
+import { publishedVideoTile } from "./media/videoTileState";
 import { resolveVoiceTarget, type VoiceTargetInputs } from "./media/voiceTarget";
 import { fetchVoiceToken } from "./media/voiceToken";
 import { VoiceParticipantRoster, type VoiceRosterActivity, type VoiceRosterMediaSource, type VoiceRosterPerson } from "./media/VoiceParticipantRoster";
 import { SoundSettings } from "./media/SoundSettings";
 import { applyAudioInputPreference, readAudioDevicePreferences, saveAudioInputDevice, saveAudioOutputDevice, type AudioDevicePreferences } from "./media/audioDevicePreferences";
 import { readVoiceParticipantAudioLevels, saveVoiceParticipantAudioLevels } from "./media/voiceParticipantPreferences";
-import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance, RoomEvent } from "livekit-client";
+import type { LocalAudioTrack, LocalTrackPublication, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance, RoomEvent } from "livekit-client";
 import { CharacterPreview3D } from "../world/CharacterPreview3D";
-import { QUATERNIUS_CHARACTERS } from "../assets/characterAssets";
+import { PetThumbnail } from "./PetThumbnail";
+import { gobkitPet, kaykitCharacter, petModelUrl, petPreviewUrl, polygonalMindCharacter, QUATERNIUS_CHARACTERS, quaterniusPet } from "../assets/characterAssets";
+import { CHARACTER_SAVE_TIMEOUT_MS, characterSaveError } from "./characterSaveError";
 import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { Minimap } from "./Minimap";
 import type { Map2dLocateRequest } from "../world/map2d/map2dInput";
@@ -88,7 +92,7 @@ const userStatusOptions: Array<{ value: UserStatus; label: string; icon: string;
   { value: "lunch", label: "Lunch", icon: "♨", color: "#e08b22" },
   { value: "coffee-break", label: "Coffee break", icon: "☕", color: "#8a5a35" },
 ];
-type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean; handRaised: boolean; microphoneEnabled: boolean; cameraEnabled: boolean; screenShareEnabled: boolean };
+type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; isMaintainer: boolean; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean; handRaised: boolean; microphoneEnabled: boolean; cameraEnabled: boolean; screenShareEnabled: boolean };
 function voiceRosterAreaKey(position: { x: number; z: number }, layout: RoomLayout, previousZoneId?: string | null): string {
   const mediaZone = roomLayoutZoneAt(position, layout, previousZoneId);
   if (mediaZone) return `zone:${mediaZone.id}`;
@@ -144,21 +148,24 @@ function usePanelPresence(isOpen: boolean, exitDuration = 260) {
   return isMounted;
 }
 
-function CharacterPicker({ value, onChange }: { value: CharacterSelectionId | null; onChange: (id: KenneyCharacterId) => void }) {
+function CharacterPicker({ value, currentCharacterId, onChange }: { value: CharacterSelectionId | null; currentCharacterId: CharacterSelectionId | null; onChange: (id: KenneyCharacterId) => void }) {
   return <div className="character-picker" role="radiogroup" aria-label="Choose a character">
-    {KENNEY_CHARACTER_IDS.map((id) => {
+    {KENNEY_CHARACTER_IDS.map((id, index) => {
       const blocky = id.startsWith("character-blocky-");
       const suffix = blocky ? id.slice("character-blocky-".length) : id.replace("character-", "");
       const quaternius = QUATERNIUS_CHARACTERS[id as keyof typeof QUATERNIUS_CHARACTERS];
-      const label = quaternius?.label ?? (blocky
+      const polygonalMind = polygonalMindCharacter(id);
+      const kaykit = kaykitCharacter(id);
+      const label = quaternius?.label ?? polygonalMind?.label ?? kaykit?.label ?? (blocky
         ? `Blocky ${suffix.toUpperCase()}`
         : suffix.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
-      const preview = quaternius?.preview ?? (blocky
+      const preview = quaternius?.preview ?? polygonalMind?.preview ?? kaykit?.preview ?? (blocky
         ? `/assets/kenney/blocky-characters/Previews/character-${suffix}.png`
         : `/assets/kenney/mini-characters/Previews/${id}.png`);
       return <button type="button" className={`character-option${value === id ? " selected" : ""}`} key={id} role="radio" aria-checked={value === id} onClick={() => onChange(id)}>
-        <img src={preview} alt="" loading="lazy" />
+        {preview ? <img src={preview} alt="" loading="lazy" /> : <span className={`character-option-avatar-placeholder tone-${index % 6}`} aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="19" r="12" /><path d="M13 58c1-14 8-23 19-23s18 9 19 23H13Z" /></svg></span>}
         <span>{label}</span>
+        {currentCharacterId === id && <small className="character-current-badge">Current</small>}
       </button>;
     })}
   </div>;
@@ -172,6 +179,7 @@ function PersonalAvatarPicker({ models, value, currentCharacterId, onChange, onR
         <span className="personal-avatar-preview" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="M13 10h22v8h5v12h-5v8H13v-8H8V18h5v-8Z" fill="currentColor" opacity=".18"/><path d="M17 15h14v18H17zM11 21h6v8h-6zm20 0h6v8h-6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/><path d="M20 22h2m4 0h2M20 28h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg></span>
         <span>{model.label}</span>
       </button>
+      {currentCharacterId === model.id && <small className="character-current-badge">Current</small>}
       <button type="button" className="personal-avatar-remove" aria-label={`Remove ${model.label}`} title={value === model.id || currentCharacterId === model.id ? "Choose and save another character before removing this model" : `Remove ${model.label}`} disabled={value === model.id || currentCharacterId === model.id} onClick={() => onRemove(model)}>×</button>
     </div>)}
   </div>;
@@ -184,15 +192,17 @@ function characterDetails(characterId: CharacterSelectionId, models: PersonalAva
   }
   const blocky = characterId.startsWith("character-blocky-");
   const quaternius = QUATERNIUS_CHARACTERS[characterId as keyof typeof QUATERNIUS_CHARACTERS];
+  const polygonalMind = polygonalMindCharacter(characterId);
+  const kaykit = kaykitCharacter(characterId);
   const suffix = blocky ? characterId.slice("character-blocky-".length) : characterId.replace("character-", "");
   return {
-    label: quaternius?.label ?? (blocky ? `Blocky ${suffix.toUpperCase()}` : suffix.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())),
-    source: quaternius?.source ?? (blocky ? "Kenney Blocky Characters" : "Kenney Mini Characters"),
-    preview: quaternius?.preview ?? (blocky ? `/assets/kenney/blocky-characters/Previews/character-${suffix}.png` : `/assets/kenney/mini-characters/Previews/${characterId}.png`),
+    label: quaternius?.label ?? polygonalMind?.label ?? kaykit?.label ?? (blocky ? `Blocky ${suffix.toUpperCase()}` : suffix.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())),
+    source: quaternius?.source ?? polygonalMind?.source ?? kaykit?.source ?? (blocky ? "Kenney Blocky Characters" : "Kenney Mini Characters"),
+    preview: quaternius?.preview ?? polygonalMind?.preview ?? kaykit?.preview ?? (blocky ? `/assets/kenney/blocky-characters/Previews/character-${suffix}.png` : `/assets/kenney/mini-characters/Previews/${characterId}.png`),
   };
 }
 
-const petLabel = (id: KenneyPetId) => id.replace("animal-", "").replace(/(^|-)([a-z])/g, (_match, dash: string, letter: string) => `${dash ? " " : ""}${letter.toUpperCase()}`);
+const petLabel = (id: KenneyPetId) => gobkitPet(id)?.label ?? quaterniusPet(id)?.label ?? id.replace("animal-", "").replace(/(^|-)([a-z])/g, (_match, dash: string, letter: string) => `${dash ? " " : ""}${letter.toUpperCase()}`);
 const vehicleLabel = (id: KenneyVehicleId) => ({
   "vehicle-speedster": "Speedster", "vehicle-racer": "Racer", "vehicle-suv": "Toy SUV", "vehicle-monster-truck": "Monster Truck", "vehicle-truck": "Toy Truck",
   "car-sedan": "Sedan", "car-hatchback-sports": "Sports Hatchback", "car-taxi": "Taxi", "car-kart-oopi": "Kart",
@@ -270,7 +280,7 @@ function VideoTile({ track, label, local, focused, onFocus, compact = false }: {
   </article>;
 }
 
-function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "videoOff" | "screen" | "screenOff" | "headphones" | "headphonesOff" | "close" | "maximize" | "exit" | "car" | "lock" | "unlock" | "refresh"; size?: number }) {
+function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "videoOff" | "screen" | "screenOff" | "headphones" | "headphonesOff" | "close" | "maximize" | "exit" | "car" | "lock" | "unlock" | "refresh" | "office" | "chat" | "people" | "clock"; size?: number }) {
   const shared = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const drawings = {
     mic: <><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></>,
@@ -288,6 +298,10 @@ function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "
     lock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></>,
     unlock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2m-3.5 9v3"/></>,
     refresh: <><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 17.4 6.4L20 9M4 15l2.6 2.6A7 7 0 0 0 18.4 15"/></>,
+    office: <><path d="M3 21h18M5 21V5l7-3 7 3v16M9 9h.01M15 9h.01M9 13h.01M15 13h.01M10 21v-4h4v4"/></>,
+    chat: <><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 3.9a8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></>,
+    people: <><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>,
+    clock: <><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></>,
   };
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" {...shared}>{drawings[name]}</svg>;
 }
@@ -345,6 +359,8 @@ export function OfficeApp() {
   const sendHeldMovementRef = useRef<() => void>(() => {});
   const firstPersonViewRef = useRef(false);
   const map2dViewRef = useRef(false);
+  const map2dToggleRef = useRef<() => void>(() => {});
+  const [map2dViewActive, setMap2dViewActive] = useState(false);
   const autoMoveStatusRevisionRef = useRef(0);
   const locateRequestRef = useRef<Map2dLocateRequest | null>(null);
   const peopleSignatureRef = useRef("");
@@ -482,6 +498,8 @@ export function OfficeApp() {
   const [characterDialogOpen, setCharacterDialogOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [activePetId, setActivePetId] = useState<KenneyPetId | "">("");
+  const localPetIdRef = useRef<KenneyPetId | "">("");
+  const [characterDialogInitialPetId, setCharacterDialogInitialPetId] = useState<KenneyPetId | "">("");
   const [autoMoveNotice, setAutoMoveNotice] = useState<string | null>(null);
   const [followingSessionId, setFollowingSessionId] = useState<string | null>(null);
   const [mapPlayerAction, setMapPlayerAction] = useState<{ sessionId: string; displayName: string; x: number; y: number } | null>(null);
@@ -559,7 +577,7 @@ export function OfficeApp() {
   const [error, setError] = useState<string | null>(null);
   const [playerCount, setPlayerCount] = useState(0);
   const [people, setPeople] = useState<Array<[string, PlayerSnapshot]>>([]);
-  const voiceRosterActivities = new Map(people.map(([, player]) => [player.username.toLocaleLowerCase(), {
+  const voiceRosterActivities = new Map(people.filter(([, player]) => typeof player.username === "string").map(([, player]) => [player.username.toLocaleLowerCase(), {
     microphone: player.microphoneEnabled,
     camera: player.cameraEnabled,
     screenShare: player.screenShareEnabled,
@@ -723,9 +741,12 @@ export function OfficeApp() {
       .then(async (response) => {
         if (!response.ok) throw new Error("Session expired. Please sign in again.");
         const result = await response.json() as { user: AuthUser };
-        if ((result.user.role === "maintainer") !== maintainerPortal) {
+        // Maintainers may also open office URLs. Only reject regular accounts
+        // on the dedicated maintainer sign-in route; refreshing an office URL
+        // must not revoke a valid maintainer session.
+        if (maintainerPortal && result.user.role !== "maintainer") {
           await fetch(`${endpoint}/auth/logout`, { method: "POST", credentials: "include" });
-          setAuthError(maintainerPortal ? "This account is not a maintainer account." : "Use the maintainer sign-in page for this account.");
+          setAuthError("This account is not a maintainer account.");
           return;
         }
         setAuthUser(result.user);
@@ -767,6 +788,7 @@ export function OfficeApp() {
     try {
       const response = await fetch(`${endpoint}/auth/character`, {
         method: "PATCH",
+        signal: AbortSignal.timeout(CHARACTER_SAVE_TIMEOUT_MS),
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ characterId }),
@@ -776,14 +798,16 @@ export function OfficeApp() {
       try {
         result = JSON.parse(responseText) as { characterId?: CharacterSelectionId; error?: string };
       } catch {
-        throw new Error("The character service returned an invalid response. Please retry.");
+        throw new Error(`The character service returned an unreadable response (HTTP ${response.status}). Please retry; if this continues, check the app server.`);
       }
+      if (response.status === 401) throw new Error("Your sign-in expired before the character could be saved. Reload and sign in again.");
+      if (response.status >= 500) throw new Error(`The character service had a server error (HTTP ${response.status}). Please try again shortly.`);
       if (!response.ok || result.characterId !== characterId) throw new Error(result.error ?? "Could not save your character.");
       setAuthUser((user) => user ? { ...user, characterId: result.characterId! } : user);
       roomRef.current?.send("character", characterId);
       setCharacterDialogOpen(false);
     } catch (cause) {
-      setCharacterError(cause instanceof Error ? cause.message : "Could not save your character.");
+      setCharacterError(characterSaveError(cause));
     } finally {
       setCharacterBusy(false);
     }
@@ -1045,7 +1069,7 @@ export function OfficeApp() {
     }
   };
 
-  const syncLocalVideoTiles = (room: LiveKitRoomInstance) => {
+  const syncLocalVideoTiles = (room: LiveKitRoomInstance, publication?: LocalTrackPublication) => {
     const activePublications = [...room.localParticipant.videoTrackPublications.values()].filter((publication) => publication.track && !publication.isMuted);
     const localTiles: VideoTileItem[] = activePublications.map((publication) => {
         const track = publication.track as LocalVideoTrack;
@@ -1054,8 +1078,9 @@ export function OfficeApp() {
         return { key: mediaTileKey(room.name, "local", String(publication.source ?? track.source)), track, label: screen ? "Screen share" : "Camera", local: true, username: authUser?.username.toLocaleLowerCase() ?? "", source: screen ? "screen" : "camera" };
       });
     setVideoTiles((tiles) => [...tiles.filter((tile) => !tile.local), ...localTiles]);
-    if (localTiles.length) {
-      setFocusedVideoKey(localTiles[localTiles.length - 1]!.key);
+    const publishedTile = publishedVideoTile(localTiles, publication?.videoTrack);
+    if (publishedTile) {
+      setFocusedVideoKey(publishedTile.key);
       setVideoPopupOpen(true);
     }
     setCameraEnabled(activePublications.some((publication) => String(publication.source ?? publication.track?.source).toLowerCase().includes("camera")));
@@ -1290,7 +1315,7 @@ export function OfficeApp() {
     },
     speakersChanged: updateVoiceRoomSpeakers,
     localTracksChanged: (room, publication) => {
-      syncLocalVideoTiles(room);
+      syncLocalVideoTiles(room, publication);
       reportVoiceActivity(room);
       if (publication?.source === VOICE_MICROPHONE_SOURCE && publication.audioTrack) void configureNoiseReductionForTrack(room, publication.audioTrack);
     },
@@ -2200,7 +2225,10 @@ export function OfficeApp() {
         jumpStartedAtRef.current.clear();
         room.send("weapon-equip", "");
         const storedPet = window.localStorage.getItem(`gammyverse.pet.${connectionUsername}`) ?? "";
-        room.send("pet", KENNEY_PET_IDS.includes(storedPet as KenneyPetId) ? storedPet : "");
+        const validStoredPet = KENNEY_PET_IDS.includes(storedPet as KenneyPetId) ? storedPet as KenneyPetId : "";
+        localPetIdRef.current = validStoredPet;
+        setActivePetId(validStoredPet);
+        room.send("pet", validStoredPet);
         window.localStorage.removeItem(`gammyverse.vehicle.${connectionUsername}`);
         autoRejoiningRef.current = false;
         autoRejoinAttemptsRef.current = 0;
@@ -2214,12 +2242,22 @@ export function OfficeApp() {
             : undefined;
           for (const [sessionId, player] of state.players) {
             const entry = player as PlayerState;
+            // A stale/mismatched Colyseus schema can temporarily expose incomplete
+            // records during development HMR. Never publish those into React state.
+            if (
+              typeof entry.username !== "string" ||
+              typeof entry.displayName !== "string" ||
+              !Number.isFinite(entry.x) ||
+              !Number.isFinite(entry.z) ||
+              !Number.isFinite(entry.rotation)
+            ) continue;
             snapshot.set(sessionId, {
               x: entry.x,
               z: entry.z,
               rotation: entry.rotation,
               username: entry.username,
               displayName: entry.displayName,
+              isMaintainer: entry.isMaintainer === true,
               characterId: entry.characterId as CharacterSelectionId,
               petId: (entry.petId || "") as KenneyPetId | "",
               weaponId: KENNEY_BLASTER_IDS.includes(entry.weaponId as KenneyBlasterId) ? entry.weaponId as KenneyBlasterId : "",
@@ -2244,7 +2282,13 @@ export function OfficeApp() {
           const localSnapshot = localSessionIdRef.current ? snapshot.get(localSessionIdRef.current) : undefined;
           setInboundAudioMuted(localSnapshot?.status === "do-not-disturb" || localSnapshot?.status === "in-meeting");
           setUserStatus(localSnapshot?.status ?? "available");
-          setActivePetId(localSnapshot?.petId ?? "");
+          const storedPet = window.localStorage.getItem(`gammyverse.pet.${connectionUsername}`) ?? "";
+          const snapshotPet = localSnapshot?.petId ?? "";
+          const localPet = KENNEY_PET_IDS.includes(snapshotPet as KenneyPetId)
+            ? snapshotPet as KenneyPetId
+            : KENNEY_PET_IDS.includes(storedPet as KenneyPetId) ? storedPet as KenneyPetId : "";
+          localPetIdRef.current = localPet;
+          setActivePetId(localPet);
           updateProximityAudioVolumes();
           const rosterLocal = localSessionIdRef.current ? snapshot.get(localSessionIdRef.current) : undefined;
           const inRosterProximity = new Set<string>();
@@ -2254,7 +2298,7 @@ export function OfficeApp() {
             }
           }
           const signature = [...snapshot]
-            .map(([id, player]) => `${id}:${player.presence}:${player.nearby}:${inRosterProximity.has(id)}:${officeMapLayoutRef.current ? voiceRosterAreaKey(player, officeMapLayoutRef.current, id === localSessionIdRef.current ? voiceTargetInputsRef.current.meetingZoneId ?? privateZoneIdRef.current : null) : "lobby"}:${player.displayName}:${player.characterId}:${player.petId}:${player.weaponId}:${player.vehicleId}:${player.vehicleMode}:${player.vehiclePropId}:${player.vehiclePropX}:${player.vehiclePropZ}:${player.vehiclePropRotation}:${player.status}:${player.handRaised}:${player.microphoneEnabled}:${player.cameraEnabled}:${player.screenShareEnabled}`)
+            .map(([id, player]) => `${id}:${player.presence}:${player.nearby}:${inRosterProximity.has(id)}:${officeMapLayoutRef.current ? voiceRosterAreaKey(player, officeMapLayoutRef.current, id === localSessionIdRef.current ? voiceTargetInputsRef.current.meetingZoneId ?? privateZoneIdRef.current : null) : "lobby"}:${player.displayName}:${player.isMaintainer}:${player.characterId}:${player.petId}:${player.weaponId}:${player.vehicleId}:${player.vehicleMode}:${player.vehiclePropId}:${player.vehiclePropX}:${player.vehiclePropZ}:${player.vehiclePropRotation}:${player.status}:${player.handRaised}:${player.microphoneEnabled}:${player.cameraEnabled}:${player.screenShareEnabled}`)
             .sort()
             .join("|");
           if (signature !== peopleSignatureRef.current) {
@@ -2614,12 +2658,18 @@ export function OfficeApp() {
   }
 
   if (authUser.role === "user" && !authUser.characterId) {
+    const onboardingCharacterId = characterDraft ?? DEFAULT_CHARACTER_ID;
+    const onboardingCharacter = characterDetails(onboardingCharacterId, personalAvatarModels);
     return <><main className="character-onboarding">
       <section className="character-onboarding-card">
         <span className="eyebrow">FIRST TIME HERE</span>
         <h1>Choose your character</h1>
         <p>Pick how other people will see you in the shared office.</p>
-        <div className="tutorial-character-picker" data-tutorial-target="character-picker"><CharacterPicker value={characterDraft} onChange={setCharacterDraft} /></div>
+        <section className="character-preview-card onboarding-character-preview" aria-label="Selected character preview">
+          <CharacterPreview3D characterId={onboardingCharacterId} endpoint={endpoint} label={onboardingCharacter.label} fallbackImage={onboardingCharacter.preview} />
+          <div className="character-preview-copy"><span className="eyebrow">3D PREVIEW</span><strong>{onboardingCharacter.label}</strong><span>{onboardingCharacter.source}</span><small>Choose another character below to preview it</small></div>
+        </section>
+        <div className="tutorial-character-picker" data-tutorial-target="character-picker"><CharacterPicker value={characterDraft} currentCharacterId={null} onChange={setCharacterDraft} /></div>
         {characterError && <p className="auth-error" role="alert">{characterError}</p>}
         <button data-tutorial-target="character-continue" className="auth-submit" type="button" disabled={characterBusy || !characterDraft} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : "Continue"}</button>
       </section>
@@ -2641,8 +2691,9 @@ export function OfficeApp() {
         </header>
         {characterPanelMounted && <aside id="character-drawer" className={`character-drawer sidebar-transition${characterPanelOpen ? " is-open" : ""}`} aria-label="User account" aria-hidden={!characterPanelOpen} inert={!characterPanelOpen}>
           <header className="character-drawer-header"><div><span className="eyebrow">YOUR ACCOUNT</span><h2>Account & settings</h2></div></header>
-          <section className="character-account" aria-label="Your account"><span className="character-account-avatar">{(authUser?.username ?? "U").slice(0, 1).toUpperCase()}</span><div className="character-account-name"><strong>{authUser.username}</strong><span>{authUser.role}</span></div><button type="button" className="account-action signout" onClick={signOut}>Sign out</button></section>
+          <section className="character-account" aria-label="Your account"><span className="character-account-avatar">{(authUser?.username ?? "U").slice(0, 1).toUpperCase()}</span><div className="character-account-name"><strong>{playerName({ displayName: authUser.username, isMaintainer: authUser.role === "maintainer" })}</strong><span>{authUser.role}</span></div></section>
           <div className="user-settings-content"><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setCharacterPanelOpen(false); setProfileDialogOpen(true); }}><span><strong>Profile</strong><small>Edit your display name</small></span><span aria-hidden="true">›</span></button></section><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setAccountError(null); setChangePasswordOpen(true); }}><span><strong>Change password</strong><small>Update your sign-in password</small></span><span aria-hidden="true">›</span></button></section></div>
+          <footer className="character-drawer-footer"><button type="button" className="right-drawer-map-mode" aria-label={map2dViewActive ? "Switch to 3D view" : "Switch to 2D view"} onClick={() => map2dToggleRef.current()}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg><span>{map2dViewActive ? "Switch to 3D" : "Switch to 2D"}</span></button><button type="button" className="account-action signout" onClick={signOut}>Sign out</button></footer>
         </aside>}
         <section className="lobby-content">
           <div className="lobby-intro"><span className="eyebrow">YOUR WORKSPACE</span><h1>{authUser.role === "maintainer" ? "Manage offices" : "Choose an office"}</h1><p>Enter an office you belong to, accept an invitation, or start a new office.</p></div>
@@ -2796,7 +2847,7 @@ export function OfficeApp() {
     if (sessionId !== localSessionIdRef.current && !rosterParticipantSessionIds.has(sessionId)) return [];
     const local = sessionId === localSessionIdRef.current;
     const username = player.username.toLocaleLowerCase();
-    return [{ sessionId, username, displayName: player.displayName, status: player.status, presence: player.presence, local, nearby: localRosterRangePlayers.has(sessionId) }];
+    return [{ sessionId, username, displayName: player.displayName, isMaintainer: player.isMaintainer, status: player.status, presence: player.presence, local, nearby: localRosterRangePlayers.has(sessionId) }];
   });
   const openVoiceRosterVideo = (username: string, source: VoiceRosterMediaSource) => {
     const tile = videoTiles.find((candidate) => candidate.username === username.toLocaleLowerCase() && candidate.source === source);
@@ -2819,8 +2870,8 @@ export function OfficeApp() {
     <main className={`app-shell${characterPanelOpen ? " character-panel-open" : ""}`}>
       <PageTutorial page={meetingEntry ? "meeting" : "office"} username={authUser.username} />
       {profileDialog}
-      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} cameraBehindCharacterRef={cameraBehindCharacterRef} firstPersonViewRef={firstPersonViewRef} map2dDecorationsRef={social.decorationsRef} map2dViewRef={map2dViewRef} locateRequestRef={locateRequestRef} autoMoveStatusRevisionRef={autoMoveStatusRevisionRef} propsConfigVersion={modifyPropsOpen ? modifyPropsVersion : mapPropsConfigVersion} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused || Boolean(social.interaction)} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} jumpStartedAtRef={jumpStartedAtRef} onJump={() => roomRef.current?.send("jump", true)} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); lockedMovementRef.current = null; roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} onSelectPlayer={(sessionId, x, y) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") setMapPlayerAction({ sessionId, displayName: player.displayName, x, y }); }} onGhostModeChange={setGhostMode} />
-      <OfficeSocialOverlay social={social} room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} endpoint={endpoint} officeId={activeOffice.id} username={authUser.username} sessionKey={localSessionIdRef.current} chatTarget={chatTarget} chatContainer={chatContainer} chatVisible={activeLeftTab === "chat" && workspacePanelOpen} onUnread={setChatUnread} raised={playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ?? false} doNotDisturb={userStatus === "do-not-disturb"} zoneUsernames={zoneAudioUsernames} />
+      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} localPetIdRef={localPetIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} cameraBehindCharacterRef={cameraBehindCharacterRef} firstPersonViewRef={firstPersonViewRef} map2dDecorationsRef={social.decorationsRef} map2dViewRef={map2dViewRef} map2dToggleRef={map2dToggleRef} locateRequestRef={locateRequestRef} autoMoveStatusRevisionRef={autoMoveStatusRevisionRef} propsConfigVersion={modifyPropsOpen ? modifyPropsVersion : mapPropsConfigVersion} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused || Boolean(social.interaction)} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} jumpStartedAtRef={jumpStartedAtRef} onJump={() => roomRef.current?.send("jump", true)} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); lockedMovementRef.current = null; roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} onSelectPlayer={(sessionId, x, y) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") setMapPlayerAction({ sessionId, displayName: playerName(player), x, y }); }} onGhostModeChange={setGhostMode} onMapViewChange={setMap2dViewActive} />
+      <OfficeSocialOverlay social={social} room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} endpoint={endpoint} officeId={activeOffice.id} username={authUser.username} sessionKey={localSessionIdRef.current} chatTarget={chatTarget} chatContainer={chatContainer} chatVisible={activeLeftTab === "chat" && workspacePanelOpen} onUnread={setChatUnread} doNotDisturb={userStatus === "do-not-disturb"} zoneUsernames={zoneAudioUsernames} />
       <Minimap layout={displayedOfficeMapLayout} configVersion={mapPropsConfigVersion} playersRef={playersRef} firstPersonViewRef={firstPersonViewRef} hidden={mapEditMode || modifyPropsOpen} onPan={(center) => { locateRequestRef.current = { center, requestId: performance.now() }; }} />
       <VoiceParticipantRoster
         people={voiceRosterPeople}
@@ -2857,12 +2908,13 @@ export function OfficeApp() {
       </header>
       {workspacePanelMounted && <aside id="office-sidebar" className={`office-sidebar sidebar-transition${workspacePanelOpen ? " is-open" : ""}`} aria-label="Office and people" aria-hidden={!workspacePanelOpen} inert={!workspacePanelOpen}>
         <nav className="left-sidebar-nav" aria-label="Office navigation">
-          <button type="button" aria-pressed={activeLeftTab === "workspace"} className={activeLeftTab === "workspace" ? "active" : ""} onClick={() => setActiveLeftTab("workspace")}>Workspace</button>
-          <button type="button" aria-pressed={activeLeftTab === "chat"} onClick={() => setActiveLeftTab("chat")}>Chat {chatUnread > 0 && <span>{chatUnread}</span>}</button>
-          <button type="button" aria-pressed={activeLeftTab === "people"} className={activeLeftTab === "people" ? "active" : ""} onClick={() => setActiveLeftTab("people")}>People <span>{playerCount}</span></button>
-          <button type="button" aria-pressed={activeLeftTab === "activity"} className={activeLeftTab === "activity" ? "active" : ""} onClick={() => setActiveLeftTab("activity")}>Activity</button>
+          <button type="button" aria-label="Workspace" title="Workspace" aria-pressed={activeLeftTab === "workspace"} className={activeLeftTab === "workspace" ? "active" : ""} onClick={() => setActiveLeftTab("workspace")}><FeatherIcon name="office" /></button>
+          <button type="button" aria-label={chatUnread ? `Chat, ${chatUnread} unread` : "Chat"} title="Chat" aria-pressed={activeLeftTab === "chat"} className={activeLeftTab === "chat" ? "active" : ""} onClick={() => setActiveLeftTab("chat")}><FeatherIcon name="chat" />{chatUnread > 0 && <span>{chatUnread}</span>}</button>
+          <button type="button" aria-label={`People, ${playerCount}`} title="People" aria-pressed={activeLeftTab === "people"} className={activeLeftTab === "people" ? "active" : ""} onClick={() => setActiveLeftTab("people")}><FeatherIcon name="people" /><span>{playerCount}</span></button>
+          <button type="button" aria-label="Activity" title="Activity" aria-pressed={activeLeftTab === "activity"} className={activeLeftTab === "activity" ? "active" : ""} onClick={() => setActiveLeftTab("activity")}><FeatherIcon name="clock" /></button>
         </nav>
-        <div ref={setChatContainer} />
+        <div className="office-sidebar-content">
+        <div ref={setChatContainer} className={`sidebar-chat-container${activeLeftTab === "chat" ? " is-active" : ""}`} />
         {activeLeftTab === "workspace" && <section className="sidebar-workspace" aria-label="Your workspace">
           <span className="eyebrow">WORKSPACE</span>
           <h1>{activeOffice.name}</h1>
@@ -2884,9 +2936,9 @@ export function OfficeApp() {
             {people.filter(([id, player]) => `${player.displayName} ${id === localSessionIdRef.current ? "You" : ""}`.toLocaleLowerCase().includes(peopleSearch.trim().toLocaleLowerCase())).map(([id, player]) => (
               <li className="person-row" key={id}>
                 <span className="person-avatar">{player.displayName.slice(0, 1)}</span>
-                <span className="person-info"><strong>{player.handRaised ? "✋ " : ""}{id === localSessionIdRef.current ? "You" : player.displayName}</strong><small>{player.presence === "away" ? "Reconnecting" : id === localSessionIdRef.current ? "At your desk" : player.nearby ? "Nearby" : "In the office"}</small></span>
+                <span className="person-info"><strong>{player.handRaised ? "✋ " : ""}{playerName(player, id === localSessionIdRef.current)}</strong><small>{player.presence === "away" ? "Reconnecting" : id === localSessionIdRef.current ? "At your desk" : player.nearby ? "Nearby" : "In the office"}</small></span>
                 <button type="button" aria-label={`Message ${player.displayName}`} onClick={() => { setChatTarget(player.username); setActiveLeftTab("chat"); }}>DM</button>
-                {(activeOffice.role === "owner" || activeOffice.role === "admin") && <button type="button" onClick={() => roomRef.current?.send("spotlight", { targetUsername: player.username, on: !social.spotlight.usernames.includes(player.username) })}>Spotlight</button>}
+                {(activeOffice.role === "owner" || activeOffice.role === "admin") && <button type="button" className={`person-spotlight-button${social.spotlight.usernames.includes(player.username) ? " is-active" : ""}`} aria-pressed={social.spotlight.usernames.includes(player.username)} onClick={() => roomRef.current?.send("spotlight", { targetUsername: player.username, on: !social.spotlight.usernames.includes(player.username) })}>{social.spotlight.usernames.includes(player.username) ? "Remove spotlight" : "Spotlight"}</button>}
                 <span className="presence-dot" aria-label={player.presence === "away" ? "Reconnecting" : "Online"} />
                 {id !== localSessionIdRef.current && player.presence === "online" && <span className="person-actions">
                   <button type="button" className="person-action-button" title="Go to" onClick={() => roomRef.current?.send("auto-move-to-player", { targetSessionId: id })}>Go</button>
@@ -2917,20 +2969,22 @@ export function OfficeApp() {
             </li>)}
           </ul>}
         </section>}
+        </div>
       </aside>}
 
       {characterPanelMounted && <aside id="character-drawer" className={`character-drawer sidebar-transition${characterPanelOpen ? " is-open" : ""}`} aria-label="User settings menu" aria-hidden={!characterPanelOpen} inert={!characterPanelOpen}>
         <header className="character-drawer-header"><div><span className="eyebrow">YOUR ACCOUNT</span><h2>Account & settings</h2></div></header>
-        <section className="character-account" aria-label="Your account"><span className="character-account-avatar">{(authUser?.username ?? "U").slice(0, 1).toUpperCase()}</span><div className="character-account-name"><strong>{authUser.username}</strong><span>{authUser.role}</span></div><button type="button" className="account-action signout" onClick={signOut}>Sign out</button></section>
+        <section className="character-account" aria-label="Your account"><span className="character-account-avatar">{(authUser?.username ?? "U").slice(0, 1).toUpperCase()}</span><div className="character-account-name"><strong>{playerName({ displayName: authUser.username, isMaintainer: authUser.role === "maintainer" })}</strong><span>{authUser.role}</span></div></section>
         <div className="user-settings-content">
           <section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setCharacterPanelOpen(false); setProfileDialogOpen(true); }}><span><strong>Profile</strong><small>Edit your display name</small></span><span aria-hidden="true">›</span></button></section>
           <section className="user-settings-section" aria-labelledby="character-settings-title">
-            <button type="button" className="settings-menu-row" id="character-settings-title" onClick={() => { setCharacterDraft(authUser.characterId ?? DEFAULT_CHARACTER_ID); setCharacterPanelOpen(false); setWorkspacePanelOpen(false); setCharacterDialogOpen(true); }}><span><strong>Character</strong><small>View and customize your character</small></span><span aria-hidden="true">›</span></button>
+            <button type="button" className="settings-menu-row" id="character-settings-title" onClick={() => { setCharacterDraft(authUser.characterId ?? DEFAULT_CHARACTER_ID); setCharacterDialogInitialPetId(activePetId); setCharacterPanelOpen(false); setWorkspacePanelOpen(false); setCharacterDialogOpen(true); }}><span><strong>Character</strong><small>View and customize your character</small></span><span aria-hidden="true">›</span></button>
           </section>
           <section className="user-settings-section" aria-labelledby="user-settings-title">
             <button type="button" className="settings-menu-row" id="user-settings-title" onClick={() => { setSettingsSection("general"); setPermissionMessage(null); setCharacterPanelOpen(false); setWorkspacePanelOpen(false); setSettingsOpen(true); void refreshBrowserPermissions(); }}><span><strong>Settings</strong><small>General, permissions, and security</small></span><span aria-hidden="true">›</span></button>
           </section>
         </div>
+        <footer className="character-drawer-footer"><button type="button" className="right-drawer-map-mode" aria-label={map2dViewActive ? "Switch to 3D view" : "Switch to 2D view"} onClick={() => map2dToggleRef.current()}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg><span>{map2dViewActive ? "Switch to 3D" : "Switch to 2D"}</span></button><button type="button" className="account-action signout" onClick={signOut}>Sign out</button></footer>
       </aside>}
 
       {characterDialogOpen && <div className="profile-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCharacterDialogOpen(false); }}><section className="profile-dialog character-select-dialog" role="dialog" aria-modal="true" aria-labelledby="character-select-title">
@@ -2940,20 +2994,24 @@ export function OfficeApp() {
             <CharacterPreview3D characterId={previewCharacterId} endpoint={endpoint} label={previewCharacter.label} fallbackImage={previewCharacter.preview} />
             <div className="character-preview-copy"><span className="eyebrow">3D PREVIEW</span><strong>{previewCharacter.label}</strong><span>{previewCharacter.source}</span><small>Drag the model to rotate it</small></div>
           </section>
-          <CharacterPicker value={characterDraft} onChange={setCharacterDraft} />
+          <CharacterPicker value={characterDraft} currentCharacterId={authUser.characterId ?? DEFAULT_CHARACTER_ID} onChange={setCharacterDraft} />
           <section className="personal-models-section" aria-label="Personal 3D models">
             <div className="personal-models-heading"><div><span className="eyebrow">YOUR MODELS</span><p className="personal-model-help">One GLB file with embedded model textures, up to 10 MiB. Only you can choose or remove it.</p></div><button type="button" className="personal-model-add" disabled={avatarUploadBusy} onClick={() => avatarUploadInputRef.current?.click()}>{avatarUploadBusy ? "Uploading…" : "Add model"}</button></div>
             <input ref={avatarUploadInputRef} className="visually-hidden" type="file" accept=".glb,model/gltf-binary" onChange={(event) => void uploadPersonalAvatar(event)} aria-label="Upload a GLB character model" />
             {personalModelsBusy && <p className="personal-model-status">Loading your models…</p>}
             {personalModelsError && <p className="auth-error" role="alert">{personalModelsError}</p>}
-            <PersonalAvatarPicker models={personalAvatarModels} value={characterDraft} currentCharacterId={authUser.characterId} onChange={setCharacterDraft} onRemove={(model) => void removePersonalAvatar(model)} />
+            <PersonalAvatarPicker models={personalAvatarModels} value={characterDraft} currentCharacterId={authUser.characterId ?? DEFAULT_CHARACTER_ID} onChange={setCharacterDraft} onRemove={(model) => void removePersonalAvatar(model)} />
           </section>
           <section className="companion-section" aria-label="Choose a companion pet">
-            <div className="personal-models-heading"><div><span className="eyebrow">COMPANION</span><p className="personal-model-help">Choose a pet to follow you around the office.</p></div><button type="button" className="companion-none" aria-pressed={!activePetId} onClick={() => { setActivePetId(""); window.localStorage.removeItem(`gammyverse.pet.${authUser.username}`); roomRef.current?.send("pet", ""); }}>None</button></div>
-            <div className="companion-picker" role="group" aria-label="Available pets">{KENNEY_PET_IDS.map((petId) => <button type="button" key={petId} className={`companion-card${activePetId === petId ? " selected" : ""}`} aria-pressed={activePetId === petId} title={petLabel(petId)} onClick={() => { setActivePetId(petId); window.localStorage.setItem(`gammyverse.pet.${authUser.username}`, petId); roomRef.current?.send("pet", petId); }}><img src={`/assets/kenney/cube-pets/Previews/${petId}.png`} alt="" loading="lazy" /><span>{petLabel(petId)}</span></button>)}</div>
+            <div className="personal-models-heading"><div><span className="eyebrow">COMPANION</span><p className="personal-model-help">Choose a pet to follow you around the office.</p></div><button type="button" className="companion-none" aria-pressed={!activePetId} onClick={() => { localPetIdRef.current = ""; setActivePetId(""); window.localStorage.removeItem(`gammyverse.pet.${authUser.username}`); roomRef.current?.send("pet", ""); }}>None</button></div>
+            {activePetId && <section className="character-preview-card companion-preview-card" aria-label={`3D preview of ${petLabel(activePetId)}`}>
+              <CharacterPreview3D characterId={activePetId} modelUrl={petModelUrl(activePetId)} endpoint={endpoint} label={petLabel(activePetId)} fallbackImage={petPreviewUrl(activePetId)} />
+              <div className="character-preview-copy"><span className="eyebrow">PET PREVIEW</span><strong>{petLabel(activePetId)}</strong><span>Drag the model to rotate it</span></div>
+            </section>}
+            <div className="companion-picker" role="group" aria-label="Available pets">{KENNEY_PET_IDS.map((petId) => <button type="button" key={petId} className={`companion-card${activePetId === petId ? " selected" : ""}`} aria-pressed={activePetId === petId} title={petLabel(petId)} onClick={() => { localPetIdRef.current = petId; setActivePetId(petId); window.localStorage.setItem(`gammyverse.pet.${authUser.username}`, petId); roomRef.current?.send("pet", petId); }}><PetThumbnail petId={petId} fallbackPreview={petPreviewUrl(petId)} /><span>{petLabel(petId)}</span></button>)}</div>
           </section>
         </div>
-        <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" disabled={characterBusy || !characterDraft || characterDraft === authUser.characterId} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : "Save character"}</button></footer>
+        <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" aria-busy={characterBusy} disabled={characterBusy || !characterDraft || (characterDraft === authUser.characterId && activePetId === characterDialogInitialPetId)} onClick={() => { if (characterDraft === authUser.characterId) setCharacterDialogOpen(false); else void saveCharacter(); }}>{characterBusy ? "Saving…" : "Save character"}</button></footer>
       </section></div>}
 
       {settingsOpen && <div className="profile-dialog-backdrop settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="profile-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
@@ -3067,6 +3125,7 @@ export function OfficeApp() {
         <button type="button" className={`dock-button ${cameraEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "video" : "videoOff"} /></button>
         <button type="button" className={`dock-button ${screenShareEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name={screenShareEnabled ? "screen" : "screenOff"} /></button>
         <button type="button" className={`dock-button ${userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "active" : ""}`} aria-pressed={userStatus === "do-not-disturb" || userStatus === "in-meeting"} title={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Headphones off · click to set Available" : "Headphones on · click to turn on Do not disturb"} aria-label={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Turn headphones on" : "Turn headphones off"} onClick={toggleHeadphones}><FeatherIcon name={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "headphonesOff" : "headphones"} /></button>
+        <button type="button" className={`dock-button hand-raise-button${playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ? " active" : ""}`} aria-pressed={Boolean(playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised)} title={playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ? "Lower hand" : "Raise hand · up to 1 minute"} aria-label={playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ? "Lower hand" : "Raise hand"} disabled={appPaused || status !== "connected"} onClick={() => roomRef.current?.send("hand-raise", { raised: !playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised })}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 12V5a1.7 1.7 0 0 1 3.4 0v5-6a1.7 1.7 0 0 1 3.4 0v6-4a1.7 1.7 0 0 1 3.4 0v7l.8-1.8a1.8 1.8 0 0 1 3.3 1.4l-2.2 5.5A6 6 0 0 1 14 21h-1.5a6 6 0 0 1-4.2-1.7L4 15a1.8 1.8 0 0 1 2.5-2.6L8 14"/></svg></button>
         <ReactionPicker room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} disabled={appPaused} />
         <span className="dock-separator" />
         <div className="user-status-dock-control">

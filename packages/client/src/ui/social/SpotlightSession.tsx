@@ -140,57 +140,40 @@ export function SpotlightSession({
     connectKey,
     consented,
   ]);
+  if (usernames.length === 0) return null;
+
   return (
-    <section className="gather-spotlight" aria-label="Spotlight media">
+    <section className="gather-spotlight" aria-label="Spotlight">
+      <header className="spotlight-header">
+        <span className="spotlight-live-indicator" aria-hidden="true" />
+        <div><strong>Spotlight is live</strong><small>{usernames.join(", ")}</small></div>
+      </header>
       {spotlighted && !consented && (
-        <p>
-          You are spotlighted.{" "}
-          <button
-            type="button"
-            onClick={() => setConsent({ epoch, officeId, sessionKey })}
-          >
-            Allow microphone publishing to office
-          </button>
-        </p>
+        <div className="spotlight-invitation">
+          <p>You’ve been invited to speak to everyone in this office. Your microphone stays off until you choose to share.</p>
+          <button className="spotlight-primary-action" type="button" onClick={() => setConsent({ epoch, officeId, sessionKey })}>Share microphone</button>
+        </div>
       )}
       {spotlighted && consented && (
-        <>
-          <button
-            type="button"
-            onClick={() => {
-              setConsent(null);
-              setCamera(false);
-            }}
-          >
-            Stop publishing
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const next = !camera;
-              setCamera(next);
-              void sessionRef.current?.control((room) =>
-                room.localParticipant.setCameraEnabled(next),
-              );
-            }}
-          >
-            {camera
-              ? "Stop spotlight camera"
-              : "Allow spotlight camera publishing"}
-          </button>
-        </>
+        <div className="spotlight-publisher-controls">
+          <p className="spotlight-sharing-status" role="status">Your microphone is shared with the office.</p>
+          <button type="button" className="spotlight-secondary-action" onClick={() => {
+            const next = !camera;
+            setCamera(next);
+            void sessionRef.current?.control((room) => room.localParticipant.setCameraEnabled(next));
+          }}>{camera ? "Turn camera off" : "Share camera"}</button>
+          <button type="button" className="spotlight-stop-action" onClick={() => { setConsent(null); setCamera(false); }}>Stop sharing</button>
+        </div>
       )}
-      {error && <p role="status">{error}</p>}
-      {tracks.map((item) => (
+      {!spotlighted && <p className="spotlight-listener-note">Spotlight audio is shared with everyone in the office.</p>}
+      {error && <p className="spotlight-error" role="alert">Spotlight connection failed: {error}</p>}
+      {tracks.length > 0 && <div className="spotlight-media-grid" aria-label="Spotlight video">{tracks.map((item) => (
         <SpotlightMedia
           key={item.key}
           item={item}
-          volume={spotlightAudioVolume(
-            doNotDisturb,
-            zoneUsernames.has(item.username),
-          )}
+          volume={spotlightAudioVolume(doNotDisturb, zoneUsernames.has(item.username))}
         />
-      ))}
+      ))}</div>}
     </section>
   );
 }

@@ -4,8 +4,10 @@ import { readReconnectAccess, SessionSecurity } from "./sessionSecurity.js";
 import { registerSocialMessages, unregisterSocialMessages, socialPeople } from "./socialMessages.js";
 import { OFFICE_ACCESS_REVOKED_CLOSE_CODE, OFFICE_CLOSED_CLOSE_CODE, Spotlight, spotlightDepartureReason, type SpotlightDeparture } from "./spotlight.js";
 import { defineRoom, Room, type AuthContext, type Client } from "@colyseus/core";
-import { createHash } from "node:crypto";
-import { shouldClearHandRaise, INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidJumpInput, isValidMediaActivity, isValidMovementInput, JUMP_DURATION_MS, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
+import { randomBytes } from "node:crypto";
+import { RouteSearchBudget, RouteWorkLimiter } from "./routeWorkBudget.js";
+import { findAutoRoute, findSeatApproachRoute } from "./routeNavigation.js";
+import { isValidAutoMoveInput, isValidTargetPlayerInput, shouldClearHandRaise, INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidJumpInput, isValidMediaActivity, isValidMovementInput, JUMP_DURATION_MS, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, USER_STATUSES, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type UserStatus, type WorldConfig } from "@gammyverse/shared";
 import { getAccountNickname, getSession, markUserActive } from "../auth/service.js";
 import { isCustomCharacterId, userOwnsCharacterModel } from "../auth/characterModels.js";
 import { getOfficeRole, markOfficeActive } from "./repository.js";
@@ -19,6 +21,7 @@ import { logServerError, logServerEvent } from "../infra/logger.js";
 // buffered movement burst (102) plus 26 control/handshake messages.
 const OFFICE_MAX_MESSAGES_PER_SECOND_COUNT = 128;
 const INITIAL_MESSAGE_COUNT = 0;
+const PROXIMITY_GROUP_ID_BYTES = 12;
 const REPLACED_SESSION_CLOSE_CODE = 4001;
 const OFFICE_ACCESS_REVOKED_REASON = "Office access changed. Reopen the office.";
 const REPLACED_SESSION_REASON = "This account connected from another session.";
@@ -107,6 +110,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   /** Ignore a driver's own parked vehicle while they walk out to a room seat. */
   private seatApproachWorldsBySessionId = new Map<string, SeatApproachWorld>();
   private autoRoutes = new Map<string, AutoRoute>();
+  private routeWorkLimiter = new RouteWorkLimiter();
   private ghostModeBySessionId = new Map<string, boolean>();
   private ghostHintAtBySessionId = new Map<string, number>();
   private pendingSitsBySessionId = new Map<string, PendingSit>();
@@ -388,119 +392,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       if (username) void recordOfficeActivity(this.officeId, username, "vehicle.enter", vehicleId);
       client.send("vehicle-interact-status", { status: "entered", vehicleId });
     });
-    this.onMessage("auto-move", (client: Client, payload: unknown) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || player.status === "do-not-disturb" || player.status === "in-meeting" || typeof payload !== "object" || payload === null || !("x" in payload) || !("z" in payload)) return;
-      const { x, z } = payload as { x: unknown; z: unknown; randomVehicle?: unknown };
-      if (typeof x !== "number" || typeof z !== "number" || !Number.isFinite(x) || !Number.isFinite(z)) return;
-      if (Math.abs(x) > this.world.width / 2 || Math.abs(z) > this.world.depth / 2) return;
-      this.stopFollowing(client.sessionId, "stopped", false);
-      player.sittingPropId = "";
-      player.dancing = false;
-      this.pendingSitsBySessionId.delete(client.sessionId);
-      const previousVehicle = player.vehicleId;
-      const previousVehicleMode = player.vehicleMode;
-      const previousVehiclePropId = player.vehiclePropId;
-      const randomVehicle = "randomVehicle" in payload && payload.randomVehicle === true;
-      const start = { x: player.x, z: player.z };
-      const destination = { x, z };
-      const destinationZone = this.mapLayout.zones
-        .filter((zone) => Math.abs(x - zone.x) <= zone.width / 2 && Math.abs(z - zone.z) <= zone.depth / 2)
-        .sort((a, b) => a.width * a.depth - b.width * b.depth)[0];
-      const sourceZone = this.mapLayout.zones
-        .filter((zone) => Math.abs(start.x - zone.x) <= zone.width / 2 && Math.abs(start.z - zone.z) <= zone.depth / 2)
-        .sort((a, b) => a.width * a.depth - b.width * b.depth)[0];
-      const movingWithinSameRoom = Boolean(sourceZone && destinationZone && sourceZone.id === destinationZone.id);
-      const occupiedSeatIds = new Set([...this.state.players.values()]
-        .filter((other) => other.presence === "online" && Boolean(other.sittingPropId))
-        .map((other) => other.sittingPropId));
-      // Only auto-sit when entering a room. Clicking another point in the
-      // room the player already occupies is an ordinary point-to-point move.
-      const walkingWorld = player.vehicleId
-        ? this.vehicleWorldsBySessionId.get(client.sessionId) ?? this.world
-        : this.world;
-      const walkToSeatRoute = destinationZone && !movingWithinSameRoom
-        ? findSeatApproachRoute(start, destinationZone, this.mapLayout.props, walkingWorld, occupiedSeatIds, destination)
-        : null;
-      const shouldWalkToSeat = Boolean(walkToSeatRoute);
-      // Auto-move vehicles are temporary. Interactively driven vehicles retain
-      // their manual state and prop binding when an auto route is requested.
-      let fastWalkFallback = false;
-      if (randomVehicle && !movingWithinSameRoom && previousVehicleMode !== "manual") {
-        const candidate = KENNEY_VEHICLE_IDS[Math.floor(Math.random() * KENNEY_VEHICLE_IDS.length)]!;
-        const candidateWorld = { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) };
-        if (isPositionWalkable({ x: player.x, z: player.z }, candidateWorld)) {
-          player.vehicleId = candidate;
-          player.vehicleMode = "auto";
-          // Temporary auto-move cars are not parked map props. Do not inherit
-          // a prop id left over from a vehicle the player exited earlier.
-          player.vehiclePropId = "";
-        } else fastWalkFallback = true;
-      }
-      const drivingToRoomSeat = shouldWalkToSeat && player.vehicleMode === "auto" && Boolean(player.vehicleId);
-      const routeWorld = shouldWalkToSeat && !drivingToRoomSeat
-        ? walkingWorld
-        : player.vehicleId
-        ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) }
-        : this.world;
-      const seatRoute = shouldWalkToSeat && !drivingToRoomSeat ? walkToSeatRoute : null;
-      const navigationWorld = this.ghostModeBySessionId.get(client.sessionId) ? ghostCollisionWorld(routeWorld) : routeWorld;
-      let points = seatRoute?.points ?? findAutoRoute(start, destination, navigationWorld);
-      if (!points && randomVehicle && player.vehicleMode === "auto") {
-        // The vehicle cannot reach this destination. Exit cleanly and retry
-        // the same route on foot at the explicit fast fallback speed.
-        this.exitVehicle(client.sessionId, player);
-        fastWalkFallback = true;
-        points = findAutoRoute(start, destination, this.world);
-      }
-      if (!points) {
-        const lockedDestination = Boolean(destinationZone && this.lockedZoneIds.has(destinationZone.id) && sourceZone?.id !== destinationZone.id);
-        const landing = !lockedDestination && randomVehicle ? autoMoveLandingPoint(destination, this.world, destinationZone) : null;
-        if (landing) {
-          if (player.vehicleId) this.exitVehicle(client.sessionId, player);
-          player.x = landing.x;
-          player.z = landing.z;
-          player.sittingPropId = "";
-          player.dancing = false;
-          this.autoRoutes.delete(client.sessionId);
-          this.pendingSitsBySessionId.delete(client.sessionId);
-          this.seatApproachWorldsBySessionId.delete(client.sessionId);
-          this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
-          this.updateMeetingMembership();
-          this.updatePrivateMembership();
-          this.updateProximity();
-          client.send("auto-move-status", { status: "arrived", teleported: true });
-          return;
-        }
-        player.vehicleId = previousVehicle;
-        player.vehicleMode = previousVehicleMode;
-        player.vehiclePropId = previousVehiclePropId;
-        client.send("auto-move-status", { status: "unreachable" });
-        return;
-      }
-      // Only leave a manually driven or temporary vehicle after we know the
-      // requested chair has a valid walkable route.
-      if (seatRoute && player.vehicleId) {
-        if (previousVehiclePropId) this.seatApproachWorldsBySessionId.set(client.sessionId, { world: walkingWorld, propId: previousVehiclePropId });
-        this.exitVehicle(client.sessionId, player);
-      }
-      this.autoRoutes.set(client.sessionId, {
-        points,
-        index: 0,
-        stalledTicks: 0,
-        destination,
-        ...(fastWalkFallback ? { fastWalkFallback: true } : {}),
-        ...(seatRoute ? { sitOnArrivalPropId: seatRoute.propId, sitOnArrivalZoneId: seatRoute.zoneId } : {}),
-        ...(drivingToRoomSeat && destinationZone ? { sitOnArrivalZoneId: destinationZone.id } : {}),
-      });
-      this.pendingSitsBySessionId.delete(client.sessionId);
-      this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
-      if (randomVehicle && !previousVehicle && player.vehicleId) {
-        const username = this.usernamesBySessionId.get(client.sessionId);
-        if (username) void recordOfficeActivity(this.officeId, username, "vehicle.enter", player.vehicleId);
-      }
-      client.send("auto-move-status", { status: "started", randomVehicle: randomVehicle && Boolean(player.vehicleId), vehicleId: player.vehicleId, fastWalkFallback });
-    });
+    this.onMessage("auto-move", this.handleAutoMove.bind(this));
     this.onMessage("ghost-mode", (client: Client, payload: unknown) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || typeof payload !== "object" || payload === null || !("enabled" in payload) || typeof payload.enabled !== "boolean") return;
@@ -514,12 +406,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       }
       this.broadcastGhostMode(client.sessionId, enabled);
     });
-    this.onMessage("follow-player", (client: Client, payload: unknown) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || player.status === "do-not-disturb" || player.status === "in-meeting") return;
-      if (typeof payload !== "object" || payload === null || !("targetSessionId" in payload) || typeof payload.targetSessionId !== "string") return;
-      this.startFollowing(client.sessionId, payload.targetSessionId);
-    });
+    this.onMessage("follow-player", this.handleFollowPlayer.bind(this));
     this.onMessage("follow-stop", (client: Client) => this.stopFollowing(client.sessionId, "stopped"));
     this.onMessage("follow-cancel", (client: Client, payload: unknown) => {
       if (typeof payload !== "object" || payload === null || !("followerSessionId" in payload) || typeof payload.followerSessionId !== "string") return;
@@ -545,24 +432,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       });
       senderClient?.send("wave-status", { status: "sent", targetName: target.displayName });
     });
-    this.onMessage("auto-move-to-player", (client: Client, payload: unknown) => {
-      if (typeof payload !== "object" || payload === null || !("targetSessionId" in payload) || typeof payload.targetSessionId !== "string") return;
-      const follower = this.state.players.get(client.sessionId);
-      const target = this.state.players.get(payload.targetSessionId);
-      if (!follower || follower.status === "do-not-disturb" || follower.status === "in-meeting" || !target || target.presence !== "online" || client.sessionId === payload.targetSessionId || follower.vehicleMode === "manual") {
-        client.send("auto-move-status", { status: "unreachable" });
-        return;
-      }
-      this.stopFollowing(client.sessionId, "stopped", false);
-      const destination = this.followApproachPoint(client.sessionId, follower, target);
-      const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) } : this.world;
-      const points = findAutoRoute({ x: follower.x, z: follower.z }, destination, routeWorld);
-      if (!points) { client.send("auto-move-status", { status: "unreachable" }); return; }
-      this.autoRoutes.set(client.sessionId, { points, index: 0, stalledTicks: 0 });
-      this.pendingSitsBySessionId.delete(client.sessionId);
-      this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
-      client.send("auto-move-status", { status: "started" });
-    });
+    this.onMessage("auto-move-to-player", this.handleAutoMoveToPlayer.bind(this));
     this.onMessage("auto-move-cancel", (client: Client) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
@@ -676,6 +546,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     player.worldVersion = this.worldVersion;
     player.username = auth.username;
     player.displayName = auth.nickname?.trim() || auth.username;
+    player.isMaintainer = auth.officeRole === "maintainer";
     player.characterId = auth.characterId ?? DEFAULT_CHARACTER_ID;
     player.petId = "";
     player.vehicleId = "";
@@ -773,6 +644,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     }
     const player = this.state.players.get(client.sessionId);
     if (player) {
+      player.isMaintainer = access.officeRole === "maintainer";
+      this.officeRolesBySessionId.set(client.sessionId, access.officeRole!);
       if (player.worldVersion !== this.worldVersion) {
         const spawn = findSafeSpawn(
           [...this.state.players.entries()]
@@ -837,6 +710,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private clearSessionState(sessionId: string) {
+    this.routeWorkLimiter.forget(sessionId);
     const collections = [
       this.usernamesBySessionId, this.officeRolesBySessionId, this.movementInputs,
       this.ghostModeBySessionId, this.ghostHintAtBySessionId, this.autoRoutes, this.pendingSitsBySessionId,
@@ -1221,7 +1095,14 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         for (const adjacent of next.get(current) ?? []) if (!visited.has(adjacent)) pending.push(adjacent);
       }
       if (component.size < 2) continue;
-      const groupId = createHash("sha256").update([...component].sort().join("\0")).digest("hex").slice(0, 24);
+      // Reuse a room only while its exact membership remains current. A new
+      // incarnation gets a fresh ID, so pending removals and old join tokens
+      // can only affect the retired room even if the same people regroup.
+      const previousGroupId = this.proximityGroupBySessionId.get(sessionId);
+      const previousMembers = previousGroupId && this.proximityGroupMembersById.get(previousGroupId);
+      const groupId = previousGroupId && previousMembers && sameSet(previousMembers, component)
+        ? previousGroupId
+        : randomBytes(PROXIMITY_GROUP_ID_BYTES).toString("hex");
       nextMembersByGroupId.set(groupId, component);
       for (const member of component) nextGroupBySessionId.set(member, groupId);
     }
@@ -1251,6 +1132,150 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.proximityGroupMembersById = nextMembersByGroupId;
   }
 
+  private handleAutoMove(client: Client, payload: unknown) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player || player.status === "do-not-disturb" || player.status === "in-meeting" || !isValidAutoMoveInput(payload)) return;
+    const { x, z } = payload;
+    if (Math.abs(x) > this.world.width / 2 || Math.abs(z) > this.world.depth / 2) return;
+    if (!this.routeWorkLimiter.admit(client.sessionId)) return;
+    const budget = new RouteSearchBudget();
+    this.stopFollowing(client.sessionId, "stopped", false);
+    player.sittingPropId = "";
+    player.dancing = false;
+    this.pendingSitsBySessionId.delete(client.sessionId);
+    const previousVehicle = player.vehicleId;
+    const previousVehicleMode = player.vehicleMode;
+    const previousVehiclePropId = player.vehiclePropId;
+    const randomVehicle = "randomVehicle" in payload && payload.randomVehicle === true;
+    const start = { x: player.x, z: player.z };
+    const destination = { x, z };
+    const destinationZone = this.mapLayout.zones
+      .filter((zone) => Math.abs(x - zone.x) <= zone.width / 2 && Math.abs(z - zone.z) <= zone.depth / 2)
+      .sort((a, b) => a.width * a.depth - b.width * b.depth)[0];
+    const sourceZone = this.mapLayout.zones
+      .filter((zone) => Math.abs(start.x - zone.x) <= zone.width / 2 && Math.abs(start.z - zone.z) <= zone.depth / 2)
+      .sort((a, b) => a.width * a.depth - b.width * b.depth)[0];
+    const movingWithinSameRoom = Boolean(sourceZone && destinationZone && sourceZone.id === destinationZone.id);
+    const occupiedSeatIds = new Set([...this.state.players.values()]
+      .filter((other) => other.presence === "online" && Boolean(other.sittingPropId))
+      .map((other) => other.sittingPropId));
+    // Only auto-sit when entering a room. Clicking another point in the
+    // room the player already occupies is an ordinary point-to-point move.
+    const walkingWorld = player.vehicleId
+      ? this.vehicleWorldsBySessionId.get(client.sessionId) ?? this.world
+      : this.world;
+    const walkToSeatRoute = destinationZone && !movingWithinSameRoom
+      ? findSeatApproachRoute(start, destinationZone, this.mapLayout.props, walkingWorld, occupiedSeatIds, destination, budget)
+      : null;
+    const shouldWalkToSeat = Boolean(walkToSeatRoute);
+    // Auto-move vehicles are temporary. Interactively driven vehicles retain
+    // their manual state and prop binding when an auto route is requested.
+    let fastWalkFallback = false;
+    if (randomVehicle && !movingWithinSameRoom && previousVehicleMode !== "manual") {
+      const candidate = KENNEY_VEHICLE_IDS[Math.floor(Math.random() * KENNEY_VEHICLE_IDS.length)]!;
+      const candidateWorld = { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) };
+      if (isPositionWalkable({ x: player.x, z: player.z }, candidateWorld)) {
+        player.vehicleId = candidate;
+        player.vehicleMode = "auto";
+        // Temporary auto-move cars are not parked map props. Do not inherit
+        // a prop id left over from a vehicle the player exited earlier.
+        player.vehiclePropId = "";
+      } else fastWalkFallback = true;
+    }
+    const drivingToRoomSeat = shouldWalkToSeat && player.vehicleMode === "auto" && Boolean(player.vehicleId);
+    const routeWorld = shouldWalkToSeat && !drivingToRoomSeat
+      ? walkingWorld
+      : player.vehicleId
+      ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) }
+      : this.world;
+    const seatRoute = shouldWalkToSeat && !drivingToRoomSeat ? walkToSeatRoute : null;
+    const navigationWorld = this.ghostModeBySessionId.get(client.sessionId) ? ghostCollisionWorld(routeWorld) : routeWorld;
+    let points = seatRoute?.points ?? findAutoRoute(start, destination, navigationWorld, budget);
+    if (!points && !budget.exhausted && randomVehicle && player.vehicleMode === "auto") {
+      // The vehicle cannot reach this destination. Exit cleanly and retry
+      // the same route on foot at the explicit fast fallback speed.
+      this.exitVehicle(client.sessionId, player);
+      fastWalkFallback = true;
+      points = findAutoRoute(start, destination, this.world, budget);
+    }
+    if (!points) {
+      const lockedDestination = Boolean(destinationZone && this.lockedZoneIds.has(destinationZone.id) && sourceZone?.id !== destinationZone.id);
+      const landing = !budget.exhausted && !lockedDestination && randomVehicle ? autoMoveLandingPoint(destination, this.world, destinationZone) : null;
+      if (landing) {
+        if (player.vehicleId) this.exitVehicle(client.sessionId, player);
+        player.x = landing.x;
+        player.z = landing.z;
+        player.sittingPropId = "";
+        player.dancing = false;
+        this.autoRoutes.delete(client.sessionId);
+        this.pendingSitsBySessionId.delete(client.sessionId);
+        this.seatApproachWorldsBySessionId.delete(client.sessionId);
+        this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
+        this.updateMeetingMembership();
+        this.updatePrivateMembership();
+        this.updateProximity();
+        client.send("auto-move-status", { status: "arrived", teleported: true });
+        return;
+      }
+      player.vehicleId = previousVehicle;
+      player.vehicleMode = previousVehicleMode;
+      player.vehiclePropId = previousVehiclePropId;
+      client.send("auto-move-status", { status: "unreachable" });
+      return;
+    }
+    // Only leave a manually driven or temporary vehicle after we know the
+    // requested chair has a valid walkable route.
+    if (seatRoute && player.vehicleId) {
+      if (previousVehiclePropId) this.seatApproachWorldsBySessionId.set(client.sessionId, { world: walkingWorld, propId: previousVehiclePropId });
+      this.exitVehicle(client.sessionId, player);
+    }
+    this.autoRoutes.set(client.sessionId, {
+      points,
+      index: 0,
+      stalledTicks: 0,
+      destination,
+      ...(fastWalkFallback ? { fastWalkFallback: true } : {}),
+      ...(seatRoute ? { sitOnArrivalPropId: seatRoute.propId, sitOnArrivalZoneId: seatRoute.zoneId } : {}),
+      ...(drivingToRoomSeat && destinationZone ? { sitOnArrivalZoneId: destinationZone.id } : {}),
+    });
+    this.pendingSitsBySessionId.delete(client.sessionId);
+    this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
+    if (randomVehicle && !previousVehicle && player.vehicleId) {
+      const username = this.usernamesBySessionId.get(client.sessionId);
+      if (username) void recordOfficeActivity(this.officeId, username, "vehicle.enter", player.vehicleId);
+    }
+    client.send("auto-move-status", { status: "started", randomVehicle: randomVehicle && Boolean(player.vehicleId), vehicleId: player.vehicleId, fastWalkFallback });
+  }
+
+  private handleAutoMoveToPlayer(client: Client, payload: unknown) {
+    if (!isValidTargetPlayerInput(payload)) return;
+    const follower = this.state.players.get(client.sessionId);
+    const target = this.state.players.get(payload.targetSessionId);
+    if (!follower || follower.status === "do-not-disturb" || follower.status === "in-meeting" || !target || target.presence !== "online" || client.sessionId === payload.targetSessionId || follower.vehicleMode === "manual") {
+      client.send("auto-move-status", { status: "unreachable" });
+      return;
+    }
+    if (!this.routeWorkLimiter.admit(client.sessionId)) return;
+    const budget = new RouteSearchBudget();
+    this.stopFollowing(client.sessionId, "stopped", false);
+    const destination = this.followApproachPoint(client.sessionId, follower, target);
+    const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) } : this.world;
+    const points = findAutoRoute({ x: follower.x, z: follower.z }, destination, routeWorld, budget);
+    if (!points) { client.send("auto-move-status", { status: "unreachable" }); return; }
+    this.autoRoutes.set(client.sessionId, { points, index: 0, stalledTicks: 0 });
+    this.pendingSitsBySessionId.delete(client.sessionId);
+    this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
+    client.send("auto-move-status", { status: "started" });
+  }
+
+  private handleFollowPlayer(client: Client, payload: unknown) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player || player.status === "do-not-disturb" || player.status === "in-meeting") return;
+    if (!isValidTargetPlayerInput(payload)) return;
+    if (!this.routeWorkLimiter.admit(client.sessionId)) return;
+    this.startFollowing(client.sessionId, payload.targetSessionId);
+  }
+
   private followApproachPoint(followerSessionId: string, follower: InstanceType<typeof PlayerState>, target: InstanceType<typeof PlayerState>): Position {
     let dx = follower.x - target.x;
     let dz = follower.z - target.z;
@@ -1275,13 +1300,14 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       followerClient?.send("follow-status", { status: "unavailable", targetSessionId });
       return;
     }
+    const budget = new RouteSearchBudget();
     this.stopFollowing(followerSessionId, "stopped", false);
     this.autoRoutes.delete(followerSessionId);
     const destination = this.followApproachPoint(followerSessionId, follower, target);
     const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) } : this.world;
     const points = Math.hypot(destination.x - follower.x, destination.z - follower.z) <= 1.45
       ? null
-      : findAutoRoute({ x: follower.x, z: follower.z }, destination, routeWorld);
+      : findAutoRoute({ x: follower.x, z: follower.z }, destination, routeWorld, budget);
     if (points === null && Math.hypot(destination.x - follower.x, destination.z - follower.z) > 1.45) {
       followerClient?.send("follow-status", { status: "unreachable", targetSessionId });
       return;
@@ -1315,6 +1341,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
 
   private step(deltaSeconds: number) {
     const now = performance.now();
+    const budget = new RouteSearchBudget();
     for (const [followerSessionId, follow] of this.activeFollowsBySessionId) {
       const follower = this.state.players.get(followerSessionId);
       const target = this.state.players.get(follow.targetSessionId);
@@ -1323,10 +1350,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         continue;
       }
       const targetMoved = Math.hypot(target.x - follow.lastTargetX, target.z - follow.lastTargetZ) >= 0.65;
-      if (now < follow.nextRepathAt || !targetMoved) continue;
+      if (now < follow.nextRepathAt || !targetMoved || budget.exhausted || !this.routeWorkLimiter.admit(followerSessionId)) continue;
       follow.nextRepathAt = now + 350;
-      follow.lastTargetX = target.x;
-      follow.lastTargetZ = target.z;
       const destination = this.followApproachPoint(followerSessionId, follower, target);
       const distanceToFollowPoint = Math.hypot(destination.x - follower.x, destination.z - follower.z);
       if (distanceToFollowPoint <= 1.45) {
@@ -1334,11 +1359,16 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         continue;
       }
       const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) } : this.world;
-      const points = findAutoRoute({ x: follower.x, z: follower.z }, destination, routeWorld);
+      const points = findAutoRoute({ x: follower.x, z: follower.z }, destination, routeWorld, budget);
       if (!points) {
+        // A computation deadline is temporary; retain the old route and retry
+        // without requiring the target to move again.
+        if (budget.exhausted) continue;
         this.stopFollowing(followerSessionId, "blocked");
         continue;
       }
+      follow.lastTargetX = target.x;
+      follow.lastTargetZ = target.z;
       this.autoRoutes.set(followerSessionId, { points, index: 0, stalledTicks: 0, followTargetSessionId: follow.targetSessionId });
     }
     let vehicleCollisionChanged = false;
@@ -1374,16 +1404,16 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       if (route && intent.x === 0 && intent.z === 0) {
         const target = route.points[route.index];
         if (!target) {
-          this.autoRoutes.delete(sessionId);
           if (!route.followTargetSessionId) {
             if (player.vehicleMode === "auto") this.exitVehicle(sessionId, player);
             if (route.sitOnArrivalPropId) {
               if (this.seatPlayerOnProp(player, route.sitOnArrivalPropId)) this.seatApproachWorldsBySessionId.delete(sessionId);
-              else if (route.sitOnArrivalZoneId && this.routeToAvailableSeat(sessionId, player, route.sitOnArrivalZoneId)) continue;
+              else if (route.sitOnArrivalZoneId && this.routeToAvailableSeat(sessionId, player, route.sitOnArrivalZoneId, budget)) continue;
               else this.seatApproachWorldsBySessionId.delete(sessionId);
-            } else if (route.sitOnArrivalZoneId && this.routeToAvailableSeat(sessionId, player, route.sitOnArrivalZoneId)) continue;
+            } else if (route.sitOnArrivalZoneId && this.routeToAvailableSeat(sessionId, player, route.sitOnArrivalZoneId, budget)) continue;
             this.clients.find((client) => client.sessionId === sessionId)?.send("auto-move-status", { status: "arrived" });
           }
+          this.autoRoutes.delete(sessionId);
         } else {
           const dx = target.x - player.x;
           const dz = target.z - player.z;
@@ -1391,16 +1421,16 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
           if (distance < 0.035) {
             route.index += 1;
             if (route.index >= route.points.length) {
-              this.autoRoutes.delete(sessionId);
               if (!route.followTargetSessionId) {
                 if (player.vehicleMode === "auto") this.exitVehicle(sessionId, player);
                 if (route.sitOnArrivalPropId) {
                   if (this.seatPlayerOnProp(player, route.sitOnArrivalPropId)) this.seatApproachWorldsBySessionId.delete(sessionId);
-                  else if (route.sitOnArrivalZoneId && this.routeToAvailableSeat(sessionId, player, route.sitOnArrivalZoneId)) continue;
+                  else if (route.sitOnArrivalZoneId && this.routeToAvailableSeat(sessionId, player, route.sitOnArrivalZoneId, budget)) continue;
                   else this.seatApproachWorldsBySessionId.delete(sessionId);
-                } else if (route.sitOnArrivalZoneId && this.routeToAvailableSeat(sessionId, player, route.sitOnArrivalZoneId)) continue;
+                } else if (route.sitOnArrivalZoneId && this.routeToAvailableSeat(sessionId, player, route.sitOnArrivalZoneId, budget)) continue;
                 this.clients.find((client) => client.sessionId === sessionId)?.send("auto-move-status", { status: "arrived" });
               }
+              this.autoRoutes.delete(sessionId);
             }
           } else {
             intent = { x: dx / distance, z: dz / distance, sprint: input.sprint, receivedAt: input.receivedAt };
@@ -1439,9 +1469,10 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         const actualStep = Math.hypot(next.x - player.x, next.z - player.z);
         route.stalledTicks = actualStep < 0.0001 ? route.stalledTicks + 1 : 0;
         if (route.stalledTicks >= 12) {
+          if (budget.exhausted) continue;
           if (!route.followTargetSessionId && player.vehicleMode === "auto" && route.destination) {
             this.exitVehicle(sessionId, player);
-            const fallbackPoints = findAutoRoute({ x: player.x, z: player.z }, route.destination, this.world);
+            const fallbackPoints = findAutoRoute({ x: player.x, z: player.z }, route.destination, this.world, budget);
             if (fallbackPoints) {
               this.autoRoutes.set(sessionId, {
                 ...route,
@@ -1453,6 +1484,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
               this.clients.find((client) => client.sessionId === sessionId)?.send("auto-move-status", { status: "started", randomVehicle: false, fastWalkFallback: true });
               continue;
             }
+            if (budget.exhausted) continue;
           }
           if (!route.followTargetSessionId && route.destination) {
             const destinationZone = this.mapLayout.zones
@@ -1622,15 +1654,17 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     return true;
   }
 
-  private routeToAvailableSeat(sessionId: string, player: InstanceType<typeof PlayerState>, zoneId: string) {
+  private routeToAvailableSeat(sessionId: string, player: InstanceType<typeof PlayerState>, zoneId: string, budget: RouteSearchBudget) {
+    // The caller keeps its arrival route and retries on the next tick.
+    if (budget.exhausted) return true;
     const zone = this.mapLayout.zones.find((item) => item.id === zoneId);
     if (!zone) return false;
     const occupiedSeatIds = new Set([...this.state.players.values()]
       .filter((other) => other.presence === "online" && Boolean(other.sittingPropId))
       .map((other) => other.sittingPropId));
     const walkingWorld = this.seatApproachWorldsBySessionId.get(sessionId)?.world ?? this.world;
-    const seatRoute = findSeatApproachRoute({ x: player.x, z: player.z }, zone, this.mapLayout.props, walkingWorld, occupiedSeatIds);
-    if (!seatRoute) return false;
+    const seatRoute = findSeatApproachRoute({ x: player.x, z: player.z }, zone, this.mapLayout.props, walkingWorld, occupiedSeatIds, undefined, budget);
+    if (!seatRoute) return budget.exhausted;
     this.autoRoutes.set(sessionId, {
       points: seatRoute.points,
       index: 0,
@@ -1678,179 +1712,5 @@ function findSafeSpawn(occupied: Array<{ x: number; z: number }>, world: WorldCo
     isPositionWalkable(candidate, world) &&
     occupied.every((player) => Math.hypot(player.x - candidate.x, player.z - candidate.z) >= 0.9),
   ) ?? world.spawnPoints[0]!;
-}
-
-function findSeatApproachRoute(start: Position, zone: RoomLayoutZone, props: RoomLayout["props"], world: WorldConfig, occupiedSeatIds: Set<string>, preferredPoint: Position = start) {
-  const seats = props
-    .map((prop) => ({ prop, definition: ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset) }))
-    .filter((entry) => entry.definition?.interaction === "sit"
-      && Math.abs(entry.prop.x - zone.x) <= zone.width / 2
-      && Math.abs(entry.prop.z - zone.z) <= zone.depth / 2)
-    .sort((a, b) => Math.hypot(a.prop.x - preferredPoint.x, a.prop.z - preferredPoint.z) - Math.hypot(b.prop.x - preferredPoint.x, b.prop.z - preferredPoint.z));
-
-  for (const { prop, definition } of seats) {
-    const localFootprint = roomPropCollisionFootprint({ ...prop, rotation: 0 });
-    const seatClearance = roomPropCollisionClearanceRadius(prop, world.playerRadius);
-    const halfWidth = localFootprint.width / 2 + seatClearance + 0.12;
-    const halfDepth = localFootprint.depth / 2 + seatClearance + 0.12;
-    const seatAnchors = roomPropSeatAnchors(prop, definition);
-    for (const anchor of seatAnchors) {
-      const seatId = roomPropSeatReference(prop.id, anchor.index);
-      if (occupiedSeatIds.has(seatId) || occupiedSeatIds.has(prop.id) && anchor.index === 0) continue;
-      const sideOffsets: Position[] = [
-        { x: anchor.localX, z: -halfDepth }, { x: anchor.localX, z: halfDepth },
-        { x: -halfWidth, z: anchor.localZ }, { x: halfWidth, z: anchor.localZ },
-      ];
-      const approaches = sideOffsets.map((offset) => ({
-        x: prop.x + offset.x * Math.cos(prop.rotation) + offset.z * Math.sin(prop.rotation),
-        z: prop.z - offset.x * Math.sin(prop.rotation) + offset.z * Math.cos(prop.rotation),
-      })).sort((a, b) => Math.hypot(a.x - start.x, a.z - start.z) - Math.hypot(b.x - start.x, b.z - start.z));
-      for (const approach of approaches) {
-        const points = findAutoRoute(start, approach, world);
-        if (points) return { points, propId: seatId, zoneId: zone.id };
-      }
-    }
-  }
-  return null;
-}
-
-type GridNode = { x: number; z: number; key: string; f: number };
-
-function findAutoRoute(start: Position, requestedTarget: Position, world: WorldConfig): Position[] | null {
-  const step = 0.5;
-  const keyOf = (x: number, z: number) => `${x},${z}`;
-  const positionOf = (x: number, z: number): Position => ({ x: x * step, z: z * step });
-  // Bound the search by the office's actual grid size. A fixed 100k ceiling
-  // could stop before reaching rooms that require a long detour around walls
-  // on the 200 × 250 m campus.
-  const maxIterations = Math.ceil(world.width / step) * Math.ceil(world.depth / step) + 1;
-  const nearestWalkableCell = (position: Position) => {
-    const centerX = Math.round(position.x / step);
-    const centerZ = Math.round(position.z / step);
-    for (let radius = 0; radius <= 16; radius += 1) {
-      const candidates: Array<{ x: number; z: number; distance: number }> = [];
-      for (let dx = -radius; dx <= radius; dx += 1) {
-        for (let dz = -radius; dz <= radius; dz += 1) {
-          if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) continue;
-          const x = centerX + dx;
-          const z = centerZ + dz;
-          const candidate = positionOf(x, z);
-          if (!isPositionWalkable(candidate, world)) continue;
-          candidates.push({ x, z, distance: (candidate.x - position.x) ** 2 + (candidate.z - position.z) ** 2 });
-        }
-      }
-      if (candidates.length) return candidates.sort((a, b) => a.distance - b.distance)[0]!;
-    }
-    return null;
-  };
-
-  const source = nearestWalkableCell(start);
-  const target = nearestWalkableCell(requestedTarget);
-  if (!source || !target) return null;
-  const sourceKey = keyOf(source.x, source.z);
-  const targetKey = keyOf(target.x, target.z);
-  if (sourceKey === targetKey) return [];
-
-  const heap: GridNode[] = [];
-  const push = (node: GridNode) => {
-    heap.push(node);
-    let index = heap.length - 1;
-    while (index > 0) {
-      const parent = Math.floor((index - 1) / 2);
-      if (heap[parent]!.f <= heap[index]!.f) break;
-      [heap[parent], heap[index]] = [heap[index]!, heap[parent]!];
-      index = parent;
-    }
-  };
-  const pop = () => {
-    const first = heap[0]!;
-    const last = heap.pop()!;
-    if (heap.length) {
-      heap[0] = last;
-      let index = 0;
-      while (true) {
-        const left = index * 2 + 1, right = left + 1;
-        let smallest = index;
-        if (left < heap.length && heap[left]!.f < heap[smallest]!.f) smallest = left;
-        if (right < heap.length && heap[right]!.f < heap[smallest]!.f) smallest = right;
-        if (smallest === index) break;
-        [heap[index], heap[smallest]] = [heap[smallest]!, heap[index]!];
-        index = smallest;
-      }
-    }
-    return first;
-  };
-  const heuristic = (x: number, z: number) => {
-    const dx = Math.abs(target.x - x), dz = Math.abs(target.z - z);
-    return Math.max(dx, dz) + (Math.SQRT2 - 1) * Math.min(dx, dz);
-  };
-  const bestCost = new Map<string, number>([[sourceKey, 0]]);
-  const parentByKey = new Map<string, string>();
-  const closed = new Set<string>();
-  push({ x: source.x, z: source.z, key: sourceKey, f: heuristic(source.x, source.z) });
-  const directions = [
-    [1, 0], [-1, 0], [0, 1], [0, -1],
-    [1, 1], [1, -1], [-1, 1], [-1, -1],
-  ] as const;
-  let iterations = 0;
-  while (heap.length && iterations < maxIterations) {
-    iterations += 1;
-    const current = pop();
-    if (closed.has(current.key)) continue;
-    if (current.key === targetKey) {
-      const route: Position[] = [];
-      let key = targetKey;
-      while (key !== sourceKey) {
-        const [x, z] = key.split(",").map(Number) as [number, number];
-        route.push(positionOf(x, z));
-        key = parentByKey.get(key)!;
-      }
-      route.reverse();
-      return smoothAutoRoute(positionOf(source.x, source.z), route, world);
-    }
-    closed.add(current.key);
-    const currentCost = bestCost.get(current.key)!;
-    for (const [dx, dz] of directions) {
-      const x = current.x + dx, z = current.z + dz;
-      const key = keyOf(x, z);
-      if (closed.has(key) || !isAutoRouteEdgeWalkable(positionOf(current.x, current.z), positionOf(x, z), world)) continue;
-      const nextCost = currentCost + (dx !== 0 && dz !== 0 ? Math.SQRT2 : 1);
-      if (nextCost >= (bestCost.get(key) ?? Number.POSITIVE_INFINITY)) continue;
-      bestCost.set(key, nextCost);
-      parentByKey.set(key, current.key);
-      push({ x, z, key, f: nextCost + heuristic(x, z) });
-    }
-  }
-  return null;
-}
-
-function smoothAutoRoute(start: Position, route: Position[], world: WorldConfig): Position[] {
-  if (route.length < 2) return route;
-  const result: Position[] = [];
-  let anchor = start;
-  let firstCandidate = 0;
-  while (firstCandidate < route.length) {
-    let furthestVisible = firstCandidate;
-    for (let candidate = firstCandidate; candidate < route.length; candidate += 1) {
-      if (isAutoRouteEdgeWalkable(anchor, route[candidate]!, world)) furthestVisible = candidate;
-    }
-    result.push(route[furthestVisible]!);
-    anchor = route[furthestVisible]!;
-    firstCandidate = furthestVisible + 1;
-  }
-  return result;
-}
-
-function isAutoRouteEdgeWalkable(first: Position, second: Position, world: WorldConfig) {
-  const distance = Math.hypot(second.x - first.x, second.z - first.z);
-  const samples = Math.max(1, Math.ceil(distance / 0.12));
-  for (let index = 1; index <= samples; index += 1) {
-    const progress = index / samples;
-    if (!isPositionWalkable({
-      x: first.x + (second.x - first.x) * progress,
-      z: first.z + (second.z - first.z) * progress,
-    }, world)) return false;
-  }
-  return true;
 }
 

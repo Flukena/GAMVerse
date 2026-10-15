@@ -3,6 +3,7 @@ import test from "node:test";
 import { Map2dFrameChanges } from "./map2dFrameChanges";
 import { Map2dPlayerFrames } from "./map2dPlayerFrames";
 import type { Map2dPlayer } from "./map2dDynamicLayer";
+import { playerName } from "../../identity/playerName";
 
 const FRAME_DELTA_S = 1 / 60;
 function frameInputs() {
@@ -50,6 +51,29 @@ test("same snapshot identity still exposes changed names, character, hand and st
   assert.equal(frames.update(inputs, "local", FRAME_DELTA_S), true);
   assert.equal(frames.players.size, 0);
 });
+test("a stationary player's maintainer role change wakes the map and updates its name metadata", () => {
+  const frames = new Map2dPlayerFrames();
+  const target: Map2dPlayer = {
+    x: 0, z: 0, rotation: 0, username: "ops", displayName: "Ops", isMaintainer: false,
+  };
+  const inputs = new Map([["ops", target]]);
+  frames.update(inputs, null, FRAME_DELTA_S);
+  assert.equal(playerName(target), "Ops");
+  assert.equal(playerName(target, true), "You");
+  assert.equal(frames.update(inputs, null, FRAME_DELTA_S), false);
+  target.isMaintainer = true;
+  assert.equal(frames.update(inputs, null, FRAME_DELTA_S), true);
+  const rendered = frames.players.get("ops")!;
+  assert.equal(rendered.isMaintainer, true);
+  assert.equal(playerName(rendered), "Ops (MAINTAINER)");
+  assert.equal(playerName(rendered, true), "You (MAINTAINER)");
+  assert.equal(frames.update(inputs, null, FRAME_DELTA_S), false);
+  target.isMaintainer = false;
+  assert.equal(frames.update(inputs, null, FRAME_DELTA_S), true);
+  assert.equal(rendered.isMaintainer, false);
+  assert.equal(playerName(rendered), "Ops");
+});
+
 test("dirty comparison catches a speaking set mutated in place and skips unchanged idle frames", () => {
   const changes = new Map2dFrameChanges();
   const input = frameInputs();

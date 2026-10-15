@@ -54,6 +54,8 @@ export async function initializeDatabase() {
     { version: 20, file: "020_maintainer_audit.sql" },
     { version: 21, file: "021_account_suspension.sql" },
     { version: 22, file: "022_office_chat_messages.sql" },
+    { version: 23, file: "023_polygonal_mind_character_presets.sql" },
+    { version: 24, file: "024_kaykit_character_presets.sql" },
   ];
   const client = await database.connect();
   try {

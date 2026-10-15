@@ -73,7 +73,7 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
   private teardown: Promise<void> = Promise.resolve();
   private detachListeners: (() => void) | null = null;
   private controls: QueuedControl<R>[] = [];
-  private draining = false;
+  private drainingGeneration: number | null = null;
   private localVideoActive = false;
   private state: VoiceSessionState = { target: null, connected: false, muted: true, busy: false, retryExhausted: false, error: null };
 
@@ -287,16 +287,21 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     return this.enqueueControl(room => room.localParticipant.setMicrophoneEnabled(!muted, VOICE_AUDIO_CAPTURE_OPTIONS), muted);
   }
   private async drainControls(): Promise<void> {
-    if (this.draining) return;
-    this.draining = true;
-    try { await this.runControls(); }
+    const generation = this.generation;
+    if (this.drainingGeneration === generation) return;
+    this.drainingGeneration = generation;
+    try { await this.runControls(generation); }
     finally {
-      this.draining = false;
-      if (this.controls.length && this.state.connected) void this.drainControls();
+      // A browser permission prompt in an old room may remain pending after
+      // disconnect. It must neither block nor unlock the new room's controls.
+      if (this.drainingGeneration === generation) {
+        this.drainingGeneration = null;
+        if (this.controls.length && this.state.connected) void this.drainControls();
+      }
     }
   }
-  private async runControls(): Promise<void> {
-    while (this.state.connected && this.room && this.controls.length) {
+  private async runControls(generation: number): Promise<void> {
+    while (generation === this.generation && this.state.connected && this.room && this.controls.length) {
       await this.executeControl(this.controls.shift()!, this.room);
     }
   }
