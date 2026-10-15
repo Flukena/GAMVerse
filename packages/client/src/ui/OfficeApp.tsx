@@ -491,6 +491,7 @@ export function OfficeApp() {
   const [characterDialogOpen, setCharacterDialogOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [activePetId, setActivePetId] = useState<KenneyPetId | "">("");
+  const [characterDialogInitialPetId, setCharacterDialogInitialPetId] = useState<KenneyPetId | "">("");
   const [autoMoveNotice, setAutoMoveNotice] = useState<string | null>(null);
   const [followingSessionId, setFollowingSessionId] = useState<string | null>(null);
   const [mapPlayerAction, setMapPlayerAction] = useState<{ sessionId: string; displayName: string; x: number; y: number } | null>(null);
@@ -2940,7 +2941,7 @@ export function OfficeApp() {
         <div className="user-settings-content">
           <section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setCharacterPanelOpen(false); setProfileDialogOpen(true); }}><span><strong>Profile</strong><small>Edit your display name</small></span><span aria-hidden="true">›</span></button></section>
           <section className="user-settings-section" aria-labelledby="character-settings-title">
-            <button type="button" className="settings-menu-row" id="character-settings-title" onClick={() => { setCharacterDraft(authUser.characterId ?? DEFAULT_CHARACTER_ID); setCharacterPanelOpen(false); setWorkspacePanelOpen(false); setCharacterDialogOpen(true); }}><span><strong>Character</strong><small>View and customize your character</small></span><span aria-hidden="true">›</span></button>
+            <button type="button" className="settings-menu-row" id="character-settings-title" onClick={() => { setCharacterDraft(authUser.characterId ?? DEFAULT_CHARACTER_ID); setCharacterDialogInitialPetId(activePetId); setCharacterPanelOpen(false); setWorkspacePanelOpen(false); setCharacterDialogOpen(true); }}><span><strong>Character</strong><small>View and customize your character</small></span><span aria-hidden="true">›</span></button>
           </section>
           <section className="user-settings-section" aria-labelledby="user-settings-title">
             <button type="button" className="settings-menu-row" id="user-settings-title" onClick={() => { setSettingsSection("general"); setPermissionMessage(null); setCharacterPanelOpen(false); setWorkspacePanelOpen(false); setSettingsOpen(true); void refreshBrowserPermissions(); }}><span><strong>Settings</strong><small>General, permissions, and security</small></span><span aria-hidden="true">›</span></button>
@@ -2969,7 +2970,7 @@ export function OfficeApp() {
             <div className="companion-picker" role="group" aria-label="Available pets">{KENNEY_PET_IDS.map((petId) => <button type="button" key={petId} className={`companion-card${activePetId === petId ? " selected" : ""}`} aria-pressed={activePetId === petId} title={petLabel(petId)} onClick={() => { setActivePetId(petId); window.localStorage.setItem(`gammyverse.pet.${authUser.username}`, petId); roomRef.current?.send("pet", petId); }}><img src={quaterniusPet(petId)?.preview ?? `/assets/kenney/cube-pets/Previews/${petId}.png`} alt="" loading="lazy" /><span>{petLabel(petId)}</span></button>)}</div>
           </section>
         </div>
-        <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" aria-busy={characterBusy} title={!characterBusy && characterDraft === authUser.characterId ? "This is already your current character" : undefined} disabled={characterBusy || !characterDraft || characterDraft === authUser.characterId} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : characterDraft === authUser.characterId ? "Current character" : "Save character"}</button></footer>
+        <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" aria-busy={characterBusy} title={!characterBusy && characterDraft === authUser.characterId && activePetId === characterDialogInitialPetId ? "Choose another character or pet to enable saving" : undefined} disabled={characterBusy || !characterDraft || (characterDraft === authUser.characterId && activePetId === characterDialogInitialPetId)} onClick={() => { if (characterDraft === authUser.characterId) setCharacterDialogOpen(false); else void saveCharacter(); }}>{characterBusy ? "Saving…" : characterDraft === authUser.characterId ? activePetId !== characterDialogInitialPetId ? "Done" : "Current character" : "Save character"}</button></footer>
       </section></div>}
 
       {settingsOpen && <div className="profile-dialog-backdrop settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="profile-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
