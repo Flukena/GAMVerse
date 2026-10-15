@@ -12,6 +12,25 @@ export const QUATERNIUS_CHARACTERS = {
   },
 } as const;
 
+const QUATERNIUS_PET_NAMES = [
+  "Alien", "Alien_Tall", "Bat", "Bee", "Cactus", "Chicken", "Crab", "Cthulhu", "Cyclops", "Deer", "Demon", "Ghost",
+  "GreenDemon", "Mushroom", "Panda", "Penguin", "Pig", "Skull", "Tree", "YellowDragon", "Yeti",
+] as const;
+
+export const QUATERNIUS_PETS = Object.fromEntries(QUATERNIUS_PET_NAMES.map((name) => {
+  const normalized = name.replaceAll("_", "-").replace(/([a-z])([A-Z])/g, "$1-$2");
+  const id = `quaternius-monster-${normalized.toLowerCase()}`;
+  return [id, {
+    label: normalized.replaceAll("-", " "),
+    modelUrl: `/assets/quaternius/cute-animated-monsters/Models/${name}.gltf`,
+    preview: "/assets/quaternius/cute-animated-monsters/Preview.jpg",
+  }];
+})) as Record<string, { label: string; modelUrl: string; preview: string }>;
+
+export function quaterniusPet(id: string) {
+  return QUATERNIUS_PETS[id];
+}
+
 const cache = new Map<string, Promise<LoadedCharacterAsset>>();
 
 export function loadCharacterAsset(characterId: string, customEndpoint: string): Promise<LoadedCharacterAsset> {

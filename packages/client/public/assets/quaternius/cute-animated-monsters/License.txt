@@ -1,0 +1,9 @@
+Cute Animated Monsters Pack by Quaternius
+https://quaternius.com/packs/cutemonsters.html
+
+CC0 1.0 Universal (Public Domain Dedication)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The glTF files in this directory were sourced from the public mirror below;
+the pack's license and original creator are identified by the official page above.
+https://github.com/agentkaerf/FreeModels/tree/HEAD/Cute%20Animated%20Monsters%20-%20Aug%202020

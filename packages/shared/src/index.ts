@@ -43,6 +43,12 @@ export const KENNEY_PET_IDS = [
   "animal-cow", "animal-crab", "animal-deer", "animal-dog", "animal-elephant", "animal-fish",
   "animal-fox", "animal-giraffe", "animal-hog", "animal-koala", "animal-lion", "animal-monkey",
   "animal-panda", "animal-parrot", "animal-penguin", "animal-pig", "animal-polar", "animal-tiger",
+  "quaternius-monster-alien", "quaternius-monster-alien-tall", "quaternius-monster-bat", "quaternius-monster-bee",
+  "quaternius-monster-cactus", "quaternius-monster-chicken", "quaternius-monster-crab", "quaternius-monster-cthulhu",
+  "quaternius-monster-cyclops", "quaternius-monster-deer", "quaternius-monster-demon", "quaternius-monster-ghost",
+  "quaternius-monster-green-demon", "quaternius-monster-mushroom", "quaternius-monster-panda", "quaternius-monster-penguin",
+  "quaternius-monster-pig", "quaternius-monster-skull", "quaternius-monster-tree", "quaternius-monster-yellow-dragon",
+  "quaternius-monster-yeti",
 ] as const;
 
 export const KENNEY_BLASTER_IDS = [

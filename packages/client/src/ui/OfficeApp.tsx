@@ -21,7 +21,8 @@ import { applyAudioInputPreference, readAudioDevicePreferences, saveAudioInputDe
 import { readVoiceParticipantAudioLevels, saveVoiceParticipantAudioLevels } from "./media/voiceParticipantPreferences";
 import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance, RoomEvent } from "livekit-client";
 import { CharacterPreview3D } from "../world/CharacterPreview3D";
-import { QUATERNIUS_CHARACTERS } from "../assets/characterAssets";
+import { QUATERNIUS_CHARACTERS, quaterniusPet } from "../assets/characterAssets";
+import { CHARACTER_SAVE_TIMEOUT_MS, characterSaveError } from "./characterSaveError";
 import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { Minimap } from "./Minimap";
 import type { Map2dLocateRequest } from "../world/map2d/map2dInput";
@@ -192,7 +193,7 @@ function characterDetails(characterId: CharacterSelectionId, models: PersonalAva
   };
 }
 
-const petLabel = (id: KenneyPetId) => id.replace("animal-", "").replace(/(^|-)([a-z])/g, (_match, dash: string, letter: string) => `${dash ? " " : ""}${letter.toUpperCase()}`);
+const petLabel = (id: KenneyPetId) => quaterniusPet(id)?.label ?? id.replace("animal-", "").replace(/(^|-)([a-z])/g, (_match, dash: string, letter: string) => `${dash ? " " : ""}${letter.toUpperCase()}`);
 const vehicleLabel = (id: KenneyVehicleId) => ({
   "vehicle-speedster": "Speedster", "vehicle-racer": "Racer", "vehicle-suv": "Toy SUV", "vehicle-monster-truck": "Monster Truck", "vehicle-truck": "Toy Truck",
   "car-sedan": "Sedan", "car-hatchback-sports": "Sports Hatchback", "car-taxi": "Taxi", "car-kart-oopi": "Kart",
@@ -767,6 +768,7 @@ export function OfficeApp() {
     try {
       const response = await fetch(`${endpoint}/auth/character`, {
         method: "PATCH",
+        signal: AbortSignal.timeout(CHARACTER_SAVE_TIMEOUT_MS),
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ characterId }),
@@ -776,14 +778,16 @@ export function OfficeApp() {
       try {
         result = JSON.parse(responseText) as { characterId?: CharacterSelectionId; error?: string };
       } catch {
-        throw new Error("The character service returned an invalid response. Please retry.");
+        throw new Error(`The character service returned an unreadable response (HTTP ${response.status}). Please retry; if this continues, check the app server.`);
       }
+      if (response.status === 401) throw new Error("Your sign-in expired before the character could be saved. Reload and sign in again.");
+      if (response.status >= 500) throw new Error(`The character service had a server error (HTTP ${response.status}). Please try again shortly.`);
       if (!response.ok || result.characterId !== characterId) throw new Error(result.error ?? "Could not save your character.");
       setAuthUser((user) => user ? { ...user, characterId: result.characterId! } : user);
       roomRef.current?.send("character", characterId);
       setCharacterDialogOpen(false);
     } catch (cause) {
-      setCharacterError(cause instanceof Error ? cause.message : "Could not save your character.");
+      setCharacterError(characterSaveError(cause));
     } finally {
       setCharacterBusy(false);
     }
@@ -2950,7 +2954,7 @@ export function OfficeApp() {
           </section>
           <section className="companion-section" aria-label="Choose a companion pet">
             <div className="personal-models-heading"><div><span className="eyebrow">COMPANION</span><p className="personal-model-help">Choose a pet to follow you around the office.</p></div><button type="button" className="companion-none" aria-pressed={!activePetId} onClick={() => { setActivePetId(""); window.localStorage.removeItem(`gammyverse.pet.${authUser.username}`); roomRef.current?.send("pet", ""); }}>None</button></div>
-            <div className="companion-picker" role="group" aria-label="Available pets">{KENNEY_PET_IDS.map((petId) => <button type="button" key={petId} className={`companion-card${activePetId === petId ? " selected" : ""}`} aria-pressed={activePetId === petId} title={petLabel(petId)} onClick={() => { setActivePetId(petId); window.localStorage.setItem(`gammyverse.pet.${authUser.username}`, petId); roomRef.current?.send("pet", petId); }}><img src={`/assets/kenney/cube-pets/Previews/${petId}.png`} alt="" loading="lazy" /><span>{petLabel(petId)}</span></button>)}</div>
+            <div className="companion-picker" role="group" aria-label="Available pets">{KENNEY_PET_IDS.map((petId) => <button type="button" key={petId} className={`companion-card${activePetId === petId ? " selected" : ""}`} aria-pressed={activePetId === petId} title={petLabel(petId)} onClick={() => { setActivePetId(petId); window.localStorage.setItem(`gammyverse.pet.${authUser.username}`, petId); roomRef.current?.send("pet", petId); }}><img src={quaterniusPet(petId)?.preview ?? `/assets/kenney/cube-pets/Previews/${petId}.png`} alt="" loading="lazy" /><span>{petLabel(petId)}</span></button>)}</div>
           </section>
         </div>
         <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" disabled={characterBusy || !characterDraft || characterDraft === authUser.characterId} onClick={() => void saveCharacter()}>{characterBusy ? "Saving…" : "Save character"}</button></footer>

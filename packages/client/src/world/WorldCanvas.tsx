@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
-import { loadCharacterAsset, type LoadedCharacterAsset } from "../assets/characterAssets";
+import { loadCharacterAsset, quaterniusPet, type LoadedCharacterAsset } from "../assets/characterAssets";
 import { loadGltfAsset, loadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
 import { getRealtimeEndpoint } from "../realtimeEndpoint";
@@ -2006,7 +2006,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       }
       return model;
     };
-    const getPetModel = (petId: string) => loadKenneyModel(petModels, petId, `/assets/kenney/cube-pets/Models/${petId}.glb`);
+    const getPetModel = (petId: string) => loadKenneyModel(petModels, petId, quaterniusPet(petId)?.modelUrl ?? `/assets/kenney/cube-pets/Models/${petId}.glb`);
     const getVehicleModel = (vehicleId: string) => {
       const models: Record<string, string> = {
         "vehicle-speedster": "/assets/kenney/toy-car-kit/Models/GLB format/vehicle-speedster.glb",
