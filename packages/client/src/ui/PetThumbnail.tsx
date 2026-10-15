@@ -3,11 +3,57 @@ import * as THREE from "three";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import type { KenneyPetId } from "@gammyverse/shared";
 import { loadGltfAsset } from "../assets/loaders";
-import { quaterniusPet } from "../assets/characterAssets";
+import { GOBKIT_PET_THUMBNAIL_ATLAS, gobkitPetThumbnailPosition, petModelUrl as petAssetModelUrl } from "../assets/characterAssets";
 
 const thumbnailCache = new Map<string, string>();
+const THUMBNAIL_DB_NAME = "gammyverse-pet-thumbnails";
+const THUMBNAIL_DB_VERSION = 1;
+let thumbnailDbPromise: Promise<IDBDatabase | null> | null = null;
 let thumbnailRenderer: THREE.WebGLRenderer | null = null;
 let renderQueue: Promise<unknown> = Promise.resolve();
+
+function openThumbnailDb(): Promise<IDBDatabase | null> {
+  if (typeof indexedDB === "undefined") return Promise.resolve(null);
+  if (thumbnailDbPromise) return thumbnailDbPromise;
+  thumbnailDbPromise = new Promise((resolve) => {
+    const request = indexedDB.open(THUMBNAIL_DB_NAME, THUMBNAIL_DB_VERSION);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains("thumbnails")) request.result.createObjectStore("thumbnails", { keyPath: "url" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => resolve(null);
+    request.onblocked = () => resolve(null);
+  });
+  return thumbnailDbPromise;
+}
+
+async function readStoredThumbnail(url: string): Promise<string | null> {
+  try {
+    const db = await openThumbnailDb();
+    if (!db) return null;
+    return await new Promise((resolve) => {
+      const request = db.transaction("thumbnails", "readonly").objectStore("thumbnails").get(url);
+      request.onsuccess = () => resolve(typeof request.result?.image === "string" ? request.result.image : null);
+      request.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function storeThumbnail(url: string, image: string): Promise<void> {
+  try {
+    const db = await openThumbnailDb();
+    if (!db) return;
+    await new Promise<void>((resolve) => {
+      const request = db.transaction("thumbnails", "readwrite").objectStore("thumbnails").put({ url, image });
+      request.onsuccess = () => resolve();
+      request.onerror = () => resolve();
+    });
+  } catch {
+    // Keep the in-memory thumbnail if persistent browser storage is unavailable.
+  }
+}
 
 function getRenderer() {
   if (thumbnailRenderer) return thumbnailRenderer;
@@ -21,7 +67,7 @@ function getRenderer() {
 }
 
 function petModelUrl(petId: KenneyPetId) {
-  return quaterniusPet(petId)?.modelUrl ?? `/assets/kenney/cube-pets/Models/${petId}.glb`;
+  return petAssetModelUrl(petId);
 }
 
 function renderPetThumbnail(petId: KenneyPetId): Promise<string> {
@@ -54,6 +100,7 @@ function renderPetThumbnail(petId: KenneyPetId): Promise<string> {
     renderer.render(scene, camera);
     const thumbnail = renderer.domElement.toDataURL("image/png");
     thumbnailCache.set(url, thumbnail);
+    void storeThumbnail(url, thumbnail);
     scene.remove(model);
     return thumbnail;
   });
@@ -61,7 +108,22 @@ function renderPetThumbnail(petId: KenneyPetId): Promise<string> {
   return result;
 }
 
-export function PetThumbnail({ petId, fallbackPreview }: { petId: KenneyPetId; fallbackPreview: string }) {
+type PetThumbnailProps = { petId: KenneyPetId; fallbackPreview: string };
+
+export function PetThumbnail({ petId, fallbackPreview }: PetThumbnailProps) {
+  const position = gobkitPetThumbnailPosition(petId);
+  if (position) {
+    return <span
+      className="companion-thumbnail-static"
+      style={{ backgroundImage: `url(${GOBKIT_PET_THUMBNAIL_ATLAS})`, backgroundPosition: `${(position.x / 7) * 100}% ${(position.y / 8) * 100}%` }}
+      role="img"
+      aria-label={`${petId.replace(/^gobkit-pet-/, "").replaceAll("-", " ")} thumbnail`}
+    />;
+  }
+  return <DynamicPetThumbnail petId={petId} fallbackPreview={fallbackPreview} />;
+}
+
+function DynamicPetThumbnail({ petId, fallbackPreview }: PetThumbnailProps) {
   const hostRef = useRef<HTMLSpanElement>(null);
   const url = petModelUrl(petId);
   const [thumbnail, setThumbnail] = useState(() => thumbnailCache.get(url) ?? "");
@@ -72,8 +134,20 @@ export function PetThumbnail({ petId, fallbackPreview }: { petId: KenneyPetId; f
     const host = hostRef.current;
     if (!host) return;
     let cancelled = false;
-    const load = () => {
-      void renderPetThumbnail(petId).then((image) => { if (!cancelled) setThumbnail(image); }).catch(() => { if (!cancelled) setFailed(true); });
+    const load = async () => {
+      try {
+        const stored = await readStoredThumbnail(url);
+        if (cancelled) return;
+        if (stored) {
+          thumbnailCache.set(url, stored);
+          setThumbnail(stored);
+          return;
+        }
+        const rendered = await renderPetThumbnail(petId);
+        if (!cancelled) setThumbnail(rendered);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
     };
     if (typeof IntersectionObserver === "undefined") load();
     else {

@@ -14,6 +14,8 @@ export type Map2dProjection = {
   heightPx: number;
   dpr: number;
 };
+
+const CAMPUS_OVERVIEW_MIN_FIT_SCALE = 0.6;
 export function worldToScreen(
   projection: Map2dProjection,
   point: Map2dPoint,
@@ -54,6 +56,24 @@ export function fitMap2dProjection(
     heightPx,
     dpr: 1,
   };
+}
+
+/**
+ * Convert the 3D campus overview's fit-relative zoom into the map canvas scale.
+ * At the 3D-to-overview threshold the whole map fits; farther camera distance
+ * progressively zooms the canvas map out by the same ratio.
+ */
+export function campusOverviewMapScalePxPerM(
+  widthM: number,
+  depthM: number,
+  widthPx: number,
+  heightPx: number,
+  zoomRatio: number,
+  overviewThresholdRatio: number,
+): number {
+  const fitPxPerM = Math.min(widthPx / widthM, heightPx / depthM);
+  const zoomOutScale = overviewThresholdRatio / Math.max(overviewThresholdRatio, zoomRatio);
+  return fitPxPerM * Math.max(CAMPUS_OVERVIEW_MIN_FIT_SCALE, zoomOutScale);
 }
 
 export function clampMap2dScale(pxPerM: number): number {

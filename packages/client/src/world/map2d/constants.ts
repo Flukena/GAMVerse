@@ -1,4 +1,4 @@
-export const MAP2D_DEFAULT_SCALE_PX_PER_M = 12;
+export const MAP2D_DEFAULT_SCALE_PX_PER_M = 24;
 export const MAP2D_MIN_SCALE_PX_PER_M = 1;
 export const MAP2D_MAX_SCALE_PX_PER_M = 80;
 export const MAP2D_DRAG_THRESHOLD_PX = 5;

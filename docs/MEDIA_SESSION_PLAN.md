@@ -1,6 +1,8 @@
 # Media session stability plan ("Client initiated disconnect")
 
-Status: draft for owner approval (2026-10-14), revised after the Codex plan review. Review: `~/basedata/gamverse/client-initiated-disconnect-20261014/codex-plan-review.md`. Nothing here is implemented yet.
+Status: Phases A and B are implemented in the current worktree; this document preserves their design rationale. The verified root causes below describe the starting state on 2026-10-14, not the current implementation. Two-session Compose verification remains outstanding.
+
+Current implementation: `VoiceRoomSession` handles target changes, retries, suspend/resume, and media policy in `packages/client/src/ui/media/voiceRoomSession.ts`. Zone exit hysteresis lives in `packages/shared/src/zoneMembership.ts`; exact-membership proximity room reuse and fresh room incarnations live in `packages/server/src/offices/OfficeRoom.ts`. The 2026-10-15 review also scopes queued media controls to the room generation to prevent a pending permission prompt from blocking a replacement room.
 
 ## Problem
 

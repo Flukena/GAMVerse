@@ -151,6 +151,62 @@ test("stale control completion never changes mute intent of a newer generation",
   const muting = f.session.setMuted(false); await flush(); f.session.setTarget({ ...target, id: "B" }); await flush(); f.rooms[1]!.ready(); await flush(); control.resolve(); await muting; await flush();
   assert.equal(f.states.at(-1)?.muted, true); assert.equal(f.rooms[1]!.microphone.at(-1), false);
 });
+
+test("a pending control in an old room cannot block controls in a new room", async () => {
+  const f = fixture();
+  await join(f);
+  const permission = deferred();
+  const oldControl = f.session.control(async () => permission.promise);
+  await flush();
+
+  f.session.setTarget({ ...target, id: "B" });
+  await flush();
+  f.rooms[1]!.ready();
+  await flush();
+  const newControl = f.session.setMuted(false);
+  await flush();
+
+  try {
+    assert.equal(f.rooms[1]!.microphone.at(-1), true);
+    assert.equal(f.states.at(-1)?.muted, false);
+  } finally {
+    permission.resolve();
+    await oldControl;
+    await newControl;
+    await f.session.dispose();
+  }
+});
+
+test("an old control finishing cannot release a newer room's control queue", async () => {
+  const f = fixture();
+  await join(f);
+  const oldPermission = deferred();
+  const oldControl = f.session.control(async () => oldPermission.promise);
+  await flush();
+  f.session.setTarget({ ...target, id: "B" });
+  await flush();
+  f.rooms[1]!.ready();
+  await flush();
+
+  const newPermission = deferred();
+  let secondControlRan = false;
+  const firstControl = f.session.control(async () => newPermission.promise);
+  await flush();
+  oldPermission.resolve();
+  await oldControl;
+  const secondControl = f.session.control(async () => { secondControlRan = true; });
+  await flush();
+
+  try {
+    assert.equal(secondControlRan, false);
+  } finally {
+    newPermission.resolve();
+    await firstControl;
+    await secondControl;
+    await f.session.dispose();
+  }
+  assert.equal(secondControlRan, true);
+});
 test("401 stops the generation; a new authoritative target gets a fresh attempt", async () => {
   const f = fixture(); f.setTokenError(new VoiceTokenError("Expired", HTTP_UNAUTHORIZED_STATUS)); f.session.setTarget(target); await flush(); assert.equal(f.timers.length, 0);
   f.session.setTarget({ ...target, id: "B" }); await flush(); assert.equal(f.states.at(-1)?.target?.id, "B"); assert.equal(f.timers.length, 0);

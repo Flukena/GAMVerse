@@ -407,6 +407,18 @@ button.voice-participant-media:disabled { opacity: .45; cursor: default; }
 .character-option:hover { border-color: #b7c9bc; background: #f9fbf9; }
 .character-option.selected { border-color: #5c9272; background: #f0f6f1; box-shadow: 0 0 0 1px #5c9272 inset; color: #3f715d; }
 .character-option img { display: block; width: 100%; height: 76px; object-fit: contain; border-radius: 6px; background: #f2f4f1; transform: scale(1.28); }
+.character-option .character-option-avatar-placeholder { display: grid; width: 100%; height: clamp(76px, 10vh, 104px); place-items: center; border-radius: 6px; background: linear-gradient(145deg, #e9f2f6, #d7e7ed); }
+.character-option-avatar-placeholder svg { width: 58px; height: 58px; fill: #39768b; }
+.character-option-avatar-placeholder.tone-1 { background: linear-gradient(145deg, #f8e9dc, #f0cfb8); }
+.character-option-avatar-placeholder.tone-1 svg { fill: #a56442; }
+.character-option-avatar-placeholder.tone-2 { background: linear-gradient(145deg, #e3eee5, #c8e0d0); }
+.character-option-avatar-placeholder.tone-2 svg { fill: #4f8064; }
+.character-option-avatar-placeholder.tone-3 { background: linear-gradient(145deg, #eee7f5, #dcd0ed); }
+.character-option-avatar-placeholder.tone-3 svg { fill: #765c9a; }
+.character-option-avatar-placeholder.tone-4 { background: linear-gradient(145deg, #f6edcf, #eadca6); }
+.character-option-avatar-placeholder.tone-4 svg { fill: #9c812b; }
+.character-option-avatar-placeholder.tone-5 { background: linear-gradient(145deg, #e8ebf1, #d1d9e7); }
+.character-option-avatar-placeholder.tone-5 svg { fill: #5c6d8b; }
 .character-option span { overflow: hidden; padding: 0 2px; font-size: 10px; font-weight: 600; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .character-current-badge { position: absolute; top: 8px; right: 8px; z-index: 1; padding: 3px 6px; border: 1px solid rgba(255,255,255,.82); border-radius: 999px; background: rgba(2,48,71,.82); color: #fff; font: 700 8px/1.2 "DM Sans", sans-serif; letter-spacing: .02em; }
 .personal-avatar-option .character-current-badge { top: 8px; right: 31px; }
@@ -432,10 +444,11 @@ button.voice-participant-media:disabled { opacity: .45; cursor: default; }
 .character-drawer-footer .account-action.signout { width: 100%; min-height: 40px; padding: 0 12px; border-color: rgba(156,90,80,.22); background: rgba(255,255,255,.76); font: 650 11px "DM Sans", sans-serif; }
 .character-drawer-footer .account-action.signout:hover { border-color: rgba(156,90,80,.38); background: #fff7f5; }
 .character-onboarding { display: grid; min-height: 100vh; place-items: center; padding: 24px; background: #eef2ee; }
-.character-onboarding-card { width: min(680px, 100%); padding: 24px; border: 1px solid #e2e9e3; border-radius: 16px; background: #fbfcfb; box-shadow: 0 10px 36px rgba(32, 55, 42, .08); }
+.character-onboarding-card { width: min(680px, 100%); max-height: calc(100vh - 48px); padding: 24px; overflow-y: auto; border: 1px solid #e2e9e3; border-radius: 16px; background: #fbfcfb; box-shadow: 0 10px 36px rgba(32, 55, 42, .08); }
 .character-onboarding-card h1 { margin: 7px 0 4px; color: #27362d; font: 750 24px "Manrope", sans-serif; }
 .character-onboarding-card > p { margin: 0; color: #829087; font-size: 12px; }
 .character-onboarding-card .character-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 19px 0; }
+.onboarding-character-preview { margin-top: 16px; }
 .character-onboarding-card .character-option img { height: 105px; transform: scale(1.22); }
 .character-onboarding-card .auth-submit { margin-top: 12px; }
 .room-error { color: #8a9990; font-size: 9px; }
@@ -923,6 +936,7 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .companion-card, .vehicle-card { display: grid; min-width: 0; gap: 5px; padding: 5px; overflow: hidden; border: 1px solid rgba(2,48,71,.11); border-radius: 10px; background: rgba(255,255,255,.72); color: #345567; text-align: left; cursor: pointer; }
 .companion-card.selected, .vehicle-card.selected { border-color: #219ebc; box-shadow: 0 0 0 1px #219ebc inset; background: rgba(142,202,230,.3); }
 .companion-card img { width: 100%; height: 55px; border-radius: 6px; background: rgba(142,202,230,.18); object-fit: contain; }
+.companion-card .companion-thumbnail-static { display: block; width: 100%; height: 55px; padding: 0; border-radius: 6px; background-color: rgba(142,202,230,.18); background-repeat: no-repeat; background-size: 800% 900%; }
 .companion-thumbnail-loading { display: block; width: 100%; height: 55px; border-radius: 6px; background: linear-gradient(110deg, rgba(142,202,230,.12) 25%, rgba(255,255,255,.68) 45%, rgba(142,202,230,.12) 65%); background-size: 220% 100%; animation: companion-thumbnail-shimmer 1.2s ease-in-out infinite; }
 @keyframes companion-thumbnail-shimmer { to { background-position-x: -220%; } }
 .companion-card span { overflow: hidden; padding: 0 2px; font-size: 9px; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
@@ -1023,6 +1037,7 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
   font-size: 11px;
   line-height: 1.35;
 }
+.character-option > .character-option-avatar-placeholder { min-height: 0; padding: 0; }
 @media (max-width: 760px) {
   .profile-dialog-content .character-option img { height: clamp(70px, 10vh, 88px); }
   .profile-dialog-content > .character-picker { align-items: stretch; }

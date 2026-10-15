@@ -175,3 +175,11 @@ Reviewed and verified on 2026-10-12:
 - The two previously failing test assumptions were updated: the current campus layout is intentionally empty, and registration/session results include characterId: null.
 
 Validation: pnpm test passed (12 shared tests), pnpm --filter @gammyverse/server test passed (1 test), and pnpm build passed. docker compose config --quiet and git diff --check passed. The Vite build still reports its existing large-chunk warning. No browser performance benchmark, live multi-client media scenario, Caddy parser validation, or production network/TURN test was run. TURN/TLS remains a deployment task requiring a public DNS name, certificate, firewall exposure, and connectivity tests on the target networks.
+
+### Review update — 2026-10-15
+
+- Voice control drains are scoped to a room generation, so a pending browser media-permission request in an old room cannot block or unlock controls in the replacement room. Local media tiles continue to reconcile on all callbacks, while only a newly published local video track opens the popup or changes its focus.
+- Scale-100 skinned pet GLBs require private parses because cloning these rigs with the shared template produced invisible skinning. Private geometry, materials, textures, and skeletons are now disposed on stale completion, pet replacement/departure, and world teardown. Active users still hold separate parsed mesh resources; measure renderer memory and parse time with many pet-owning participants before setting a high-density target, then evaluate sharing mesh resources while keeping skeletons independent.
+- Account role changes and suspensions now canonicalize usernames before database mutation and realtime invalidation. Retrying after a failed realtime kick repeats the kick for persisted role changes and suspensions.
+- Validation on this worktree: `pnpm test` passed (51 shared + 140 client tests), `pnpm --filter @gammyverse/server test` passed (105 tests), server TypeScript check passed, and `pnpm build` passed. Vite still warns that the main JavaScript chunk is 1.86 MB (457 kB gzip), with LiveKit at 561 kB; route-level/demand-based code splitting remains a likely improvement to measure.
+- Browser rendering, camera/microphone permission prompts, two-session zone/meeting transitions, GPU profiling, and network/TURN tests were not verified in this pass.

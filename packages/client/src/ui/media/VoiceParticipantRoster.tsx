@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { playerName } from "../../identity/playerName";
 
 export type VoiceRosterStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
 export type VoiceRosterPerson = {
   sessionId: string;
   displayName: string;
+  isMaintainer?: boolean;
   username: string;
   status: VoiceRosterStatus;
   presence: "online" | "away";
@@ -149,7 +151,7 @@ export function VoiceParticipantRoster({
         return <li key={person.sessionId} style={style}>
           <span className="voice-participant-status-dot" aria-hidden="true" />
           <span className="voice-participant-copy">
-            <strong className={speakingUsernames.has(person.username.toLocaleLowerCase()) ? "is-speaking" : undefined}>{person.local ? "You" : person.displayName}</strong>
+            <strong className={speakingUsernames.has(person.username.toLocaleLowerCase()) ? "is-speaking" : undefined}>{playerName(person, person.local)}</strong>
           {(person.presence === "away" || person.status !== "available") && <small>{person.presence === "away" ? "Away" : STATUS_LABELS[person.status]}</small>}
           </span>
           <span className="voice-participant-activity" aria-label="Media activity">

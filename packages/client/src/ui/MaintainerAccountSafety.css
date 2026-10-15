@@ -1,6 +1,6 @@
 .maintainer-account-safety-list li { flex-wrap: wrap; }
 .maintainer-account-safety-info { min-width: 180px; flex: 1; }
-.maintainer-account-safety-actions { display: flex; align-items: center; gap: 8px; }
+.maintainer-account-safety-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .maintainer-account-status { border-radius: 999px; padding: 4px 8px; background: #e7f4ec; color: #267148; font-size: 10px; font-weight: 700; }
 .maintainer-account-status.is-suspended { background: #fae9e6; color: #a34d42; }
 .maintainer-account-safety-list .maintainer-account-note,

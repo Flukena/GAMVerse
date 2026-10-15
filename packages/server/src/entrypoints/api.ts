@@ -1,8 +1,10 @@
 import { chatHistoryEndpoint } from "./chatHistoryEndpoint.js";
+import { accountRoleEndpoint } from "./accountRoleEndpoint.js";
+import { accountSuspensionEndpoint } from "./accountSuspensionEndpoint.js";
 import express from "express";
 import { createServer } from "node:http";
 import { readRoomLayout } from "@gammyverse/shared";
-import { changeAccountPassword, completePasswordReset, createPasswordResetLink, getSession, listAccountsForMaintainer, loginAccount, pruneInactiveAccounts, registerAccount, revokeSession, setAccountSuspended, updateAccountCharacter, updateAccountNickname } from "../auth/service.js";
+import { changeAccountPassword, completePasswordReset, createPasswordResetLink, getSession, listAccountsForMaintainer, loginAccount, pruneInactiveAccounts, registerAccount, revokeSession, setAccountPlatformRole, setAccountSuspended, updateAccountCharacter, updateAccountNickname } from "../auth/service.js";
 import { deleteUserCharacterModel, getCharacterModel, listUserCharacterModels, uploadUserCharacterModel } from "../auth/characterModels.js";
 import { database, databaseIsReady, initializeDatabase } from "../infra/db.js";
 import { listMaintainerAuditEvents } from "../infra/audit.js";
@@ -90,27 +92,26 @@ function configureApi() {
       app.get("/maintainer/users", async (request: AuthRequest, response: AuthResponse) => {
         const session = await requestSession(request);
         if (!session || session.role !== "maintainer") { response.status(403).json({ error: "Maintainer access required." }); return; }
+        response.setHeader("Cache-Control", "no-store");
         response.json({ users: await listAccountsForMaintainer() });
+      });
+      app.patch("/maintainer/users/:username/role", async (request: AuthRequest, response: AuthResponse) => {
+        const session = await requestSession(request);
+        const result = await accountRoleEndpoint(session, request.params.username, request.body?.role, {
+          setRole: setAccountPlatformRole,
+          disconnectAccount: (username) => notifyRealtime("members/kick-account", { username }),
+        });
+        response.setHeader("Cache-Control", "no-store");
+        response.status(result.status).json(result.body);
       });
       app.patch("/maintainer/users/:username/suspension", async (request: AuthRequest, response: AuthResponse) => {
         const session = await requestSession(request);
-        if (!session || session.role !== "maintainer") { response.status(403).json({ error: "Maintainer access required." }); return; }
-        if (typeof request.body?.suspended !== "boolean") { response.status(400).json({ error: "Suspension status must be true or false." }); return; }
-        try {
-          const result = await setAccountSuspended(session.username, request.params.username, request.body.suspended);
-          if ("error" in result) response.status(400).json(result);
-          else {
-            response.setHeader("Cache-Control", "no-store");
-            if (request.body.suspended) {
-              try { await notifyRealtime("members/kick-account", { username: request.params.username }); }
-              catch {
-                response.status(503).json({ ...result, activeSessionsDisconnected: false, error: "Account is suspended, but active connections could not be closed. Retry after realtime recovers." });
-                return;
-              }
-            }
-            response.json(request.body.suspended ? { ...result, activeSessionsDisconnected: true } : result);
-          }
-        } catch (error) { response.status(503).json({ error: errorMessage(error) }); }
+        const result = await accountSuspensionEndpoint(session, request.params.username, request.body?.suspended, {
+          setSuspended: setAccountSuspended,
+          disconnectAccount: (username) => notifyRealtime("members/kick-account", { username }),
+        });
+        response.setHeader("Cache-Control", "no-store");
+        response.status(result.status).json(result.body);
       });
       app.get("/maintainer/audit", async (request: AuthRequest, response: AuthResponse) => {
         const session = await requestSession(request);
