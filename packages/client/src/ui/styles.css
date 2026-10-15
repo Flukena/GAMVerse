@@ -1244,26 +1244,3 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 @media (hover: none) {
   .app-shell:has(.office-minimap) .page-tutorial-reopen { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
 }
-
-/* Leave a notch for the centered toolbar while keeping both side menus flush to the screen edge. */
-@media (min-width: 761px) and (max-width: 911px) {
-  .app-shell > .office-sidebar {
-    --toolbar-notch-width: calc(460px - 50vw);
-    --toolbar-notch-height: calc(78px + env(safe-area-inset-bottom, 0px));
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--toolbar-notch-height)), calc(100% - var(--toolbar-notch-width)) calc(100% - var(--toolbar-notch-height)), calc(100% - var(--toolbar-notch-width)) 100%, 0 100%);
-  }
-}
-@media (min-width: 761px) and (max-width: 980px) {
-  .app-shell > .character-drawer {
-    --toolbar-notch-width: calc(180px - 50vw + min(310px, 38vw));
-    --toolbar-notch-height: calc(78px + env(safe-area-inset-bottom, 0px));
-    clip-path: polygon(0 0, 100% 0, 100% 100%, var(--toolbar-notch-width) 100%, var(--toolbar-notch-width) calc(100% - var(--toolbar-notch-height)), 0 calc(100% - var(--toolbar-notch-height)));
-  }
-}
-@media (min-width: 1025px) and (max-width: 1080px) {
-  .app-shell > .character-drawer {
-    --toolbar-notch-width: calc(540px - 50vw);
-    --toolbar-notch-height: calc(78px + env(safe-area-inset-bottom, 0px));
-    clip-path: polygon(0 0, 100% 0, 100% 100%, var(--toolbar-notch-width) 100%, var(--toolbar-notch-width) calc(100% - var(--toolbar-notch-height)), 0 calc(100% - var(--toolbar-notch-height)));
-  }
-}
