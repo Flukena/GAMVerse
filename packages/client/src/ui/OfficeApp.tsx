@@ -21,6 +21,7 @@ import { applyAudioInputPreference, readAudioDevicePreferences, saveAudioInputDe
 import { readVoiceParticipantAudioLevels, saveVoiceParticipantAudioLevels } from "./media/voiceParticipantPreferences";
 import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance, RoomEvent } from "livekit-client";
 import { CharacterPreview3D } from "../world/CharacterPreview3D";
+import { PetThumbnail } from "./PetThumbnail";
 import { QUATERNIUS_CHARACTERS, quaterniusPet } from "../assets/characterAssets";
 import { CHARACTER_SAVE_TIMEOUT_MS, characterSaveError } from "./characterSaveError";
 import { getRealtimeEndpoint } from "../realtimeEndpoint";
@@ -2971,7 +2972,7 @@ export function OfficeApp() {
               <CharacterPreview3D characterId={activePetId} modelUrl={quaterniusPet(activePetId)?.modelUrl ?? `/assets/kenney/cube-pets/Models/${activePetId}.glb`} endpoint={endpoint} label={petLabel(activePetId)} fallbackImage={quaterniusPet(activePetId)?.preview ?? `/assets/kenney/cube-pets/Previews/${activePetId}.png`} />
               <div className="character-preview-copy"><span className="eyebrow">PET PREVIEW</span><strong>{petLabel(activePetId)}</strong><span>Drag the model to rotate it</span></div>
             </section>}
-            <div className="companion-picker" role="group" aria-label="Available pets">{KENNEY_PET_IDS.map((petId) => <button type="button" key={petId} className={`companion-card${activePetId === petId ? " selected" : ""}`} aria-pressed={activePetId === petId} title={petLabel(petId)} onClick={() => { setActivePetId(petId); window.localStorage.setItem(`gammyverse.pet.${authUser.username}`, petId); roomRef.current?.send("pet", petId); }}><img src={quaterniusPet(petId)?.preview ?? `/assets/kenney/cube-pets/Previews/${petId}.png`} alt="" loading="lazy" /><span>{petLabel(petId)}</span></button>)}</div>
+            <div className="companion-picker" role="group" aria-label="Available pets">{KENNEY_PET_IDS.map((petId) => <button type="button" key={petId} className={`companion-card${activePetId === petId ? " selected" : ""}`} aria-pressed={activePetId === petId} title={petLabel(petId)} onClick={() => { setActivePetId(petId); window.localStorage.setItem(`gammyverse.pet.${authUser.username}`, petId); roomRef.current?.send("pet", petId); }}><PetThumbnail petId={petId} fallbackPreview={quaterniusPet(petId)?.preview ?? `/assets/kenney/cube-pets/Previews/${petId}.png`} /><span>{petLabel(petId)}</span></button>)}</div>
           </section>
         </div>
         <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" aria-busy={characterBusy} disabled={characterBusy || !characterDraft || (characterDraft === authUser.characterId && activePetId === characterDialogInitialPetId)} onClick={() => { if (characterDraft === authUser.characterId) setCharacterDialogOpen(false); else void saveCharacter(); }}>{characterBusy ? "Saving…" : "Save character"}</button></footer>
