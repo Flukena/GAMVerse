@@ -1190,14 +1190,9 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .app-shell > .office-sidebar {
   top: 0;
   bottom: 0;
-  z-index: 8;
   padding-top: 72px;
   box-sizing: border-box;
   border-radius: 0 0 18px 0;
-}
-.app-shell > .character-drawer { z-index: 8; }
-.app-shell:has(.office-sidebar.is-open) .zone-access-control {
-  left: calc(min(276px, 100vw - 24px) + 12px);
 }
 .office-sidebar > .left-sidebar-nav {
   min-width: 0;
