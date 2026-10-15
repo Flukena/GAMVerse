@@ -72,6 +72,7 @@ export class Map2dRenderer {
   private readonly projection: Map2dProjection = { center: { x: 0, z: 0 }, pxPerM: 0, widthPx: 0, heightPx: 0, dpr: 1 };
   private pointer: {
     id: number;
+    button: number;
     start: ScreenPoint;
     previous: ScreenPoint;
     dragged: boolean;
@@ -89,18 +90,21 @@ export class Map2dRenderer {
     canvas.addEventListener("pointercancel", this.pointerCancel);
     canvas.addEventListener("lostpointercapture", this.pointerCancel);
     canvas.addEventListener("wheel", this.wheel, { passive: false });
+    canvas.addEventListener("contextmenu", this.contextMenu);
   }
   private point(event: PointerEvent | WheelEvent): ScreenPoint {
     const rect = this.canvas.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
   private readonly pointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0 || this.pointer || !this.state?.visible) return;
+    if ((event.button !== 0 && event.button !== 2) || this.pointer || !this.state?.visible) return;
+    if (event.button === 2) event.preventDefault();
     this.canvas.focus();
     this.canvas.setPointerCapture(event.pointerId);
     const point = this.point(event);
     this.pointer = {
       id: event.pointerId,
+      button: event.button,
       start: point,
       previous: point,
       dragged: false,
@@ -127,6 +131,7 @@ export class Map2dRenderer {
     const pointer = this.pointer;
     if (!pointer || pointer.id !== event.pointerId) return;
     this.pointer = null;
+    if (pointer.button !== 0) return;
     const state = this.state;
     const point = this.point(event);
     if (pointer.dragged || isMap2dDrag(pointer.start, point) || !state?.visible) return;
@@ -146,6 +151,7 @@ export class Map2dRenderer {
     )
       this.listener.walk(world);
   };
+  private readonly contextMenu = (event: MouseEvent): void => { event.preventDefault(); };
   private readonly pointerCancel = (event: PointerEvent): void => {
     if (this.pointer?.id === event.pointerId) this.pointer = null;
   };
@@ -239,5 +245,6 @@ export class Map2dRenderer {
     this.canvas.removeEventListener("pointercancel", this.pointerCancel);
     this.canvas.removeEventListener("lostpointercapture", this.pointerCancel);
     this.canvas.removeEventListener("wheel", this.wheel);
+    this.canvas.removeEventListener("contextmenu", this.contextMenu);
   }
 }

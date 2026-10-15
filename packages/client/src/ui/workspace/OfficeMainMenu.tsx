@@ -1,7 +1,5 @@
 import { useId, useState } from "react";
 import { WorkspaceDialog } from "./WorkspaceDialog";
-import { useWorkspaceTheme } from "./useWorkspaceTheme";
-import { parseWorkspaceTheme } from "./workspaceTheme";
 
 interface OfficeMainMenuProps {
   offices: readonly { id: string; name: string }[];
@@ -12,7 +10,6 @@ interface OfficeMainMenuProps {
 
 export function OfficeMainMenu({ offices, currentOfficeId, onSwitchOffice, onOpenChange }: OfficeMainMenuProps) {
   const [open, setOpen] = useState(false);
-  const { theme, setTheme } = useWorkspaceTheme();
   const titleId = useId();
   const dialogId = useId();
   const changeOpen = (next: boolean) => { setOpen(next); onOpenChange?.(next); };
@@ -30,11 +27,6 @@ export function OfficeMainMenu({ offices, currentOfficeId, onSwitchOffice, onOpe
             <span>{office.name}</span>{office.id === currentOfficeId && <small>Current office</small>}
           </button>)}
         </div>
-        <label className="workspace-theme-control">Appearance
-          <select value={theme} onChange={event => setTheme(parseWorkspaceTheme(event.target.value))}>
-            <option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option>
-          </select>
-        </label>
       </section>
     </WorkspaceDialog>}
   </>;

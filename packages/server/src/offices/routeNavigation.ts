@@ -3,6 +3,14 @@ import { RouteSearchBudget } from "./routeWorkBudget.js";
 
 type Position = { x: number; z: number };
 
+export const AUTO_MOVE_TELEPORT_DISTANCE_BLOCKS = 200;
+const AUTO_ROUTE_COLLISION_SAMPLE_STEP_M = 0.24;
+const AUTO_ROUTE_WALKABILITY_CACHE_MAX_ENTRIES = 100_000;
+
+export function autoMoveTravelMode(distanceBlocks: number): "vehicle" | "teleport" {
+  return distanceBlocks > AUTO_MOVE_TELEPORT_DISTANCE_BLOCKS ? "teleport" : "vehicle";
+}
+
 export function findSeatApproachRoute(start: Position, zone: RoomLayoutZone, props: RoomLayout["props"], world: WorldConfig, occupiedSeatIds: Set<string>, preferredPoint: Position = start, budget = new RouteSearchBudget()) {
   const seats = props
     .map((prop) => ({ prop, definition: ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset) }))
@@ -41,9 +49,22 @@ export function findSeatApproachRoute(start: Position, zone: RoomLayoutZone, pro
 type GridNode = { x: number; z: number; key: string; f: number };
 
 export function findAutoRoute(start: Position, requestedTarget: Position, world: WorldConfig, budget = new RouteSearchBudget()): Position[] | null {
-  const step = 0.5;
+  const step = 1;
   const keyOf = (x: number, z: number) => `${x},${z}`;
   const positionOf = (x: number, z: number): Position => ({ x: x * step, z: z * step });
+  const walkabilityCache = new Map<string, boolean>();
+  const isWalkable = (position: Position) => {
+    const key = `${Math.round(position.x * 1000)},${Math.round(position.z * 1000)}`;
+    const cached = walkabilityCache.get(key);
+    if (cached !== undefined) return cached;
+    const walkable = isPositionWalkable(position, world);
+    if (walkabilityCache.size < AUTO_ROUTE_WALKABILITY_CACHE_MAX_ENTRIES) walkabilityCache.set(key, walkable);
+    return walkable;
+  };
+  // Straight unobstructed trips are the common case. Resolve them before grid
+  // search so they neither consume the search budget nor degrade into many
+  // tiny server-tick waypoints.
+  if (isAutoRouteEdgeWalkable(start, requestedTarget, isWalkable, budget)) return [{ ...requestedTarget }];
   // Bound the search by the office's actual grid size. A fixed 100k ceiling
   // could stop before reaching rooms that require a long detour around walls
   // on the 200 × 250 m campus.
@@ -61,7 +82,7 @@ export function findAutoRoute(start: Position, requestedTarget: Position, world:
           const x = centerX + dx;
           const z = centerZ + dz;
           const candidate = positionOf(x, z);
-          if (!isPositionWalkable(candidate, world)) continue;
+          if (!isWalkable(candidate)) continue;
           candidates.push({ x, z, distance: (candidate.x - position.x) ** 2 + (candidate.z - position.z) ** 2 });
         }
       }
@@ -133,14 +154,14 @@ export function findAutoRoute(start: Position, requestedTarget: Position, world:
         key = parentByKey.get(key)!;
       }
       route.reverse();
-      return smoothAutoRoute(positionOf(source.x, source.z), route, world, budget);
+      return smoothAutoRoute(positionOf(source.x, source.z), route, isWalkable, budget);
     }
     closed.add(current.key);
     const currentCost = bestCost.get(current.key)!;
     for (const [dx, dz] of directions) {
       const x = current.x + dx, z = current.z + dz;
       const key = keyOf(x, z);
-      if (closed.has(key) || !isAutoRouteEdgeWalkable(positionOf(current.x, current.z), positionOf(x, z), world, budget)) continue;
+      if (closed.has(key) || !isAutoRouteEdgeWalkable(positionOf(current.x, current.z), positionOf(x, z), isWalkable, budget)) continue;
       const nextCost = currentCost + (dx !== 0 && dz !== 0 ? Math.SQRT2 : 1);
       if (nextCost >= (bestCost.get(key) ?? Number.POSITIVE_INFINITY)) continue;
       bestCost.set(key, nextCost);
@@ -151,19 +172,26 @@ export function findAutoRoute(start: Position, requestedTarget: Position, world:
   return null;
 }
 
-function smoothAutoRoute(start: Position, route: Position[], world: WorldConfig, budget: RouteSearchBudget): Position[] {
+function smoothAutoRoute(start: Position, route: Position[], isWalkable: (position: Position) => boolean, budget: RouteSearchBudget): Position[] {
   if (route.length < 2) return route;
   const result: Position[] = [];
   let anchor = start;
   let firstCandidate = 0;
   while (firstCandidate < route.length) {
-    let furthestVisible = firstCandidate;
-    for (let candidate = firstCandidate; candidate < route.length; candidate += 1) {
+    // Check the farthest remaining waypoint first. The old forward scan tested
+    // every point even after finding a clear direct line, exhausting the small
+    // search budget on straight routes and leaving hundreds of 0.5 m hops.
+    let furthestVisible = -1;
+    for (let candidate = route.length - 1; candidate >= firstCandidate; candidate -= 1) {
       // Smoothing is optional: keep the already validated remaining grid path
       // when the computation deadline is reached.
       if (budget.exhausted) return [...result, ...route.slice(firstCandidate)];
-      if (isAutoRouteEdgeWalkable(anchor, route[candidate]!, world, budget)) furthestVisible = candidate;
+      if (isAutoRouteEdgeWalkable(anchor, route[candidate]!, isWalkable, budget)) {
+        furthestVisible = candidate;
+        break;
+      }
     }
+    if (furthestVisible < 0) return [...result, ...route.slice(firstCandidate)];
     result.push(route[furthestVisible]!);
     anchor = route[furthestVisible]!;
     firstCandidate = furthestVisible + 1;
@@ -171,16 +199,16 @@ function smoothAutoRoute(start: Position, route: Position[], world: WorldConfig,
   return result;
 }
 
-function isAutoRouteEdgeWalkable(first: Position, second: Position, world: WorldConfig, budget: RouteSearchBudget) {
+function isAutoRouteEdgeWalkable(first: Position, second: Position, isWalkable: (position: Position) => boolean, budget: RouteSearchBudget) {
   const distance = Math.hypot(second.x - first.x, second.z - first.z);
-  const samples = Math.max(1, Math.ceil(distance / 0.12));
+  const samples = Math.max(1, Math.ceil(distance / AUTO_ROUTE_COLLISION_SAMPLE_STEP_M));
   for (let index = 1; index <= samples; index += 1) {
     if (budget.exhausted) return false;
     const progress = index / samples;
-    if (!isPositionWalkable({
+    if (!isWalkable({
       x: first.x + (second.x - first.x) * progress,
       z: first.z + (second.z - first.z) * progress,
-    }, world)) return false;
+    })) return false;
   }
   return true;
 }

@@ -22,6 +22,12 @@ test("desk travel resolves authenticated identity and authoritative geometry", a
   assert.equal(f.starts[0] && (f.starts[0] as unknown[])[2], ZONE);
   assert.deepEqual(f.events, [{ status: "started", destination: { x: 12, z: 14 } }]);
 });
+test("an immediate desk teleport is reported as teleported", async () => {
+  const f = fixture();
+  const state = { ...f.state, start: () => "arrived" as const };
+  await new DeskMessages(OFFICE_ID, state, { destination: f.destination }).command(f.client, { deskId: DESK_ID });
+  assert.deepEqual(f.events, [{ status: "arrived", destination: { x: 12, z: 14 }, teleported: true }]);
+});
 test("invalid coordinates and denied ownership never start a route and produce terminal feedback", async () => {
   const f = fixture();
   const messages = new DeskMessages(OFFICE_ID, f.state, { destination: async () => { throw new Error("Claim this desk before returning to it."); } });

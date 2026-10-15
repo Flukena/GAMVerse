@@ -152,7 +152,7 @@ const CLICK_CLIENT_PX = 200;
 const DRAG_END_CLIENT_PX = 240;
 
 function pointerEvent(pointerId: number, clientX = CLICK_CLIENT_PX): PointerEvent {
-  return { pointerId, clientX, clientY: CLICK_CLIENT_PX, button: 0 } as PointerEvent;
+  return { pointerId, clientX, clientY: CLICK_CLIENT_PX, button: 0, buttons: 0 } as PointerEvent;
 }
 
 function withPointerRenderer(check: (handlers: Map<string, EventListener>, walks: unknown[], pans: unknown[], renderer: Map2dRenderer, frame: Map2dFrame) => void): void {
@@ -180,14 +180,17 @@ function withPointerRenderer(check: (handlers: Map<string, EventListener>, walks
   }
 }
 
-test("map click walks once and drag release without move event never walks", () => {
+test("map travel clicks are independent from drag gestures", () => {
   withPointerRenderer((handlers, walks) => {
     handlers.get("pointerdown")!(pointerEvent(PRIMARY_POINTER_ID));
     handlers.get("pointerup")!(pointerEvent(PRIMARY_POINTER_ID));
     assert.equal(walks.length, 1);
     handlers.get("pointerdown")!(pointerEvent(PRIMARY_POINTER_ID));
+    handlers.get("pointerup")!(pointerEvent(PRIMARY_POINTER_ID));
+    assert.equal(walks.length, 2);
+    handlers.get("pointerdown")!(pointerEvent(PRIMARY_POINTER_ID));
     handlers.get("pointerup")!(pointerEvent(PRIMARY_POINTER_ID, DRAG_END_CLIENT_PX));
-    assert.equal(walks.length, 1);
+    assert.equal(walks.length, 2);
   });
 });
 

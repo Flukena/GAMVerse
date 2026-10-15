@@ -21,6 +21,52 @@ type CameraPanInput = {
   deltaYPixel: number;
 };
 
+export function hasExceededCameraDragThreshold(startX: number, startY: number, x: number, y: number, thresholdPx: number): boolean {
+  return Math.hypot(x - startX, y - startY) >= thresholdPx;
+}
+
+export function isCameraClickGesture(startX: number, startY: number, x: number, y: number, dragThresholdPx: number): boolean {
+  return Math.hypot(x - startX, y - startY) < dragThresholdPx;
+}
+
+export type CampusMapPointerAction = "drag-map" | "select-player" | "automove" | "ignore";
+
+export type CameraPointerGestureIdentity = { pointerId: number; button: number; cancelled: boolean };
+
+/** A gesture belongs to the exact pointer and button that started it. */
+export function isConflictingCameraPointerDown(gesture: CameraPointerGestureIdentity, pointerId: number, button: number): boolean {
+  return gesture.pointerId !== pointerId || gesture.button !== button;
+}
+
+/** Only the matching button release may finish an active camera gesture. */
+export function canFinishCameraPointerGesture(
+  gesture: CameraPointerGestureIdentity,
+  pointerId: number,
+  button: number,
+  buttonsStillDown: number,
+): boolean {
+  return !gesture.cancelled && gesture.pointerId === pointerId && gesture.button === button && buttonsStillDown === 0;
+}
+
+export function classifyCampusMapPointerAction(button: number, movementPx: number, dragThresholdPx: number, playerSessionId: string | null): CampusMapPointerAction {
+  if (button !== 0) return "ignore";
+  if (movementPx >= dragThresholdPx) return "drag-map";
+  return playerSessionId ? "select-player" : "automove";
+}
+
+export function findClosestScreenTarget<T extends { id: string; x: number; y: number }>(targets: readonly T[], x: number, y: number, maxDistancePx: number): string | null {
+  let closestId: string | null = null;
+  let closestDistance = maxDistancePx;
+  for (const target of targets) {
+    const distance = Math.hypot(x - target.x, y - target.y);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestId = target.id;
+    }
+  }
+  return closestId;
+}
+
 export function panCameraTarget(input: CameraPanInput): Vector3 {
   const { target, yawRad, distanceM, fovDeg, viewportHeightPixel, deltaXPixel, deltaYPixel } = input;
   const worldMPerPixel = 2 * distanceM * Math.tan(MathUtils.degToRad(fovDeg / 2)) / Math.max(viewportHeightPixel, MIN_CAMERA_VIEWPORT_HEIGHT_PIXEL);
@@ -29,6 +75,12 @@ export function panCameraTarget(input: CameraPanInput): Vector3 {
     0,
     (Math.sin(yawRad) * deltaXPixel - Math.cos(yawRad) * deltaYPixel) * worldMPerPixel,
   ));
+}
+
+export function cameraPanDistanceM(state: CameraState, campusFitDistanceM: number): number {
+  return state.campus && (state.mode === "map2d" || state.editing)
+    ? campusFitDistanceM * state.zoomRatio
+    : state.distanceM;
 }
 
 export function cameraWheelEvent(state: CameraState, deltaYPixel: number, maxDistanceM: number = CAMERA.maxZoom): CameraEvent {

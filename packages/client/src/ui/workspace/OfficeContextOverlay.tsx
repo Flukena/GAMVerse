@@ -16,7 +16,6 @@ export interface OfficeContextOverlayProps {
   onDismissVoiceNotice(): void;
   deskAssignmentNotice?: string | null;
   onDismissDeskAssignmentNotice?(): void;
-  meetingAction?: ReactNode;
   children?: ReactNode;
 }
 export function OfficeContextOverlay(props: OfficeContextOverlayProps) {
@@ -33,7 +32,6 @@ export function OfficeContextOverlay(props: OfficeContextOverlayProps) {
         <span>{props.deskAssignmentNotice}</span><button type="button" aria-label={DISMISS_DESK_NOTICE_LABEL} onClick={props.onDismissDeskAssignmentNotice}>{DISMISS_LABEL}</button>
       </div>}
       {props.children}
-      {props.meetingAction}
     </div>
   </aside>;
 }

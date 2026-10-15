@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { WorkspaceDialog } from "./workspace/WorkspaceDialog";
 import "./MaintainerAccountSafety.css";
 
 export type MaintainerAccount = {
@@ -20,6 +21,9 @@ type RoleResponse = { role?: "user" | "maintainer"; activeSessionsDisconnected?:
 
 type MaintainerAccountSafetyProps = {
   accounts: MaintainerAccount[];
+  total?: number;
+  collectionControls?: ReactNode;
+  pagination?: ReactNode;
   loading?: boolean;
   loadError?: string | null;
   onRetry?: () => void;
@@ -36,12 +40,13 @@ function formatTimestamp(value: string | null) {
   return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString();
 }
 
-export function MaintainerAccountSafety({ accounts, loading = false, loadError = null, onRetry, endpoint, currentUsername, onAccountUpdated, resetUrls = {}, onGenerateResetLink }: MaintainerAccountSafetyProps) {
+export function MaintainerAccountSafety({ accounts, total = accounts.length, collectionControls, pagination, loading = false, loadError = null, onRetry, endpoint, currentUsername, onAccountUpdated, resetUrls = {}, onGenerateResetLink }: MaintainerAccountSafetyProps) {
   const [pendingUsername, setPendingUsername] = useState<string | null>(null);
   const [pendingResetUsername, setPendingResetUsername] = useState<string | null>(null);
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string | null>>({});
   const [roleOverrides, setRoleOverrides] = useState<Record<string, "user" | "maintainer">>({});
   const [feedback, setFeedback] = useState<Record<string, { message: string; error: boolean }>>({});
+  const [selectedUsername, setSelectedUsername] = useState<string | null>(null);
 
   const setRowFeedback = (username: string, message: string, error: boolean) => {
     setFeedback((current) => ({ ...current, [username]: { message, error } }));
@@ -141,48 +146,79 @@ export function MaintainerAccountSafety({ accounts, loading = false, loadError =
   return <section className="lobby-panel maintainer-account-safety" aria-labelledby="maintainer-account-safety-title">
     <div className="card-heading">
       <div><span className="eyebrow">ACCOUNT ACCESS</span><h2 id="maintainer-account-safety-title">Accounts</h2></div>
-      <span className="count-chip">{accounts.length}</span>
+      <span className="count-chip">{total}</span>
     </div>
     <p className="empty-people">Grant or remove maintainer access, or suspend an account to block sign-in and revoke active sessions.</p>
+    {collectionControls}
     {loading ? <p className="empty-people" role="status">Loading platform accounts…</p> : loadError && accounts.length === 0 ? <div><p className="auth-error" role="alert">{loadError}</p>{onRetry && <button className="lobby-button" type="button" onClick={onRetry}>Retry</button>}</div> : accounts.length === 0 ? <p className="empty-people">No accounts found.</p> : <ul className="manager-member-list maintainer-account-safety-list">
       {accounts.map((account) => {
         const suspendedAt = statusOverrides[account.username] ?? account.suspendedAt;
         const role = roleOverrides[account.username] ?? account.role;
         const isSelf = account.username === currentUsername;
-        const isPending = pendingUsername === account.username;
-        const isResetPending = pendingResetUsername === account.username;
-        const resetUrl = resetUrls[account.username];
-        const rowFeedback = feedback[account.username];
         return <li key={account.username}>
-          <div className="maintainer-account-safety-info">
-            <strong>{account.username}</strong>
-            <small>{account.email || "No email"} · Last active {formatTimestamp(account.lastActiveAt)}</small>
-            <small>{role === "maintainer" ? "Platform role: Maintainer" : "Platform role: User"}</small>
-            <small>{suspendedAt ? `Suspended ${formatTimestamp(suspendedAt)}` : "Active account"}</small>
-          </div>
-          <div className="maintainer-account-safety-actions">
-            <span className={`maintainer-account-status${suspendedAt ? " is-suspended" : ""}`} role="status">{suspendedAt ? "Suspended" : "Active"}</span>
-            <button
-              className={`lobby-button${role === "maintainer" ? " danger" : " primary"}`}
-              type="button"
-              disabled={Boolean(pendingUsername) || isSelf}
-              title={isSelf ? "You cannot change your own platform role." : undefined}
-              onClick={() => void updateRole(account)}
-            >{isPending ? "Saving…" : role === "maintainer" ? "Remove maintainer" : "Make maintainer"}</button>
-            {onGenerateResetLink && <button className="lobby-button" type="button" disabled={isResetPending || Boolean(pendingUsername)} onClick={() => void generateResetLink(account.username)}>{isResetPending ? "Generating…" : "Generate reset link"}</button>}
-            <button
-              className={`lobby-button${suspendedAt ? " primary" : " danger"}`}
-              type="button"
-              disabled={Boolean(pendingUsername) || isSelf}
-              title={isSelf ? "You cannot suspend your own maintainer account." : undefined}
-              onClick={() => void updateSuspension(account)}
-            >{isPending ? "Saving…" : suspendedAt ? "Reactivate" : "Suspend"}</button>
-          </div>
-          {resetUrl && <div className="invite-link-box account-reset-link maintainer-account-reset-link"><code>{resetUrl}</code><button className="lobby-button" type="button" onClick={() => void copyResetLink(account.username, resetUrl)}>Copy link</button><small>One use · expires in 15 minutes · generating another link invalidates this one</small></div>}
-          {isSelf && <small className="maintainer-account-note">Your own maintainer account cannot be suspended here.</small>}
-          {rowFeedback?.message && <small className={`maintainer-account-feedback${rowFeedback.error ? " is-error" : ""}`} role={rowFeedback.error ? "alert" : "status"} aria-live="polite">{rowFeedback.message}</small>}
+          <button className="maintainer-account-card" type="button" onClick={() => setSelectedUsername(account.username)} aria-label={`Manage account ${account.username}`}>
+            <span className="maintainer-account-safety-info">
+              <strong>{account.username}</strong>
+              <small>{account.email || "No email"}</small>
+            </span>
+            <span className="maintainer-account-card-meta">
+              <span className={`maintainer-account-status${suspendedAt ? " is-suspended" : ""}`}>{suspendedAt ? "Suspended" : "Active"}</span>
+              <small>{role === "maintainer" ? "Maintainer" : "User"}</small>
+            </span>
+            <span className="maintainer-account-card-open" aria-hidden="true">›</span>
+          </button>
         </li>;
       })}
     </ul>}
+    {pagination}
+    {selectedUsername && (() => {
+      const account = accounts.find((item) => item.username === selectedUsername);
+      if (!account) return null;
+      const suspendedAt = statusOverrides[account.username] ?? account.suspendedAt;
+      const role = roleOverrides[account.username] ?? account.role;
+      const isSelf = account.username === currentUsername;
+      const isPending = pendingUsername === account.username;
+      const isResetPending = pendingResetUsername === account.username;
+      const resetUrl = resetUrls[account.username];
+      const rowFeedback = feedback[account.username];
+      return <WorkspaceDialog className="maintainer-account-dialog" labelledBy="maintainer-account-dialog-title" onClose={() => setSelectedUsername(null)}>
+        <header className="maintainer-account-dialog-header">
+          <div><span className="eyebrow">ACCOUNT DETAILS</span><h2 id="maintainer-account-dialog-title">{account.username}</h2></div>
+          <button className="lobby-button" type="button" onClick={() => setSelectedUsername(null)} aria-label="Close account details">×</button>
+        </header>
+        <div className="maintainer-account-dialog-content">
+          <section className="maintainer-account-dialog-section" aria-labelledby="account-overview-title">
+            <h3 id="account-overview-title">Overview</h3>
+            <dl className="maintainer-account-details">
+              <div><dt>Email</dt><dd>{account.email || "No email"}</dd></div>
+              <div><dt>Platform role</dt><dd>{role === "maintainer" ? "Maintainer" : "User"}</dd></div>
+              <div><dt>Account status</dt><dd><span className={`maintainer-account-status${suspendedAt ? " is-suspended" : ""}`}>{suspendedAt ? "Suspended" : "Active"}</span></dd></div>
+              <div><dt>Last active</dt><dd>{formatTimestamp(account.lastActiveAt)}</dd></div>
+              {suspendedAt && <div><dt>Suspended</dt><dd>{formatTimestamp(suspendedAt)}</dd></div>}
+            </dl>
+          </section>
+          <section className="maintainer-account-dialog-section" aria-labelledby="account-access-title">
+            <h3 id="account-access-title">Access</h3>
+            <p>Manage platform permissions and sign-in access.</p>
+            <div className="maintainer-account-dialog-actions">
+              <button className={`lobby-button${role === "maintainer" ? " danger" : " primary"}`} type="button" disabled={Boolean(pendingUsername) || isSelf} title={isSelf ? "You cannot change your own platform role." : undefined} onClick={() => void updateRole(account)}>
+                {isPending ? "Saving…" : role === "maintainer" ? "Remove maintainer" : "Make maintainer"}
+              </button>
+              <button className={`lobby-button${suspendedAt ? " primary" : " danger"}`} type="button" disabled={Boolean(pendingUsername) || isSelf} title={isSelf ? "You cannot suspend your own maintainer account." : undefined} onClick={() => void updateSuspension(account)}>
+                {isPending ? "Saving…" : suspendedAt ? "Reactivate account" : "Suspend account"}
+              </button>
+            </div>
+            {isSelf && <small className="maintainer-account-note">Your own maintainer access and account cannot be changed here.</small>}
+          </section>
+          {onGenerateResetLink && <section className="maintainer-account-dialog-section" aria-labelledby="account-recovery-title">
+            <h3 id="account-recovery-title">Password recovery</h3>
+            <p>Generate a one-use password reset link. It expires in 15 minutes; generating another link invalidates it.</p>
+            <button className="lobby-button" type="button" disabled={isResetPending || Boolean(pendingUsername)} onClick={() => void generateResetLink(account.username)}>{isResetPending ? "Generating…" : "Generate reset link"}</button>
+            {resetUrl && <div className="invite-link-box account-reset-link maintainer-account-reset-link"><code>{resetUrl}</code><button className="lobby-button" type="button" onClick={() => void copyResetLink(account.username, resetUrl)}>Copy link</button></div>}
+          </section>}
+          {rowFeedback?.message && <p className={`maintainer-account-feedback${rowFeedback.error ? " is-error" : ""}`} role={rowFeedback.error ? "alert" : "status"} aria-live="polite">{rowFeedback.message}</p>}
+        </div>
+      </WorkspaceDialog>;
+    })()}
   </section>;
 }
