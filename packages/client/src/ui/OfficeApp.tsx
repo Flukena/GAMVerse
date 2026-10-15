@@ -2866,7 +2866,7 @@ export function OfficeApp() {
           <button type="button" aria-pressed={activeLeftTab === "people"} className={activeLeftTab === "people" ? "active" : ""} onClick={() => setActiveLeftTab("people")}>People <span>{playerCount}</span></button>
           <button type="button" aria-pressed={activeLeftTab === "activity"} className={activeLeftTab === "activity" ? "active" : ""} onClick={() => setActiveLeftTab("activity")}>Activity</button>
         </nav>
-        <div ref={setChatContainer} />
+        <div ref={setChatContainer} className={`sidebar-chat-container${activeLeftTab === "chat" ? " is-active" : ""}`} />
         {activeLeftTab === "workspace" && <section className="sidebar-workspace" aria-label="Your workspace">
           <span className="eyebrow">WORKSPACE</span>
           <h1>{activeOffice.name}</h1>
