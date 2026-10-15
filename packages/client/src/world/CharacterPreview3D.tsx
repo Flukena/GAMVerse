@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { loadCharacterAsset } from "../assets/characterAssets";
+import { loadGltfAsset } from "../assets/loaders";
 
 type CharacterPreview3DProps = {
   characterId: string;
+  modelUrl?: string;
   endpoint: string;
   label: string;
   fallbackImage?: string | null;
 };
 
-export function CharacterPreview3D({ characterId, endpoint, label, fallbackImage }: CharacterPreview3DProps) {
+export function CharacterPreview3D({ characterId, modelUrl, endpoint, label, fallbackImage }: CharacterPreview3DProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
 
@@ -92,7 +94,10 @@ export function CharacterPreview3D({ characterId, endpoint, label, fallbackImage
     renderer.domElement.addEventListener("pointercancel", onPointerUp);
 
     setLoadState("loading");
-    void loadCharacterAsset(characterId, endpoint).then((asset) => {
+    const assetRequest = modelUrl
+      ? loadGltfAsset(modelUrl).then((gltf) => ({ scene: gltf.scene, animations: gltf.animations }))
+      : loadCharacterAsset(characterId, endpoint);
+    void assetRequest.then((asset) => {
       if (disposed) return;
       model = SkeletonUtils.clone(asset.scene) as THREE.Group;
       const bounds = new THREE.Box3().setFromObject(model);
@@ -141,7 +146,7 @@ export function CharacterPreview3D({ characterId, endpoint, label, fallbackImage
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [characterId, endpoint]);
+  }, [characterId, modelUrl, endpoint]);
 
   return <div ref={hostRef} className="character-preview-stage" role="img" aria-label={`3D preview of ${label}. Drag to rotate.`}>
     <div className={`character-preview-loading${loadState === "loading" ? " visible" : ""}`} aria-hidden="true"><span /></div>

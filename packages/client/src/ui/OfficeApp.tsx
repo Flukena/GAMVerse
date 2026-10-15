@@ -2967,6 +2967,10 @@ export function OfficeApp() {
           </section>
           <section className="companion-section" aria-label="Choose a companion pet">
             <div className="personal-models-heading"><div><span className="eyebrow">COMPANION</span><p className="personal-model-help">Choose a pet to follow you around the office.</p></div><button type="button" className="companion-none" aria-pressed={!activePetId} onClick={() => { setActivePetId(""); window.localStorage.removeItem(`gammyverse.pet.${authUser.username}`); roomRef.current?.send("pet", ""); }}>None</button></div>
+            {activePetId && <section className="character-preview-card companion-preview-card" aria-label={`3D preview of ${petLabel(activePetId)}`}>
+              <CharacterPreview3D characterId={activePetId} modelUrl={quaterniusPet(activePetId)?.modelUrl ?? `/assets/kenney/cube-pets/Models/${activePetId}.glb`} endpoint={endpoint} label={petLabel(activePetId)} fallbackImage={quaterniusPet(activePetId)?.preview ?? `/assets/kenney/cube-pets/Previews/${activePetId}.png`} />
+              <div className="character-preview-copy"><span className="eyebrow">PET PREVIEW</span><strong>{petLabel(activePetId)}</strong><span>Drag the model to rotate it</span></div>
+            </section>}
             <div className="companion-picker" role="group" aria-label="Available pets">{KENNEY_PET_IDS.map((petId) => <button type="button" key={petId} className={`companion-card${activePetId === petId ? " selected" : ""}`} aria-pressed={activePetId === petId} title={petLabel(petId)} onClick={() => { setActivePetId(petId); window.localStorage.setItem(`gammyverse.pet.${authUser.username}`, petId); roomRef.current?.send("pet", petId); }}><img src={quaterniusPet(petId)?.preview ?? `/assets/kenney/cube-pets/Previews/${petId}.png`} alt="" loading="lazy" /><span>{petLabel(petId)}</span></button>)}</div>
           </section>
         </div>
