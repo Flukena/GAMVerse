@@ -1,4 +1,5 @@
 import { registerDeskAssignmentEndpoints } from "../http/deskAssignmentEndpoints.js";
+import { lobbyPageEndpoint } from "../http/lobbyEndpoints.js";
 import { requestRealtimeControl } from "../infra/realtimeControl.js";
 import { registerDeskEndpoints } from "../http/deskEndpoints.js";
 import { chatHistoryEndpoint } from "./chatHistoryEndpoint.js";
@@ -24,6 +25,10 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("API_PO
 const app: any = express();
 const server = createServer(app);
 configureApi();
+
+function hasLobbyPagination(request: AuthRequest) {
+  return ["search", "page", "pageSize"].some((key) => request.query?.[key] !== undefined);
+}
 
 function summarizeOfficeProps(value: unknown) {
   const props = typeof value === "object" && value !== null && "props" in value && Array.isArray((value as { props?: unknown }).props)
@@ -94,6 +99,12 @@ function configureApi() {
       });
       app.get("/maintainer/users", async (request: AuthRequest, response: AuthResponse) => {
         const session = await requestSession(request);
+        if (hasLobbyPagination(request)) {
+          const result = await lobbyPageEndpoint("users", session, request.query);
+          response.setHeader("Cache-Control", "no-store");
+          response.status(result.status).json(result.body);
+          return;
+        }
         if (!session || session.role !== "maintainer") { response.status(403).json({ error: "Maintainer access required." }); return; }
         response.setHeader("Cache-Control", "no-store");
         response.json({ users: await listAccountsForMaintainer() });
@@ -118,6 +129,12 @@ function configureApi() {
       });
       app.get("/maintainer/audit", async (request: AuthRequest, response: AuthResponse) => {
         const session = await requestSession(request);
+        if (hasLobbyPagination(request)) {
+          const result = await lobbyPageEndpoint("events", session, request.query);
+          response.setHeader("Cache-Control", "no-store");
+          response.status(result.status).json(result.body);
+          return;
+        }
         if (!session || session.role !== "maintainer") { response.status(403).json({ error: "Maintainer access required." }); return; }
         const limitValue = typeof request.query?.limit === "string" ? Number(request.query.limit) : undefined;
         const offsetValue = typeof request.query?.offset === "string" ? Number(request.query.offset) : 0;
@@ -281,8 +298,19 @@ function configureApi() {
       });
       app.get("/offices", async (request: AuthRequest, response: AuthResponse) => {
         const session = await requestSession(request);
+        if (hasLobbyPagination(request)) {
+          const result = await lobbyPageEndpoint("offices", session, request.query);
+          response.setHeader("Cache-Control", "no-store");
+          response.status(result.status).json(result.body);
+          return;
+        }
         if (!session) { response.status(401).json({ error: "Authentication required." }); return; }
         response.json({ offices: await listOffices(session.username, session.role === "maintainer"), invites: await listInvites(session.username) });
+      });
+      app.get("/office-invites", async (request: AuthRequest, response: AuthResponse) => {
+        const result = await lobbyPageEndpoint("invites", await requestSession(request), request.query);
+        response.setHeader("Cache-Control", "no-store");
+        response.status(result.status).json(result.body);
       });
       app.post("/offices", async (request: AuthRequest, response: AuthResponse) => {
         const session = await requestSession(request);
@@ -431,7 +459,7 @@ function configureApi() {
             return;
           }
           const message = errorMessage(error);
-          response.status(message.startsWith("Only office owners and admins") || message.includes("access denied") ? 403 : message.includes("PostgreSQL") ? 503 : 400).json({ error: message });
+          response.status(message.startsWith("Only office owners") || message.includes("access denied") ? 403 : message.includes("PostgreSQL") ? 503 : 400).json({ error: message });
         }
       });
       app.patch("/offices/:officeId", async (request: AuthRequest, response: AuthResponse) => {

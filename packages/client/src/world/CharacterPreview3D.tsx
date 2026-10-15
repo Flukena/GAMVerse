@@ -117,7 +117,9 @@ export function CharacterPreview3D({ characterId, modelUrl, endpoint, label, fal
 
       const idleClip = asset.animations.find((clip) => clip.name.toLowerCase() === "idle");
       const firstClip = idleClip ?? asset.animations[0];
-      if (!reduceMotion && firstClip && !isolatedRig) {
+      // Procedural humanoid models need their rig pose to remain authoritative;
+      // a bundled clip can otherwise restore the source T-pose each frame.
+      if (!proceduralRig && !reduceMotion && firstClip && !isolatedRig) {
         mixer = new THREE.AnimationMixer(model);
         mixer.clipAction(firstClip).play();
       }

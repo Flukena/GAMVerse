@@ -247,7 +247,7 @@ export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, 
   if (!storage) throw new Error("Office maps require PostgreSQL.");
   const role = await dependencies.role(actor, officeId, isMaintainer);
   if (!role) throw new Error("Office not found or access denied.");
-  if (!["owner", "admin"].includes(role)) throw new Error("Only office owners and admins can edit the map.");
+  if (!["owner", "admin", "maintainer"].includes(role)) throw new Error("Only office owners, admins, and maintainers can edit the map.");
   if (typeof value !== "object" || value === null || !("layout" in value)) throw new Error("Map layout is invalid.");
   const expectedVersion = (value as { configVersion?: unknown }).configVersion;
   if (!Number.isInteger(expectedVersion) || Number(expectedVersion) < 1) throw new Error("Office map version is invalid.");

@@ -3,8 +3,6 @@ import { deskAssignmentFences } from "./deskAssignmentFences.js";
 import { readOfficeMapProjection } from "./officeMapProjection.js";
 import { DESK_ASSIGNMENT_MAP_CHANGED_LABEL, DESK_ASSIGNMENT_MEDIA_UNAVAILABLE_LABEL, DeskAssignmentError } from "./deskAssignments.js";
 import { type DeskAssignmentFence } from "@gammyverse/shared";
-import { MeetingHandCoordinator } from "./meetingHandCoordinator.js";
-import { registerMeetingHandMessages, deliverMeetingHandEvents } from "./meetingHandMessages.js";
 import { restrictedZoneWorld, findAccessibleSpawn } from "./privateMovement.js";
 import { vehicleExitPosition } from "./vehicleExitPosition.js";
 import { PrivateConversations } from "./privateConversations.js";
@@ -26,7 +24,9 @@ import { OFFICE_ACCESS_REVOKED_CLOSE_CODE, OFFICE_CLOSED_CLOSE_CODE, Spotlight, 
 import { defineRoom, Room, type AuthContext, type Client } from "@colyseus/core";
 import { randomBytes } from "node:crypto";
 import { RouteSearchBudget, RouteWorkLimiter } from "./routeWorkBudget.js";
-import { findAutoRoute, findSeatApproachRoute } from "./routeNavigation.js";
+import { autoMoveDriveSpeed } from "./autoMoveTiming.js";
+import { autoMoveTravelMode, findAutoRoute, findSeatApproachRoute } from "./routeNavigation.js";
+import { autoMoveLandingPoint } from "./autoTeleport.js";
 import { isValidAutoMoveInput, isValidTargetPlayerInput, shouldClearHandRaise, INPUT_MIN_INTERVAL_MS, RECONNECTION_SEAT_TIMEOUT_SECONDS, CAMPUS_WORLD, campusWorldFromConfig, DEFAULT_CHARACTER_ID, isPositionWalkable, isValidJumpInput, isValidMediaActivity, isValidMovementInput, JUMP_DURATION_MS, resolvePlayerFacing, type MovementInput, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, movePlayer, OfficeState, PlayerState, parseRoomPropSeatReference, readRoomLayout, ROOM_PROP_CATALOG, roomLayoutZoneAt, roomPropCollisionFootprint, roomPropSeatAnchors, roomPropSeatReference, WORLD, type KenneyBlasterId, type KenneyCharacterId, type RoomLayout, type RoomLayoutZone, type AvailabilityProfile, defaultAvailability, type WorldConfig } from "@gammyverse/shared";
 import { getAccountNickname, getSession, markUserActive } from "../auth/service.js";
 import { isCustomCharacterId, userOwnsCharacterModel } from "../auth/characterModels.js";
@@ -63,26 +63,11 @@ type MediaZoneTransition = { sessionId: string; zone: RoomLayoutZone; direction:
 
 type InputState = MovementInput & { sprint: boolean; receivedAt: number };
 type Position = { x: number; z: number };
-type AutoRoute = { points: Position[]; index: number; stalledTicks: number; followTargetSessionId?: string; sitOnArrivalPropId?: string; sitOnArrivalZoneId?: string; destination?: Position; fastWalkFallback?: boolean; deskZoneId?: string };
-
-function autoMoveLandingPoint(destination: Position, world: WorldConfig, zone?: RoomLayoutZone) {
-  const isInsideZone = (point: Position) => !zone || (Math.abs(point.x - zone.x) <= zone.width / 2 - world.playerRadius && Math.abs(point.z - zone.z) <= zone.depth / 2 - world.playerRadius);
-  if (isInsideZone(destination) && isPositionWalkable(destination, world)) return destination;
-  for (let radius = 0.25; radius <= 3.25; radius += 0.25) {
-    const candidates = Array.from({ length: 24 }, (_, index) => {
-      const angle = index * Math.PI / 12;
-      return { x: destination.x + Math.cos(angle) * radius, z: destination.z + Math.sin(angle) * radius };
-    }).filter((candidate) => isInsideZone(candidate) && isPositionWalkable(candidate, world));
-    if (candidates.length) return candidates[0]!;
-  }
-  return null;
-}
+type AutoRoute = { points: Position[]; index: number; stalledTicks: number; driveSpeedMps?: number; followTargetSessionId?: string; sitOnArrivalPropId?: string; sitOnArrivalZoneId?: string; destination?: Position; deskZoneId?: string };
 
 // Normal walking uses one and a half times the base world movement speed.
 const NORMAL_WALK_SPEED_MULTIPLIER = 1.5;
-// When vehicle auto-routing cannot be used, keep walking ten times faster
-// than normal walking so the fallback remains practical.
-const AUTO_MOVE_WALK_FALLBACK_MULTIPLIER = NORMAL_WALK_SPEED_MULTIPLIER * 10;
+const AUTO_MOVE_VEHICLE_COLLISION_RADIUS_M = 0.48;
 type SeatApproachWorld = { world: WorldConfig; propId: string };
 type ActiveFollow = { targetSessionId: string; nextRepathAt: number; lastTargetX: number; lastTargetZ: number };
 type PendingSit = { propId: string; startedAt: number; x: number; z: number };
@@ -105,7 +90,6 @@ function worldGeometrySignature(layout: RoomLayout) {
 
 export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }> {
   private conversations?: SpatialConversations;
-  private meetingHands?: MeetingHandCoordinator;
   private privacy?: PrivateConversations;
   private conversationActions?: ConversationActions;
   private navigationGeometryRevision = 0;
@@ -140,6 +124,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   private seatApproachWorldsBySessionId = new Map<string, SeatApproachWorld>();
   private autoRoutes = new Map<string, AutoRoute>();
   private routeWorkLimiter = new RouteWorkLimiter();
+  private pendingAutoMovesBySessionId = new Map<string, { client: Client; payload: unknown; timer: ReturnType<typeof setTimeout> }>();
   private ghostModeBySessionId = new Map<string, boolean>();
   private ghostHintAtBySessionId = new Map<string, number>();
   private pendingSitsBySessionId = new Map<string, PendingSit>();
@@ -176,11 +161,6 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     registerConversationMessages(this, this.conversations);
     this.privacy = new PrivateConversations(this.officeId,this.conversations.roomIncarnationId);
     registerPrivateConversationMessages(this,this.privacy);
-    this.meetingHands = new MeetingHandCoordinator(this.officeId, this.conversations.roomIncarnationId, {
-      players: this.state.players, security: this.sessionSecurity, conversations: this.conversations,
-      zones: this.mediaZoneBySessionId, privacy: this.privacy,
-    });
-    registerMeetingHandMessages(this, this.meetingHands);
     this.initializeConversationActions();
     this.roomKey = "lobby";
     if (database) {
@@ -236,8 +216,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         return;
       }
       const role = this.officeRolesBySessionId.get(client.sessionId);
-      if (role !== "owner" && role !== "admin") {
-        client.send("map-edit-lock-result", { granted: false, error: "Only the office owner or an admin can edit the map." });
+      if (role !== "owner" && role !== "admin" && role !== "maintainer") {
+        client.send("map-edit-lock-result", { granted: false, error: "Only the office owner, an admin, or a maintainer can edit the map." });
         return;
       }
       if (this.mapEditorSessionId && this.mapEditorSessionId !== client.sessionId) {
@@ -464,6 +444,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     });
     this.onMessage("auto-move-to-player", this.handleAutoMoveToPlayer.bind(this));
     this.onMessage("auto-move-cancel", (client: Client) => {
+      this.clearPendingAutoMove(client.sessionId);
       const pendingDesk = this.deskTravel?.invalidate(client.sessionId);
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
@@ -553,19 +534,44 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
 
   private startDeskRoute(sessionId: string, player: PlayerState, zone: RoomLayoutZone) {
     const current = this.mapLayout.zones.find(entry => entry.id === zone.id && entry.kind === "private");
-    if (!current || current.ownerUsername !== player.username || current.x !== zone.x || current.z !== zone.z || !this.canEnterMediaZone(sessionId,zone.id) || player.vehicleId) return false;
-    const points = findAutoRoute({ x: player.x, z: player.z }, { x: zone.x, z: zone.z }, this.world);
-    if (!points) return false;
-    const landing = points.at(-1) ?? { x: player.x, z: player.z };
-    if (Math.abs(landing.x - zone.x) > zone.width / 2 || Math.abs(landing.z - zone.z) > zone.depth / 2) return false;
+    // Desk assignment zones are deliberately excluded from private media
+    // access, so canEnterMediaZone() returns false for them even for their
+    // owner. The authenticated assignment lookup above already proves this is
+    // the caller's own desk; physical return-to-desk must still be allowed.
+    const locks = this.privacy?.lockedIds() ?? this.lockedZoneIds;
+    if (!current || current.ownerUsername !== player.username || current.x !== zone.x || current.z !== zone.z
+      || locks.has(current.id) && !this.canEnterMediaZone(sessionId, current.id)) return false;
+    if (player.vehicleId && !this.exitVehicle(sessionId, player)) this.detachVehicleForTeleport(sessionId, player);
     this.stopFollowing(sessionId, "stopped", false);
     player.sittingPropId = "";
     player.dancing = false;
     this.pendingSitsBySessionId.delete(sessionId);
     this.movementInputs.set(sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
-    if (!points.length) { this.autoRoutes.delete(sessionId); return "arrived"; }
-    this.autoRoutes.set(sessionId, { points, index: 0, stalledTicks: 0, deskZoneId: zone.id });
-    return "started";
+    this.autoRoutes.delete(sessionId);
+    // Returning to an assigned desk is an explicit teleport action. Do not
+    // route through the office or let obstacles make the destination fail.
+    player.x = zone.x;
+    player.z = zone.z;
+    this.updateMeetingMembership();
+    this.updateProximity();
+    return "arrived";
+  }
+
+  private detachVehicleForTeleport(sessionId: string, player: PlayerState) {
+    if (!player.vehicleId) return;
+    const vehicleId = player.vehicleId;
+    const username = this.usernamesBySessionId.get(sessionId);
+    if (player.vehiclePropId) {
+      player.vehiclePropX = player.x;
+      player.vehiclePropZ = player.z;
+      player.vehiclePropRotation = player.rotation;
+    }
+    player.vehicleId = "";
+    player.vehicleMode = "";
+    this.vehicleWorldsBySessionId.delete(sessionId);
+    if (player.vehiclePropId) this.refreshVehicleCollisionWorlds();
+    if (username) void recordOfficeActivity(this.officeId, username, "vehicle.leave", vehicleId);
+    this.clients.find(client => client.sessionId === sessionId)?.send("vehicle-exited", {});
   }
 
   private replaceSession(existingSessionId: string, client: Client, username: string) {
@@ -641,7 +647,6 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private prepareSessionDeparture(sessionId: string, player: PlayerState | undefined) {
-    this.meetingHands?.removeSession(sessionId);
     this.conversationActions?.removeSession(sessionId);
     this.privacy?.removeSession(sessionId,true);
     if (player) {
@@ -773,8 +778,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private clearSessionState(sessionId: string) {
+    this.clearPendingAutoMove(sessionId);
     this.routeWorkLimiter.forget(sessionId);
-    this.meetingHands?.removeSession(sessionId);
     this.conversationActions?.removeSession(sessionId);
     this.privacy?.removeSession(sessionId,false);
     this.deskTravel?.invalidate(sessionId);
@@ -809,7 +814,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   onDispose() {
-    this.meetingHands?.dispose();
+    for (const pending of this.pendingAutoMovesBySessionId.values()) clearTimeout(pending.timer);
+    this.pendingAutoMovesBySessionId.clear();
     void this.privacy?.dispose();
     this.conversationActions?.dispose();
     this.deskTravel?.invalidateAll();
@@ -1079,7 +1085,6 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     const changed = this.conversations.reconcile(members);
     if (changed) for (const client of this.clients) client.send(CONVERSATION_SNAPSHOT_EVENT, this.conversations.snapshot(client.sessionId));
     this.conversationActions?.refresh(changed);
-    if (this.meetingHands) deliverMeetingHandEvents(this, this.meetingHands.refresh());
   }
 
   static async getConversationMediaGrant(officeId:string,username:string,identity:string):Promise<{snapshot:ConversationSnapshot;descriptor:ZoneMediaDescriptor|null}|null> {
@@ -1301,13 +1306,58 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.refreshConversations();
   }
 
+  private completeAutoMoveTeleport(client: Client, player: InstanceType<typeof PlayerState>, landing: Position) {
+    if (player.vehicleMode === "auto") this.exitVehicle(client.sessionId, player);
+    player.x = landing.x;
+    player.z = landing.z;
+    player.sittingPropId = "";
+    player.dancing = false;
+    this.autoRoutes.delete(client.sessionId);
+    this.pendingSitsBySessionId.delete(client.sessionId);
+    this.seatApproachWorldsBySessionId.delete(client.sessionId);
+    this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
+    this.updateMeetingMembership();
+    this.updatePrivateMembership();
+    this.updateProximity();
+    client.send("auto-move-status", { status: "arrived", teleported: true });
+  }
+
+  private clearPendingAutoMove(sessionId: string) {
+    const pending = this.pendingAutoMovesBySessionId.get(sessionId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingAutoMovesBySessionId.delete(sessionId);
+  }
+
+  private queueAutoMove(client: Client, payload: unknown) {
+    const sessionId = client.sessionId;
+    this.clearPendingAutoMove(sessionId);
+    const pending = { client, payload, timer: undefined as unknown as ReturnType<typeof setTimeout> };
+    pending.timer = setTimeout(() => {
+      if (this.pendingAutoMovesBySessionId.get(sessionId) !== pending) return;
+      this.pendingAutoMovesBySessionId.delete(sessionId);
+      if (this.clients.some((connected) => connected.sessionId === sessionId)) this.handleAutoMove(client, payload);
+    }, this.routeWorkLimiter.delayMs(sessionId) + 1);
+    this.pendingAutoMovesBySessionId.set(sessionId, pending);
+  }
+
   private handleAutoMove(client: Client, payload: unknown) {
     this.deskTravel?.invalidate(client.sessionId);
     const player = this.state.players.get(client.sessionId);
-    if (!player || !isValidAutoMoveInput(payload)) return;
+    if (!player || !isValidAutoMoveInput(payload)) {
+      client.send("auto-move-status", { status: "unreachable" });
+      return;
+    }
     const { x, z } = payload;
-    if (Math.abs(x) > this.world.width / 2 || Math.abs(z) > this.world.depth / 2) return;
-    if (!this.routeWorkLimiter.admit(client.sessionId)) return;
+    if (Math.abs(x) > this.world.width / 2 || Math.abs(z) > this.world.depth / 2) {
+      client.send("auto-move-status", { status: "unreachable" });
+      return;
+    }
+    if (!this.routeWorkLimiter.admit(client.sessionId)) {
+      this.queueAutoMove(client, payload);
+      return;
+    }
+    this.clearPendingAutoMove(client.sessionId);
     const budget = new RouteSearchBudget();
     this.navigationIntent(client.sessionId);
     this.stopFollowing(client.sessionId, "stopped", false);
@@ -1317,7 +1367,6 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     const previousVehicle = player.vehicleId;
     const previousVehicleMode = player.vehicleMode;
     const previousVehiclePropId = player.vehiclePropId;
-    const randomVehicle = "randomVehicle" in payload && payload.randomVehicle === true;
     const start = { x: player.x, z: player.z };
     const destination = { x, z };
     const destinationZone = this.mapLayout.zones
@@ -1326,96 +1375,71 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     const sourceZone = this.mapLayout.zones
       .filter((zone) => Math.abs(start.x - zone.x) <= zone.width / 2 && Math.abs(start.z - zone.z) <= zone.depth / 2)
       .sort((a, b) => a.width * a.depth - b.width * b.depth)[0];
-    const movingWithinSameRoom = Boolean(sourceZone && destinationZone && sourceZone.id === destinationZone.id);
-    const occupiedSeatIds = new Set([...this.state.players.values()]
-      .filter((other) => other.presence === "online" && Boolean(other.sittingPropId))
-      .map((other) => other.sittingPropId));
-    // Only auto-sit when entering a room. Clicking another point in the
-    // room the player already occupies is an ordinary point-to-point move.
-    const walkingWorld = player.vehicleId
-      ? this.vehicleWorldsBySessionId.get(client.sessionId) ?? this.world
-      : this.world;
-    const walkToSeatRoute = destinationZone && !movingWithinSameRoom
-      ? findSeatApproachRoute(start, destinationZone, this.mapLayout.props, walkingWorld, occupiedSeatIds, destination, budget)
-      : null;
-    const shouldWalkToSeat = Boolean(walkToSeatRoute);
+    if (autoMoveTravelMode(Math.hypot(destination.x - start.x, destination.z - start.z)) === "teleport") {
+      const lockedDestination = Boolean(destinationZone && !this.canEnterMediaZone(client.sessionId, destinationZone.id) && sourceZone?.id !== destinationZone.id);
+      const landing = lockedDestination
+        ? null
+        : autoMoveLandingPoint(destination, this.movementAccessWorld(client.sessionId, this.world), destinationZone ?? undefined);
+      if (landing) {
+        this.completeAutoMoveTeleport(client, player, landing);
+        return;
+      }
+      client.send("auto-move-status", { status: "unreachable" });
+      return;
+    }
+    const lockedDestination = Boolean(destinationZone && !this.canEnterMediaZone(client.sessionId, destinationZone.id) && sourceZone?.id !== destinationZone.id);
+    if (lockedDestination) {
+      client.send("auto-move-status", { status: "unreachable" });
+      return;
+    }
     // Auto-move vehicles are temporary. Interactively driven vehicles retain
     // their manual state and prop binding when an auto route is requested.
-    let fastWalkFallback = false;
-    if (randomVehicle && !movingWithinSameRoom && previousVehicleMode !== "manual") {
+    if (!player.vehicleId) {
       const candidate = KENNEY_VEHICLE_IDS[Math.floor(Math.random() * KENNEY_VEHICLE_IDS.length)]!;
-      const candidateWorld = { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) };
+      const candidateWorld = { ...this.world, playerRadius: Math.max(this.world.playerRadius, AUTO_MOVE_VEHICLE_COLLISION_RADIUS_M) };
       if (isPositionWalkable({ x: player.x, z: player.z }, candidateWorld)) {
         player.vehicleId = candidate;
         player.vehicleMode = "auto";
         // Temporary auto-move cars are not parked map props. Do not inherit
         // a prop id left over from a vehicle the player exited earlier.
         player.vehiclePropId = "";
-      } else fastWalkFallback = true;
-    }
-    const drivingToRoomSeat = shouldWalkToSeat && player.vehicleMode === "auto" && Boolean(player.vehicleId);
-    const routeWorld = shouldWalkToSeat && !drivingToRoomSeat
-      ? walkingWorld
-      : player.vehicleId
-      ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) }
-      : this.world;
-    const seatRoute = shouldWalkToSeat && !drivingToRoomSeat ? walkToSeatRoute : null;
-    const navigationWorld = this.ghostModeBySessionId.get(client.sessionId) ? ghostCollisionWorld(routeWorld) : routeWorld;
-    let points = seatRoute?.points ?? findAutoRoute(start, destination, navigationWorld, budget);
-    if (!points && !budget.exhausted && randomVehicle && player.vehicleMode === "auto") {
-      // The vehicle cannot reach this destination. Exit cleanly and retry
-      // the same route on foot at the explicit fast fallback speed.
-      this.exitVehicle(client.sessionId, player);
-      fastWalkFallback = true;
-      points = findAutoRoute(start, destination, this.world, budget);
-    }
-    if (!points) {
-      const lockedDestination = Boolean(destinationZone && !this.canEnterMediaZone(client.sessionId,destinationZone.id) && sourceZone?.id !== destinationZone.id);
-      const landing = !budget.exhausted && !lockedDestination && randomVehicle ? autoMoveLandingPoint(destination, this.movementAccessWorld(client.sessionId,this.world), destinationZone) : null;
-      if (landing) {
-        if (player.vehicleId) this.exitVehicle(client.sessionId, player);
-        player.x = landing.x;
-        player.z = landing.z;
-        player.sittingPropId = "";
-        player.dancing = false;
-        this.autoRoutes.delete(client.sessionId);
-        this.pendingSitsBySessionId.delete(client.sessionId);
-        this.seatApproachWorldsBySessionId.delete(client.sessionId);
-        this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
-        this.updateMeetingMembership();
-        this.updatePrivateMembership();
-        this.updateProximity();
-        client.send("auto-move-status", { status: "arrived", teleported: true });
+      } else {
+        player.vehicleId = previousVehicle;
+        player.vehicleMode = previousVehicleMode;
+        player.vehiclePropId = previousVehiclePropId;
+        client.send("auto-move-status", { status: "unreachable" });
         return;
       }
+    }
+    const routeWorld = player.vehicleId
+      ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, AUTO_MOVE_VEHICLE_COLLISION_RADIUS_M) }
+      : this.world;
+    // Search the same access-constrained geometry that the movement tick will
+    // enforce, so a route cannot be planned through a locked room.
+    const navigationWorld = this.movementAccessWorld(client.sessionId, routeWorld);
+    const points = findAutoRoute(start, destination, navigationWorld, budget);
+    if (!points) {
+      const lockedDestination = Boolean(destinationZone && !this.canEnterMediaZone(client.sessionId,destinationZone.id) && sourceZone?.id !== destinationZone.id);
       player.vehicleId = previousVehicle;
       player.vehicleMode = previousVehicleMode;
       player.vehiclePropId = previousVehiclePropId;
       client.send("auto-move-status", { status: "unreachable" });
       return;
     }
-    // Only leave a manually driven or temporary vehicle after we know the
-    // requested chair has a valid walkable route.
-    if (seatRoute && player.vehicleId) {
-      if (previousVehiclePropId) this.seatApproachWorldsBySessionId.set(client.sessionId, { world: walkingWorld, propId: previousVehiclePropId });
-      this.exitVehicle(client.sessionId, player);
-    }
     this.autoRoutes.set(client.sessionId, {
       points,
       index: 0,
       stalledTicks: 0,
+      driveSpeedMps: autoMoveDriveSpeed(start, points, this.world.movementSpeed * 5),
       destination,
-      ...(fastWalkFallback ? { fastWalkFallback: true } : {}),
-      ...(seatRoute ? { sitOnArrivalPropId: seatRoute.propId, sitOnArrivalZoneId: seatRoute.zoneId } : {}),
-      ...(drivingToRoomSeat && destinationZone ? { sitOnArrivalZoneId: destinationZone.id } : {}),
     });
     this.pendingSitsBySessionId.delete(client.sessionId);
     this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
-    if (randomVehicle && !previousVehicle && player.vehicleId) {
+    if (!previousVehicle && player.vehicleId) {
       const username = this.usernamesBySessionId.get(client.sessionId);
       if (username) void recordOfficeActivity(this.officeId, username, "vehicle.enter", player.vehicleId);
     }
-    client.send("auto-move-status", { status: "started", randomVehicle: randomVehicle && Boolean(player.vehicleId), vehicleId: player.vehicleId, fastWalkFallback });
+    client.send("auto-move-status", { status: "started", randomVehicle: Boolean(player.vehicleId), vehicleId: player.vehicleId });
   }
 
   private handleAutoMoveToPlayer(client: Client, payload: unknown) {
@@ -1423,22 +1447,69 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     if (!isValidTargetPlayerInput(payload)) return;
     const follower = this.state.players.get(client.sessionId);
     const target = this.state.players.get(payload.targetSessionId);
-    if (!follower || !target || target.presence !== "online" || client.sessionId === payload.targetSessionId || follower.vehicleMode === "manual") {
+    if (!follower || !target || target.presence !== "online" || client.sessionId === payload.targetSessionId) {
       client.send("auto-move-status", { status: "unreachable" });
       return;
     }
-    if (!this.routeWorkLimiter.admit(client.sessionId)) return;
+    if (!this.routeWorkLimiter.admit(client.sessionId)) {
+      client.send("auto-move-status", { status: "blocked" });
+      return;
+    }
     const budget = new RouteSearchBudget();
     this.navigationIntent(client.sessionId);
     this.stopFollowing(client.sessionId, "stopped", false);
+    const previousVehicleId = follower.vehicleId;
+    const previousVehicleMode = follower.vehicleMode;
+    const previousVehiclePropId = follower.vehiclePropId;
     const destination = this.followApproachPoint(client.sessionId, follower, target);
-    const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) } : this.world;
-    const points = findAutoRoute({ x: follower.x, z: follower.z }, destination, routeWorld, budget);
-    if (!points) { client.send("auto-move-status", { status: "unreachable" }); return; }
-    this.autoRoutes.set(client.sessionId, { points, index: 0, stalledTicks: 0 });
+    const travelDistance = Math.hypot(destination.x - follower.x, destination.z - follower.z);
+    if (autoMoveTravelMode(travelDistance) === "teleport") {
+      const destinationZone = roomLayoutZoneAt(destination, this.mapConfig);
+      const lockedDestination = Boolean(destinationZone && !this.canEnterMediaZone(client.sessionId, destinationZone.id));
+      const landing = lockedDestination
+        ? null
+        : autoMoveLandingPoint(destination, this.movementAccessWorld(client.sessionId, this.world), destinationZone ?? undefined);
+      if (landing) {
+        this.completeAutoMoveTeleport(client, follower, landing);
+        return;
+      }
+      client.send("auto-move-status", { status: "unreachable" });
+      return;
+    }
+    if (!follower.vehicleId) {
+      const candidate = KENNEY_VEHICLE_IDS[Math.floor(Math.random() * KENNEY_VEHICLE_IDS.length)]!;
+      const candidateWorld = { ...this.world, playerRadius: Math.max(this.world.playerRadius, AUTO_MOVE_VEHICLE_COLLISION_RADIUS_M) };
+      if (!isPositionWalkable({ x: follower.x, z: follower.z }, candidateWorld)) {
+        client.send("auto-move-status", { status: "unreachable" });
+        return;
+      }
+      follower.vehicleId = candidate;
+      follower.vehicleMode = "auto";
+      follower.vehiclePropId = "";
+    }
+    const start = { x: follower.x, z: follower.z };
+    const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, AUTO_MOVE_VEHICLE_COLLISION_RADIUS_M) } : this.world;
+    const points = findAutoRoute(start, destination, this.movementAccessWorld(client.sessionId, routeWorld), budget);
+    if (!points) {
+      follower.vehicleId = previousVehicleId;
+      follower.vehicleMode = previousVehicleMode;
+      follower.vehiclePropId = previousVehiclePropId;
+      client.send("auto-move-status", { status: "unreachable" });
+      return;
+    }
+    this.autoRoutes.set(client.sessionId, {
+      points,
+      index: 0,
+      stalledTicks: 0,
+      driveSpeedMps: autoMoveDriveSpeed(start, points, this.world.movementSpeed * 5),
+    });
     this.pendingSitsBySessionId.delete(client.sessionId);
     this.movementInputs.set(client.sessionId, { x: 0, z: 0, sprint: false, receivedAt: performance.now() });
-    client.send("auto-move-status", { status: "started" });
+    if (!previousVehicleId && follower.vehicleId) {
+      const username = this.usernamesBySessionId.get(client.sessionId);
+      if (username) void recordOfficeActivity(this.officeId, username, "vehicle.enter", follower.vehicleId);
+    }
+    client.send("auto-move-status", { status: "started", randomVehicle: Boolean(follower.vehicleId), vehicleId: follower.vehicleId });
   }
 
   private handleFollowPlayer(client: Client, payload: unknown) {
@@ -1479,7 +1550,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.stopFollowing(followerSessionId, "stopped", false);
     this.autoRoutes.delete(followerSessionId);
     const destination = this.followApproachPoint(followerSessionId, follower, target);
-    const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) } : this.world;
+    const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, AUTO_MOVE_VEHICLE_COLLISION_RADIUS_M) } : this.world;
     const points = Math.hypot(destination.x - follower.x, destination.z - follower.z) <= 1.45
       ? null
       : findAutoRoute({ x: follower.x, z: follower.z }, destination, routeWorld, budget);
@@ -1534,7 +1605,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         this.autoRoutes.delete(followerSessionId);
         continue;
       }
-      const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, 0.66) } : this.world;
+      const routeWorld = follower.vehicleId ? { ...this.world, playerRadius: Math.max(this.world.playerRadius, AUTO_MOVE_VEHICLE_COLLISION_RADIUS_M) } : this.world;
       const points = findAutoRoute({ x: follower.x, z: follower.z }, destination, routeWorld, budget);
       if (!points) {
         // A computation deadline is temporary; retain the old route and retry
@@ -1567,15 +1638,14 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       })();
       if (seatApproach && !route?.sitOnArrivalPropId && !stillInsideVehicle) this.seatApproachWorldsBySessionId.delete(sessionId);
       let movementWorld = player.vehicleId
-        ? { ...(this.vehicleWorldsBySessionId.get(sessionId) ?? this.world), playerRadius: Math.max(this.world.playerRadius, 0.48), movementSpeed: this.world.movementSpeed * (intent.sprint ? 10 : 5) }
+        ? { ...(this.vehicleWorldsBySessionId.get(sessionId) ?? this.world), playerRadius: Math.max(this.world.playerRadius, AUTO_MOVE_VEHICLE_COLLISION_RADIUS_M), movementSpeed: route?.driveSpeedMps ?? this.world.movementSpeed * (intent.sprint ? 10 : 5) }
         : route?.sitOnArrivalPropId && seatApproach
           ? { ...seatApproach.world, movementSpeed: this.world.movementSpeed * NORMAL_WALK_SPEED_MULTIPLIER * (intent.sprint ? 2 : 1) }
           : seatApproach && stillInsideVehicle
             ? { ...seatApproach.world, movementSpeed: this.world.movementSpeed * NORMAL_WALK_SPEED_MULTIPLIER * (intent.sprint ? 2 : 1) }
-        : route?.fastWalkFallback
-          ? { ...this.world, movementSpeed: this.world.movementSpeed * AUTO_MOVE_WALK_FALLBACK_MULTIPLIER }
-          : { ...this.world, movementSpeed: this.world.movementSpeed * NORMAL_WALK_SPEED_MULTIPLIER * (intent.sprint ? 2 : 1) };
-      if (this.ghostModeBySessionId.get(sessionId)) movementWorld = ghostCollisionWorld(movementWorld);
+        : { ...this.world, movementSpeed: this.world.movementSpeed * NORMAL_WALK_SPEED_MULTIPLIER * (intent.sprint ? 2 : 1) };
+      if (this.ghostModeBySessionId.get(sessionId) && !route) movementWorld = ghostCollisionWorld(movementWorld);
+      if (route) movementWorld = this.movementAccessWorld(sessionId, movementWorld);
       let movementSeconds = deltaSeconds;
       if (route && intent.x === 0 && intent.z === 0) {
         const target = route.points[route.index];
@@ -1646,47 +1716,9 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
         route.stalledTicks = actualStep < 0.0001 ? route.stalledTicks + 1 : 0;
         if (route.stalledTicks >= 12) {
           if (budget.exhausted) continue;
-          if (!route.followTargetSessionId && player.vehicleMode === "auto" && route.destination) {
-            this.exitVehicle(sessionId, player);
-            const fallbackPoints = findAutoRoute({ x: player.x, z: player.z }, route.destination, this.world, budget);
-            if (fallbackPoints) {
-              this.autoRoutes.set(sessionId, {
-                ...route,
-                points: fallbackPoints,
-                index: 0,
-                stalledTicks: 0,
-                fastWalkFallback: true,
-              });
-              this.clients.find((client) => client.sessionId === sessionId)?.send("auto-move-status", { status: "started", randomVehicle: false, fastWalkFallback: true });
-              continue;
-            }
-            if (budget.exhausted) continue;
-          }
-          if (!route.followTargetSessionId && route.destination) {
-            const destinationZone = this.mapLayout.zones
-              .filter((zone) => Math.abs(route.destination!.x - zone.x) <= zone.width / 2 && Math.abs(route.destination!.z - zone.z) <= zone.depth / 2)
-              .sort((first, second) => first.width * first.depth - second.width * second.depth)[0];
-            const sourceZone = roomLayoutZoneAt({ x: player.x, z: player.z }, this.mapConfig);
-            const lockedDestination = Boolean(destinationZone && !this.canEnterMediaZone(sessionId,destinationZone.id) && sourceZone?.id !== destinationZone.id);
-            const landing = !lockedDestination ? autoMoveLandingPoint(route.destination, this.movementAccessWorld(sessionId,this.world), destinationZone) : null;
-            if (landing) {
-              if (player.vehicleId) this.exitVehicle(sessionId, player);
-              player.x = landing.x;
-              player.z = landing.z;
-              player.sittingPropId = "";
-              player.dancing = false;
-              this.autoRoutes.delete(sessionId);
-              this.pendingSitsBySessionId.delete(sessionId);
-              this.seatApproachWorldsBySessionId.delete(sessionId);
-              this.movementInputs.set(sessionId, { x: 0, z: 0, sprint: false, receivedAt: now });
-              this.clients.find((client) => client.sessionId === sessionId)?.send("auto-move-status", { status: "arrived", teleported: true });
-              continue;
-            }
-          }
           this.autoRoutes.delete(sessionId);
           if (route.followTargetSessionId) this.stopFollowing(sessionId, "blocked");
           else {
-            if (player.vehicleMode === "auto") this.exitVehicle(sessionId, player);
             this.clients.find((client) => client.sessionId === sessionId)?.send("auto-move-status", { status: "blocked" });
           }
         }

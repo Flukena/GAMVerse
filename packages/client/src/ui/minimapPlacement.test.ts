@@ -4,7 +4,7 @@ import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Minimap } from "./Minimap";
 
-test("minimap anchors to the lower-left corner", () => {
+test("minimap combines the map, compass, and centered player marker", () => {
   const runtimeGlobals = globalThis as typeof globalThis & { React?: typeof React };
   const previousReact = runtimeGlobals.React;
   runtimeGlobals.React = React;
@@ -14,14 +14,14 @@ test("minimap anchors to the lower-left corner", () => {
       layout: null,
       configVersion: 0,
       playersRef: { current: new Map() },
-      firstPersonViewRef: { current: false },
+      localSessionIdRef: { current: null },
+      cameraYawRef: { current: 0 },
       hidden: false,
-      onPan() {},
     }));
   } finally {
     runtimeGlobals.React = previousReact;
   }
-  assert.match(markup, /left:12px/);
-  assert.match(markup, /bottom:12px/);
-  assert.doesNotMatch(markup, /right:12px/);
+  assert.match(markup, /office-minimap-frame/);
+  assert.match(markup, /office-minimap-compass-rose/);
+  assert.match(markup, /office-minimap-player/);
 });

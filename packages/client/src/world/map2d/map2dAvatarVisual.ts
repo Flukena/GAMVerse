@@ -10,6 +10,11 @@ export type Map2dPlayer = AvatarPose & {
   handRaised?: boolean;
   characterId?: string;
   sittingPropId?: string;
+  vehicleId?: string;
+  vehiclePropId?: string;
+  vehiclePropX?: number;
+  vehiclePropZ?: number;
+  vehiclePropRotation?: number;
 };
 export type Map2dRenderedPlayer = Map2dPlayer & { visual: Map2dAvatarVisual };
 export type Map2dAvatarStep = {

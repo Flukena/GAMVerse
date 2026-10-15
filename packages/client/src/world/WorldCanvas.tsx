@@ -10,20 +10,21 @@ import { loadGltfAsset, loadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
 import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { createOfficePropGeometry } from "./officePropGeometry";
+import { abbreviateRoomName } from "./roomLabel";
 import { createPetModelInstance, disposePetAsset, type PetModelInstance } from "./petModelInstance";
 import { createProceduralHumanoidRig, updateProceduralHumanoidRig, type ProceduralHumanoidRig } from "./proceduralHumanoidMotion";
+import { createWorldDestinationBeacon } from "./destinationBeacon";
 import { fitWallAssetModel } from "./wallAssetTransform";
 import { cameraReducer, createCameraState, isBehindCharacterLocked, type CameraEvent } from "./camera/cameraState";
 import { computeCameraFrame, applyCameraProjection, campusOverviewDistance } from "./camera/cameraFrame";
-import { rotateFirstPersonAim, panCameraTarget, cameraWheelEvent, panEditorCamera, hasCameraMovement } from "./camera/cameraInput";
+import { rotateFirstPersonAim, panCameraTarget, cameraPanDistanceM, hasExceededCameraDragThreshold, isCameraClickGesture, classifyCampusMapPointerAction, findClosestScreenTarget, cameraWheelEvent, panEditorCamera, hasCameraMovement, isConflictingCameraPointerDown, canFinishCameraPointerGesture } from "./camera/cameraInput";
 import { CameraOcclusion } from "./camera/cameraOcclusion";
 import { smoothCameraPose, type CameraPose } from "./camera/cameraPose";
-import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMPUS_3D_DISTANCE_LIMIT_RATIO, CAMPUS_BOUNDARY_WALL_HEIGHT_M, FOLLOW_FACING_RESPONSE_PER_SECOND, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
+import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMERA_PAN_DRAG_SENSITIVITY, CAMPUS_3D_DISTANCE_LIMIT_RATIO, CAMPUS_BOUNDARY_WALL_HEIGHT_M, FOLLOW_FACING_RESPONSE_PER_SECOND, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
 
 import { WorldControls } from "./WorldControls";
 import { makeUserStatusBadge } from "./playerStatusBadge";
 import { useMap2dPresentation } from "./map2d/useMap2dPresentation";
-import { resolveMap2dPresentation } from "./map2d/map2dPresentation";
 import type { Map2dTravelFeedback } from "./map2d/map2dTravelFeedback";
 import { WorldSocialOverlay } from "./WorldSocialOverlay";
 import { Map2dRenderer, readMap2dPreference, persistMap2dPreference } from "./map2d/Map2dRenderer";
@@ -42,6 +43,7 @@ type BlasterVector = { x: number; y: number; z: number };
 type BlasterShotEvent = { shooterSessionId: string; start: BlasterVector; end: BlasterVector };
 
 const ROOM_LABEL_RADIUS_BLOCKS = 50;
+const MAP_GESTURE_THRESHOLD_PX = 10;
 const ROAD_SURFACE_COLOR = "#45484a";
 const ROAD_JOIN_OVERLAP_M = 0.08;
 const CHARACTER_NAME_TAG_HEIGHT_M = 1.85;
@@ -84,6 +86,7 @@ interface Props {
   locateRequestRef?: MutableRefObject<Map2dLocateRequest | null>;
   propsConfigVersion?: number;
   travelFeedback?: Map2dTravelFeedback | null;
+  travelRequesting?: boolean;
   onCancelTravel?: () => void;
   roomPortals?: RoomPortalVisual[];
   roomLayout: RoomLayout | null;
@@ -303,7 +306,7 @@ function makeCampusRoom(room: CampusRoom, floor: CampusFloorId) {
   }
 
   group.add(furnitureFallback);
-  const label = makeNameTag(room.name);
+  const label = makeNameTag(abbreviateRoomName(room.name));
   label.userData.campusRoomNameLabel = true;
   label.position.set(0, wallHeight + 0.35, 0);
   label.scale.set(Math.min(Math.max(room.width * 0.25, 1.5), 4.8), 0.36, 1);
@@ -753,9 +756,8 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
-export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, localPetIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, map2dToggleRef, locateRequestRef, travelFeedback = null, onCancelTravel, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, onReturnToDesk, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps, onMapViewChange }: Props) {
+export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, localPetIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, map2dToggleRef, locateRequestRef, travelFeedback = null, travelRequesting = false, onCancelTravel, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, onReturnToDesk, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps, onMapViewChange }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const compassRoseRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const propActionMenuRef = useRef(propActionMenu);
   propActionMenuRef.current = propActionMenu;
@@ -770,7 +772,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   inboundAudioMutedRef.current = inboundAudioMuted;
   const idleAnimationsEnabledRef = useRef(idleAnimationsEnabled);
   idleAnimationsEnabledRef.current = idleAnimationsEnabled;
-  const [activeFloatingGroup, setActiveFloatingGroup] = useState<"edit" | "view" | "zoom" | null>(null);
+  const [activeFloatingGroup, setActiveFloatingGroup] = useState<"character" | "edit" | "view" | "zoom" | null>(null);
   const [tppMaxDistanceM, setTppMaxDistanceM] = useState<number>(CAMERA.maxZoom);
   const tppMaxDistanceMRef = useRef<number>(CAMERA.maxZoom);
   const [selectedBlasterId, setSelectedBlasterId] = useState<KenneyBlasterId>(KENNEY_BLASTER_IDS[0]);
@@ -796,15 +798,16 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const [cameraState, setCameraState] = useState(cameraStateRef.current);
   useEffect(() => { onMapViewChange?.(cameraState.mode === "map2d"); }, [cameraState.mode, onMapViewChange]);
   const mapPresentation = useMap2dPresentation(cameraState.map2dScalePxPerM);
-  const mapPresentationPreferenceRef = useRef(mapPresentation.preference);
-  mapPresentationPreferenceRef.current = mapPresentation.preference;
   const mapPresentationRef = useRef(mapPresentation.presentation);
   const map2dCenterRef = useRef({ x: 0, z: 0 });
   const locateDecorationsRef = useRef<Map2dDecoration[]>([]);
   const lastLocateRequestRef = useRef(0);
   const travelFeedbackRef = useRef(travelFeedback);
   travelFeedbackRef.current = travelFeedback;
+  const travelRequestingRef = useRef(travelRequesting);
+  travelRequestingRef.current = travelRequesting;
   const setMap2dView = (view: "2d" | "3d") => {
+    if (view === "2d") cameraYawRef.current = Math.PI;
     cameraStateRef.current = applyCameraView(cameraStateRef.current, view, {
       exitFirstPerson: () => {
         setFirstPersonView(false);
@@ -878,7 +881,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     for (const [zoneId, icon] of zoneLockIconsRef.current) icon.visible = lockedZoneIds.includes(zoneId);
   }, [lockedZoneIds]);
   useEffect(() => { zoneStartRef.current = null; }, [buildTool]);
-  useEffect(() => { const canvas = hostRef.current?.querySelector("canvas"); if (canvas) canvas.style.cursor = zoneDrawing ? "crosshair" : buildMode ? (buildTool === "place" ? "copy" : "crosshair") : "grab"; }, [buildMode, buildTool, zoneDrawing]);
+  useEffect(() => { const canvas = hostRef.current?.querySelector("canvas"); if (canvas) canvas.style.cursor = zoneDrawing ? "crosshair" : buildMode ? (buildTool === "place" ? "copy" : "crosshair") : "default"; }, [buildMode, buildTool, zoneDrawing]);
   useEffect(() => {
     const lookTarget = cameraLookTargetRef.current;
     if ((buildMode || mapEditMode) && cameraStateRef.current.following && lookTarget) cameraPanTargetRef.current?.copy(lookTarget);
@@ -940,9 +943,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     renderer.domElement.tabIndex = 0;
     host.appendChild(map2dCanvas);
     map2dCanvasRef.current = map2dCanvas;
+    const destinationBeacon = createWorldDestinationBeacon(host);
     const socialOverlay = new WorldSocialOverlay(host, scene);
     const map2dRenderer = new Map2dRenderer(map2dCanvas, {
-      pan: (center) => { map2dCenterRef.current = center; dispatchCamera({ type: "manual-drag" }); },
+      pan: (center) => { map2dCenterRef.current = center; if (cameraStateRef.current.following) dispatchCamera({ type: "manual-drag" }); },
       zoom: (pxPerM) => dispatchCamera({ type: "map2d-scale", pxPerM }),
       zoomOverview: (deltaYPx) => dispatchCamera(cameraWheelEvent(cameraStateRef.current, deltaYPx, tppMaxDistanceMRef.current)),
       walk: (destination) => { buildCallbacksRef.current.onAutoMove?.(destination, false); },
@@ -1567,7 +1571,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         campusMapProps.add(zoneBorder);
         const zoneLabelText = zone.kind === "private"
           ? zone.ownerUsername ? `${zone.ownerUsername}'s desk` : "Available desk"
-          : zone.name;
+          : abbreviateRoomName(zone.name);
         const zoneLabel = makeNameTag(zoneLabelText);
         zoneLabel.position.set(zone.x + mapWorld.width / 2, 0.8, zone.z + mapWorld.depth / 2);
         zoneLabel.scale.set(Math.max(2.8, Math.min(6, zone.width * 0.7)), 0.7, 1);
@@ -2091,7 +2095,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     cameraPanTargetRef.current = cameraPanTarget;
     const currentLookTarget = cameraPanTarget.clone();
     cameraLookTargetRef.current = currentLookTarget;
-    let cameraDrag: { pointerId: number; mode: "pan" | "rotate"; x: number; y: number; startX: number; startY: number; moved: boolean } | null = null;
+    let cameraDrag: { pointerId: number; button: number; mode: "pan" | "rotate"; x: number; y: number; startX: number; startY: number; moved: boolean; cancelled: boolean } | null = null;
     let suppressNextContextMenu = false;
     let deskZonePress: { pointerId: number; zoneId: string | null } | null = null;
     // A slight upward neutral pitch keeps the center reticle at the horizon
@@ -2193,21 +2197,19 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       buildCallbacksRef.current.onSelectMapItem?.(propId);
       setPropActionMenu({ id: propId, ...getOfficePropActionPosition(propId, event.clientX, event.clientY) });
     };
-    const onDoubleClick = (event: MouseEvent) => {
-      // In first person, the left mouse button is reserved for firing. Never
-      // interpret a double click as an auto-move request in this camera mode.
-      if (appPaused || !campusOverviewRef.current || firstPersonViewRef.current || buildModeRef.current || mapEditModeRef.current) return;
-      const point = mapPositionFromPointer(event);
-      if (!point) return;
-      event.preventDefault();
-      cameraDrag = null;
-      renderer.domElement.style.cursor = "grab";
-      // Double-click travel automatically selects a random car, then routes
-      // around the same server-authoritative collision map used by movement.
-      buildCallbacksRef.current.onAutoMove?.({ x: point.x - mapWorld.width / 2, z: point.z - mapWorld.depth / 2 }, true);
-    };
     const onPointerDown = (event: PointerEvent) => {
       if (appPaused && event.button !== 2) { event.preventDefault(); return; }
+      // Never let a second button or pointer replace the gesture that already
+      // owns the map. A chord cancels the pending click, so it cannot turn into
+      // an accidental automove when either button is released.
+      if (cameraDrag) {
+        if (isConflictingCameraPointerDown(cameraDrag, event.pointerId, event.button)) {
+          cameraDrag.cancelled = true;
+          deskZonePress = null;
+        }
+        event.preventDefault();
+        return;
+      }
       primeBlasterAudio();
       if (event.button === 0 && campusOverviewRef.current && firstPersonViewRef.current && !mapEditModeRef.current && !buildModeRef.current) {
         event.preventDefault();
@@ -2303,7 +2305,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           // Empty space remains available for moving the map camera in editor mode.
           if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
           dispatchCamera({ type: "manual-drag" });
-          cameraDrag = { pointerId: event.pointerId, mode: "pan", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
+          cameraDrag = { pointerId: event.pointerId, button: event.button, mode: "pan", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, cancelled: false };
           renderer.domElement.setPointerCapture(event.pointerId);
           renderer.domElement.style.cursor = "grabbing";
         }
@@ -2321,7 +2323,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         deskZonePress = { pointerId: event.pointerId, zoneId: deskZone?.id ?? null };
       }
       if (event.button === 0 && !buildModeRef.current) {
-        cameraDrag = { pointerId: event.pointerId, mode: "pan", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
+        cameraDrag = { pointerId: event.pointerId, button: event.button, mode: "pan", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, cancelled: false };
       } else if (event.button === 2) {
         event.preventDefault();
         // A right-button drag is always a camera gesture. It must never inherit
@@ -2334,9 +2336,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
           dispatchCamera({ type: "manual-drag" });
         }
-        // Right-drag orbits in the normal view and Modify props; map editing
-        // keeps its established right-drag pan behavior.
-        cameraDrag = { pointerId: event.pointerId, mode: mapEditModeRef.current ? "pan" : "rotate", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
+        // Right-drag pans the 2D map (and map editor); in 3D it orbits the
+        // camera, including campus overview and Modify props.
+        cameraDrag = { pointerId: event.pointerId, button: event.button, mode: mapEditModeRef.current || campusOverviewRef.current && cameraStateRef.current.view === "2d" ? "pan" : "rotate", x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, cancelled: false };
       }
       if (cameraDrag) {
         renderer.domElement.setPointerCapture(event.pointerId);
@@ -2344,14 +2346,14 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       }
     };
     const onPointerMove = (event: PointerEvent) => {
-      if (campusOverviewRef.current && !firstPersonViewRef.current && !mapEditModeRef.current && !buildModeRef.current && roomLayout) {
+      if (cameraDrag?.pointerId !== event.pointerId && campusOverviewRef.current && !firstPersonViewRef.current && !mapEditModeRef.current && !buildModeRef.current && roomLayout) {
         const point = mapPositionFromPointer(event);
         const x = point ? point.x - mapWorld.width / 2 : Number.NaN;
         const z = point ? point.z - mapWorld.depth / 2 : Number.NaN;
         hoveredClaimZoneId = roomLayout.zones
           .filter((zone) => zone.kind === "private" && !zone.ownerUsername && Math.abs(x - zone.x) <= zone.width / 2 && Math.abs(z - zone.z) <= zone.depth / 2)
           .sort((a, b) => a.width * a.depth - b.width * b.depth)[0]?.id ?? null;
-      } else {
+      } else if (cameraDrag?.pointerId !== event.pointerId) {
         hoveredClaimZoneId = null;
       }
       if (buildModeRef.current && campusOverviewRef.current && selectedAssetRef.current && !draggingMapProp) {
@@ -2409,11 +2411,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         return;
       }
       if (event.pointerId !== cameraDrag?.pointerId) return;
+      if (cameraDrag.cancelled) return;
       const deltaX = event.clientX - cameraDrag.x;
       const deltaY = event.clientY - cameraDrag.y;
       cameraDrag.x = event.clientX;
       cameraDrag.y = event.clientY;
-      if (!cameraDrag.moved && Math.hypot(event.clientX - cameraDrag.startX, event.clientY - cameraDrag.startY) >= 4) {
+      if (!cameraDrag.moved && hasExceededCameraDragThreshold(cameraDrag.startX, cameraDrag.startY, event.clientX, event.clientY, MAP_GESTURE_THRESHOLD_PX)) {
         cameraDrag.moved = true;
         if (cameraDrag.mode === "rotate") dispatchCamera({ type: "manual-rotate" });
         else if (!mapEditModeRef.current && !buildModeRef.current) {
@@ -2430,11 +2433,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           dispatchCamera({ type: "elevation", radians: cameraStateRef.current.elevationRad + deltaY * CAMERA.dragSensitivity });
         }
       } else {
-        const distance = campusFitDistanceM * cameraStateRef.current.zoomRatio;
+        const distance = cameraPanDistanceM(cameraStateRef.current, campusFitDistanceM);
         cameraPanTarget.copy(panCameraTarget({
           target: cameraPanTarget, yawRad: cameraYawRef.current, distanceM: distance,
           fovDeg: camera.fov, viewportHeightPixel: renderer.domElement.clientHeight,
-          deltaXPixel: deltaX, deltaYPixel: deltaY,
+          deltaXPixel: deltaX * CAMERA_PAN_DRAG_SENSITIVITY, deltaYPixel: deltaY * CAMERA_PAN_DRAG_SENSITIVITY,
         }));
       }
     };
@@ -2482,13 +2485,39 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         return;
       }
       if (event.pointerId !== cameraDrag?.pointerId) return;
-      if (event.button === 2 && cameraDrag.moved) suppressNextContextMenu = true;
-      if (!cameraDrag.moved && campusOverviewRef.current && !firstPersonViewRef.current && !mapEditModeRef.current && !buildModeRef.current) {
+      if (event.type !== "pointerup") {
+        cameraDrag = null;
+        deskZonePress = null;
+        renderer.domElement.style.cursor = "default";
+        return;
+      }
+      // Ignore a release from another button. If the initiating button is
+      // released while another is still held, abandon the gesture without
+      // emitting a click action.
+      if (event.button !== cameraDrag.button) return;
+      if (!canFinishCameraPointerGesture(cameraDrag, event.pointerId, event.button, event.buttons)) {
+        cameraDrag = null;
+        deskZonePress = null;
+        renderer.domElement.style.cursor = "default";
+        return;
+      }
+      if (cameraDrag.button === 2 && cameraDrag.moved) suppressNextContextMenu = true;
+      if (!cameraDrag.moved && event.button === 0 && hasExceededCameraDragThreshold(cameraDrag.startX, cameraDrag.startY, event.clientX, event.clientY, MAP_GESTURE_THRESHOLD_PX)) {
+        cameraDrag.moved = true;
+        if (cameraDrag.mode === "rotate") dispatchCamera({ type: "manual-rotate" });
+        else if (!mapEditModeRef.current && !buildModeRef.current) {
+          if (cameraStateRef.current.following) cameraPanTarget.copy(currentLookTarget);
+          dispatchCamera({ type: "manual-drag" });
+        }
+      }
+      const movementPx = Math.hypot(event.clientX - cameraDrag.startX, event.clientY - cameraDrag.startY);
+      const isClickGesture = isCameraClickGesture(cameraDrag.startX, cameraDrag.startY, event.clientX, event.clientY, MAP_GESTURE_THRESHOLD_PX);
+      let selectedPlayerId: string | null = null;
+      if (isClickGesture && campusOverviewRef.current && !firstPersonViewRef.current && !mapEditModeRef.current && !buildModeRef.current) {
         const canvasBounds = renderer.domElement.getBoundingClientRect();
         const localId = localSessionIdRef.current;
         const isMap2d = cameraStateRef.current.mode === "map2d";
-        let selectedPlayerId: string | null = null;
-        let closestDistance = isMap2d ? 19 : 30;
+        const candidates: Array<{ id: string; x: number; y: number }> = [];
         for (const [id, player] of playersRef.current) {
           if (id === localId) continue;
           const avatar = avatars.get(id);
@@ -2499,29 +2528,42 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           if (projected.z < -1 || projected.z > 1) continue;
           const screenX = canvasBounds.left + (projected.x * 0.5 + 0.5) * canvasBounds.width;
           const screenY = canvasBounds.top + (-projected.y * 0.5 + 0.5) * canvasBounds.height;
-          const distance = Math.hypot(event.clientX - screenX, event.clientY - screenY);
-          if (distance < closestDistance) {
-            closestDistance = distance;
-            selectedPlayerId = id;
-          }
+          candidates.push({ id, x: screenX, y: screenY });
         }
-        if (selectedPlayerId) {
-          deskZonePress = null;
-          cameraDrag = null;
-          renderer.domElement.style.cursor = "grab";
-          buildCallbacksRef.current.onSelectPlayer?.(selectedPlayerId, event.clientX, event.clientY);
-          return;
-        }
+        selectedPlayerId = findClosestScreenTarget(candidates, event.clientX, event.clientY, isMap2d ? 19 : 30);
+      }
+      const mapAction = classifyCampusMapPointerAction(cameraDrag.button, movementPx, MAP_GESTURE_THRESHOLD_PX, selectedPlayerId);
+      if (mapAction === "select-player" && selectedPlayerId) {
+        deskZonePress = null;
+        cameraDrag = null;
+        renderer.domElement.style.cursor = "default";
+        buildCallbacksRef.current.onSelectPlayer?.(selectedPlayerId, event.clientX, event.clientY);
+        return;
+      }
+      const isMapGesture = campusOverviewRef.current && !firstPersonViewRef.current && !mapEditModeRef.current && !buildModeRef.current;
+      if (mapAction === "drag-map") {
+        renderer.domElement.style.cursor = "default";
       }
       if (deskZonePress?.pointerId === event.pointerId) {
-        if (!cameraDrag.moved) {
+        if (isClickGesture) {
           if (mapEditModeRef.current) buildCallbacksRef.current.onSelectMapZone?.(deskZonePress.zoneId);
           else buildCallbacksRef.current.onSelectDeskZone?.(deskZonePress.zoneId);
         }
         deskZonePress = null;
       }
+      if (mapAction === "automove" && isMapGesture) {
+        const point = mapPositionFromPointer(event);
+        if (point && point.x >= 0 && point.x <= mapWorld.width && point.z >= 0 && point.z <= mapWorld.depth) {
+          // Campus rendering uses map-space [0..width/depth] coordinates while
+          // Colyseus player coordinates are centered around the origin.
+          destinationBeacon.setTarget({ x: point.x, z: point.z }, { x: event.clientX, y: event.clientY });
+          buildCallbacksRef.current.onAutoMove?.({ x: point.x - mapWorld.width / 2, z: point.z - mapWorld.depth / 2 }, true);
+        }
+      } else if (mapAction !== "select-player") {
+        renderer.domElement.style.cursor = "default";
+      }
       cameraDrag = null;
-      renderer.domElement.style.cursor = "grab";
+      renderer.domElement.style.cursor = "default";
     };
     const onVehicleKeyDown = (event: KeyboardEvent) => {
       if (appPaused || event.repeat || event.code !== "KeyE" || buildModeRef.current || mapEditModeRef.current) return;
@@ -2609,9 +2651,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       mapEditMovementKeys.delete(event.code);
     };
     const clearMapEditMovement = () => mapEditMovementKeys.clear();
-    renderer.domElement.style.cursor = buildModeRef.current ? "crosshair" : "grab";
+    renderer.domElement.style.cursor = buildModeRef.current ? "crosshair" : "default";
     renderer.domElement.addEventListener("contextmenu", onCanvasContextMenu);
-    renderer.domElement.addEventListener("dblclick", onDoubleClick);
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     host.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
@@ -2916,7 +2957,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             avatarRoot.add(model);
             fallbackRig.visible = false;
 
-            const mixer = new THREE.AnimationMixer(model);
+            const proceduralRig = characterId.startsWith("character-pm-") || characterId.startsWith("character-kaykit-") ? createProceduralHumanoidRig(model) ?? undefined : undefined;
+            // The procedural rig owns these models' idle and movement poses.
+            // Starting an asset clip as well can put the arms back in T-pose.
+            const mixer = proceduralRig ? undefined : new THREE.AnimationMixer(model);
             const idleClip = gltf.animations.find((clip) => clip.name.toLowerCase() === "idle");
             const walkClip = gltf.animations.find((clip) => clip.name.toLowerCase() === "walk");
             const runClip = gltf.animations.find((clip) => clip.name.toLowerCase() === "run");
@@ -2930,12 +2974,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               const values = track.values as Float32Array;
               for (let index = 1; index < values.length; index += 3) values[index] = 0;
             });
-            const idleAction = idleClip ? mixer.clipAction(idleClip) : undefined;
-            const walkAction = walkClip ? mixer.clipAction(walkClip) : undefined;
-            const runAction = runClip ? mixer.clipAction(runClip) : undefined;
-            const sitAction = chairSitClip ? mixer.clipAction(chairSitClip) : undefined;
+            const idleAction = idleClip ? mixer?.clipAction(idleClip) : undefined;
+            const walkAction = walkClip ? mixer?.clipAction(walkClip) : undefined;
+            const runAction = runClip ? mixer?.clipAction(runClip) : undefined;
+            const sitAction = chairSitClip ? mixer?.clipAction(chairSitClip) : undefined;
             const danceClip = gltf.animations.find((clip) => /dance/i.test(clip.name));
-            const danceAction = danceClip ? mixer.clipAction(danceClip) : undefined;
+            const danceAction = danceClip ? mixer?.clipAction(danceClip) : undefined;
             const currentAction = idleAction ?? walkAction;
             currentAction?.play();
             avatarAnimations.set(id, {
@@ -2943,7 +2987,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               proceduralMotion: false,
               rotationOffset: 0,
               phase: 0,
-              proceduralRig: characterId.startsWith("character-pm-") || characterId.startsWith("character-kaykit-") ? createProceduralHumanoidRig(model) ?? undefined : undefined,
+              proceduralRig,
               mixer,
               idleAction,
               walkAction,
@@ -3213,7 +3257,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       for (const [id, highlight] of mapPropSelectionHighlights) highlight.visible = buildModeRef.current && selectedMapItemIdRef.current === id;
       for (const [id, highlight] of mapZoneSelectionHighlights) highlight.visible = mapEditModeRef.current && selectedMapZoneIdRef.current === id;
       mapEditOverlay.visible = campusOverviewRef.current && (mapEditModeRef.current || buildModeRef.current);
-      if (compassRoseRef.current) compassRoseRef.current.style.transform = `rotate(${THREE.MathUtils.radToDeg(cameraYawRef.current)}deg)`;
       // A lobby session renders and moves on the shared campus map; meeting/private
       // room sessions retain the smaller existing interior scene.
       const showLiveOffice = !campusOverviewRef.current;
@@ -3261,7 +3304,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       applyCameraProjection(camera, frame, campusOverviewRef.current);
       const roomChanged = previousCameraWorldKey !== previousWorldKeyRef.current;
       const modeChanged = previousCameraMode !== frame.mode;
-      const pose = smoothCameraPose(previousCameraPose, frame.pose, delta, { reduceMotion, modeChanged, roomChanged });
+      // Keep manual map panning attached to the pointer; camera smoothing is
+      // useful for following movement but adds a visible trail to direct drags.
+      const directPan = Boolean(cameraDrag?.moved && cameraDrag.mode === "pan");
+      const pose = smoothCameraPose(previousCameraPose, frame.pose, delta, { reduceMotion: reduceMotion || directPan, modeChanged, roomChanged });
       const visiblePose = cameraOcclusion.apply(pose, frame.mode, delta, reduceMotion || modeChanged || roomChanged || !previousCameraPose);
       camera.position.copy(visiblePose.position);
       camera.lookAt(visiblePose.lookAt);
@@ -3446,6 +3492,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         lastLocateRequestRef.current = locate.requestId;
       }
       camera.updateMatrixWorld(true);
+      const travelActive = travelRequestingRef.current || travelFeedbackRef.current?.status === "started";
+      if (!travelActive) destinationBeacon.clearTarget();
+      destinationBeacon.render(camera, !showMap2d && travelActive);
       const overlayRect = renderer.domElement.getBoundingClientRect();
       for (const [id, player] of playersRef.current) {
         let label = vehicleNameLabels.get(id);
@@ -3485,7 +3534,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
       }
       for (const [id, label] of vehicleNameLabels) if (!playersRef.current.has(id)) { label.remove(); vehicleNameLabels.delete(id); }
-      mapPresentationRef.current = resolveMap2dPresentation(mapPresentationPreferenceRef.current, cameraStateRef.current.map2dScalePxPerM, mapPresentationRef.current);
       map2dCenterRef.current = map2dRenderer.frame({ presentation: mapPresentationRef.current, visible: showMap2d, following: cameraStateRef.current.following, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
         projection: { center: map2dCenterRef.current, pxPerM: cameraStateRef.current.map2dScalePxPerM, widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
         players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: travelFeedbackRef.current?.destination ?? null }) ?? map2dCenterRef.current;
@@ -3505,7 +3553,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       cancelAnimationFrame(animationFrame);
       observer.disconnect();
       renderer.domElement.removeEventListener("contextmenu", onCanvasContextMenu);
-      renderer.domElement.removeEventListener("dblclick", onDoubleClick);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       host.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("wheel", onWheel);
@@ -3586,6 +3633,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         });
       }
       renderer.dispose();
+      destinationBeacon.dispose();
       socialOverlay.dispose();
       map2dRenderer.dispose(); removeMap2dShortcut();
       vehicleNameOverlay.remove(); vehicleNameLabels.clear();
@@ -3605,26 +3653,19 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         <button type="button" title="Rotate prop 90 degrees" aria-label="Rotate prop 90 degrees" onClick={() => { onSelectMapItem?.(propActionMenu.id); onRotateProp?.(propActionMenu.id); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 7v5h-5M20 12a8 8 0 1 1-2.34-5.66L20 9" /></svg><span>Rotate</span></button>
         <button type="button" className="is-danger" title="Delete prop" aria-label="Delete prop" onClick={() => { onDeleteProp?.(propActionMenu.id); onSelectMapItem?.(null); setPropActionMenu(null); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3" /></svg><span>Delete</span></button>
       </div>}
-      {campusOverview && <div className="map-compass" role="img" aria-label="Compass showing map direction relative to the camera">
-        <div className="map-compass-rose" ref={compassRoseRef}>
-          <span className="map-compass-north">N</span><span className="map-compass-east">E</span><span className="map-compass-south">S</span><span className="map-compass-west">W</span>
-          <i className="map-compass-needle" />
-        </div>
-      </div>}
       {(nearbyVehicle || isDriving) && <div role="status" aria-live="polite" style={{ position: "absolute", zIndex: 6, left: "50%", bottom: "104px", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 9, padding: "9px 13px", border: "1px solid rgba(255,255,255,.32)", borderRadius: 12, background: "rgba(2,48,71,.92)", color: "#f4fbff", boxShadow: "0 8px 24px rgba(2,26,39,.24)", fontSize: 12, fontWeight: 650, pointerEvents: "none", whiteSpace: "nowrap" }}>
         <kbd style={{ minWidth: 23, padding: "3px 6px", border: "1px solid rgba(255,255,255,.35)", borderRadius: 6, background: "rgba(255,255,255,.12)", font: "inherit", textAlign: "center" }}>E</kbd>
         {isDriving ? "Exit vehicle" : "Drive vehicle"}
       </div>}
       {campusOverview && !mapEditMode && !buildMode && <WorldControls
         travelFeedback={travelFeedback} onCancelTravel={onCancelTravel}
-        mapPresentationPreference={mapPresentation.preference} onMapPresentationChange={mapPresentation.setPreference}
         cameraState={cameraState} campusOverview={campusOverview} firstPersonView={firstPersonView} appPaused={appPaused}
         personalDeskZone={personalDeskZone} currentPrivateZoneId={currentPrivateZoneId}
         activeFloatingGroup={activeFloatingGroup} setActiveFloatingGroup={setActiveFloatingGroup}
         canEditMap={canEditMap} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockPending}
         onEditMap={onEditMap} onModifyProps={onModifyProps} weaponInventoryOpen={weaponInventoryOpen}
         onToggleWeaponInventory={() => { setWeaponInventoryOpen((open) => !open); if (!weaponInventoryOpen && document.pointerLockElement) document.exitPointerLock(); }}
-        toggleCameraView={toggleCameraView} toggleMap2d={toggleMap2d} dispatchCamera={dispatchCamera}
+        toggleCameraView={toggleCameraView} dispatchCamera={dispatchCamera}
         onGoToDesk={() => { setActiveFloatingGroup(null); onReturnToDesk?.(); }}
         tppZoomMaxDistanceM={tppZoomMaxDistanceM}
       />}

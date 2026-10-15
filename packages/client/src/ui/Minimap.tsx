@@ -1,53 +1,52 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { CAMPUS_WORLD, type RoomLayout } from "@gammyverse/shared";
-import { minimapCanvasPoint } from "./minimapGeometry";
 import { Map2dStaticLayer } from "../world/map2d/map2dStaticLayer";
 import {
-  screenToWorld,
-  worldToScreen,
   fitMap2dProjection,
+  worldToScreen,
   type Map2dPoint,
   type Map2dProjection,
 } from "../world/map2d/map2dProjection";
-const MINIMAP_LEFT_OFFSET_PX = 12;
-const MINIMAP_BOTTOM_OFFSET_PX = 12;
 const MINIMAP_Z_INDEX = 5;
-const MINIMAP_BORDER_RADIUS_PX = 8;
-const MINIMAP_BORDER_CSS = "1px solid #23495a";
 const MINIMAP_PLAYER_COLOR_CSS = "#159bb4";
 const MINIMAP_WIDTH_PX = 180;
-const MINIMAP_HEIGHT_PX = 140;
-const MINIMAP_DOT_RADIUS_PX = 3;
+const MINIMAP_HEIGHT_PX = 180;
+const MINIMAP_ZOOM_FACTOR = 3.24;
+const MINIMAP_MAP_OPACITY = 1;
+const MINIMAP_DOT_RADIUS_PX = 5;
+const MINIMAP_EDGE_PADDING_PX = 8;
 const MINIMAP_REFRESH_INTERVAL_MS = 100;
 const MINIMAP_FULL_CIRCLE_RAD = Math.PI * 2;
 type Props = {
   layout: RoomLayout | null;
   configVersion: number;
-  playersRef: MutableRefObject<Map<string, Map2dPoint>>;
-  firstPersonViewRef: MutableRefObject<boolean>;
+  playersRef: MutableRefObject<Map<string, Map2dPoint & { presence?: string }>>;
+  localSessionIdRef: MutableRefObject<string | null>;
+  cameraYawRef: MutableRefObject<number>;
   hidden: boolean;
-  onPan: (point: Map2dPoint) => void;
 };
 export function minimapProjection(
   widthM: number,
   depthM: number,
 ): Map2dProjection {
-  return fitMap2dProjection(
+  const projection = fitMap2dProjection(
     widthM,
     depthM,
     MINIMAP_WIDTH_PX,
     MINIMAP_HEIGHT_PX,
   );
+  return { ...projection, pxPerM: projection.pxPerM * MINIMAP_ZOOM_FACTOR };
 }
 export function Minimap({
   layout,
   configVersion,
   playersRef,
-  firstPersonViewRef,
+  localSessionIdRef,
+  cameraYawRef,
   hidden,
-  onPan,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const compassRoseRef = useRef<HTMLDivElement>(null);
   const dimensions = layout?.dimensions ?? CAMPUS_WORLD;
   const projection = minimapProjection(dimensions.width, dimensions.depth);
   useEffect(() => {
@@ -62,24 +61,53 @@ export function Minimap({
       projection.pxPerM,
     );
     const draw = () => {
-      canvas.style.display =
-        hidden || firstPersonViewRef.current ? "none" : "block";
+      canvas.style.display = hidden ? "none" : "block";
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.clearRect(0, 0, MINIMAP_WIDTH_PX, MINIMAP_HEIGHT_PX);
-      layer.blit(ctx, projection);
-      for (const player of playersRef.current.values()) {
-        const point = worldToScreen(projection, player);
+      const localPlayer = localSessionIdRef.current
+        ? playersRef.current.get(localSessionIdRef.current)
+        : undefined;
+      const mapProjection = localPlayer
+        ? { ...projection, center: { x: localPlayer.x, z: localPlayer.z } }
+        : projection;
+      const yaw = cameraYawRef.current;
+      ctx.save();
+      ctx.translate(MINIMAP_WIDTH_PX / 2, MINIMAP_HEIGHT_PX / 2);
+      ctx.rotate(-yaw);
+      ctx.translate(-MINIMAP_WIDTH_PX / 2, -MINIMAP_HEIGHT_PX / 2);
+      ctx.globalAlpha = MINIMAP_MAP_OPACITY;
+      layer.blit(ctx, mapProjection);
+      ctx.restore();
+      for (const [sessionId, player] of playersRef.current) {
+        if (sessionId === localSessionIdRef.current || player.presence === "away") continue;
+        const point = worldToScreen(mapProjection, player);
+        const dx = point.x - MINIMAP_WIDTH_PX / 2;
+        const dy = point.y - MINIMAP_HEIGHT_PX / 2;
+        const cos = Math.cos(-yaw);
+        const sin = Math.sin(-yaw);
+        const rotatedX = MINIMAP_WIDTH_PX / 2 + dx * cos - dy * sin;
+        const rotatedY = MINIMAP_HEIGHT_PX / 2 + dx * sin + dy * cos;
+        const radius = Math.min(MINIMAP_WIDTH_PX, MINIMAP_HEIGHT_PX) / 2 - MINIMAP_EDGE_PADDING_PX;
+        const fromCenterX = rotatedX - MINIMAP_WIDTH_PX / 2;
+        const fromCenterY = rotatedY - MINIMAP_HEIGHT_PX / 2;
+        if (fromCenterX * fromCenterX + fromCenterY * fromCenterY > radius * radius) continue;
         ctx.beginPath();
         ctx.arc(
-          point.x,
-          point.y,
-          MINIMAP_DOT_RADIUS_PX,
+          rotatedX,
+          rotatedY,
+          MINIMAP_DOT_RADIUS_PX - 1,
           0,
           MINIMAP_FULL_CIRCLE_RAD,
         );
         ctx.fillStyle = MINIMAP_PLAYER_COLOR_CSS;
         ctx.fill();
+      }
+      if (compassRoseRef.current) {
+        // The map's screen-space projection has +Z pointing down, so its
+        // north-up correction is opposite to the camera yaw. Keep the rose
+        // aligned with that corrected map orientation.
+        compassRoseRef.current.style.transform = `rotate(${((Math.PI - yaw) * 180) / Math.PI}deg)`;
       }
     };
     draw();
@@ -92,37 +120,29 @@ export function Minimap({
     layout,
     configVersion,
     playersRef,
-    firstPersonViewRef,
+    localSessionIdRef,
+    cameraYawRef,
     hidden,
     dimensions.width,
     dimensions.depth,
     projection.pxPerM,
   ]);
   return (
-    <canvas
-      ref={canvasRef}
-      className="office-minimap"
-      width={MINIMAP_WIDTH_PX}
-      height={MINIMAP_HEIGHT_PX}
-      aria-label="Office minimap; click to pan 2D"
-      style={{
-        position: "fixed",
-        left: MINIMAP_LEFT_OFFSET_PX,
-        bottom: MINIMAP_BOTTOM_OFFSET_PX,
-        zIndex: MINIMAP_Z_INDEX,
-        border: MINIMAP_BORDER_CSS,
-        borderRadius: MINIMAP_BORDER_RADIUS_PX,
-      }}
-      onClick={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        onPan(
-          screenToWorld(projection, minimapCanvasPoint(
-            { x: event.clientX - rect.left, y: event.clientY - rect.top },
-            rect,
-            { width: MINIMAP_WIDTH_PX, height: MINIMAP_HEIGHT_PX },
-          )),
-        );
-      }}
-    />
+    <div data-tutorial-target="office-minimap" className="office-minimap-frame" role="img" aria-label="Compass and minimap. Your position stays centered; the map rotates with your view.">
+      <canvas
+        ref={canvasRef}
+        className="office-minimap"
+        width={MINIMAP_WIDTH_PX}
+        height={MINIMAP_HEIGHT_PX}
+        aria-hidden="true"
+      />
+      <div className="office-minimap-compass-rose" ref={compassRoseRef} aria-hidden="true">
+        <span className="office-minimap-north">N</span>
+        <span className="office-minimap-east">E</span>
+        <span className="office-minimap-south">S</span>
+        <span className="office-minimap-west">W</span>
+      </div>
+      <span className="office-minimap-player" aria-hidden="true" />
+    </div>
   );
 }

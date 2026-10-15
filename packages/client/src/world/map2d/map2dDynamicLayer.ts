@@ -8,6 +8,7 @@ import { playerName } from "../../identity/playerName";
 import { map2dHeadRadiusPx, map2dNameFontPx, map2dNamePillTopPx, NAME_PILL_HEIGHT_PADDING_PX } from "./avatarPortraitGeometry";
 import { drawMap2dAvatar, drawMap2dAvatarIndicators } from "./map2dAvatarDrawing";
 import type { Map2dPlayer } from "./map2dAvatarVisual";
+import { drawMap2dProp } from "./map2dPropDrawing";
 import { fitMap2dName, layoutMap2dNames, type Map2dNameCandidate, type Map2dNameRect } from "./map2dNameLayout";
 export type { Map2dPlayer } from "./map2dAvatarVisual";
 export type Map2dDecoration = { sessionId: string; text: string; expiresAtMs: number };
@@ -65,8 +66,11 @@ export function drawMap2dDynamic(
   nowMs: number,
   portraits?: AvatarPortraits,
   presentation: Map2dPresentation = "immersive",
+  movingVehicleProps: readonly RoomLayoutProp[] = [],
 ): void {
+  for (const prop of movingVehicleProps) drawMap2dProp(ctx, p, prop);
   for (const [id, player] of players)
+    if (!player.vehicleId)
     drawMap2dAvatar(
       ctx,
       p,
@@ -77,7 +81,7 @@ export function drawMap2dDynamic(
       presentation === "immersive",
     );
   for (const [id, player] of players)
-    drawMap2dAvatarIndicators(ctx, p, player, id === localId, speaking.has(player.username.toLocaleLowerCase()));
+    if (!player.vehicleId) drawMap2dAvatarIndicators(ctx, p, player, id === localId, speaking.has(player.username.toLocaleLowerCase()));
   drawNames(ctx, p, players, localId, speaking);
   for (const decoration of decorations) {
     const player = players.get(decoration.sessionId);

@@ -8,11 +8,8 @@ import type { WorkspaceCommand } from "./commandSearch";
 
 type WorkspaceChromeProps = {
   officeId: string;
-  officeName: string;
   offices: readonly { id: string; name: string }[];
-  status: "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
   username: string;
-  peopleCount: number;
   people: readonly CommandCatalogPerson[];
   rooms: readonly CommandCatalogRoom[];
   panel: OfficePanel;
@@ -56,8 +53,7 @@ export function WorkspaceChrome(props: WorkspaceChromeProps) {
   return <>
     <OfficeNavigation panel={props.panel} open={props.panelOpen} unread={props.unread} onSelect={props.onSelectPanel}
       mainMenu={<OfficeMainMenu offices={props.offices} currentOfficeId={props.officeId} onSwitchOffice={props.onSwitchOffice} onOpenChange={setMenuOpen} />} />
-    <OfficeHeader officeName={props.officeName} status={props.status} peopleCount={props.peopleCount} username={props.username}
-      accountOpen={props.accountOpen} onPeople={() => props.onOpenPanel("people")} onAccount={props.onAccount} onSearch={palette.openPalette} />
+    <OfficeHeader username={props.username} accountOpen={props.accountOpen} onAccount={props.onAccount} />
     <CommandPalette commands={commands} open={palette.open} onClose={palette.closePalette} onExecute={command => executeWorkspaceCommand(command, props)} />
   </>;
 }

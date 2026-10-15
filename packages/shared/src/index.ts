@@ -567,6 +567,5 @@ export { normalizeAccountUsername } from "./accountUsername.js";
 
 export * from "./desks.js";
 
-export * from "./meetingHands.js";
 
 export * from "./deskAssignmentFences.js";

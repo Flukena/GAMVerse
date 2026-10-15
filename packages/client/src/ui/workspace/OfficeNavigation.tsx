@@ -2,14 +2,9 @@ import type { ReactNode } from "react";
 import "./OfficeNavigation.css";
 
 export type OfficePanel = "workspace" | "people" | "chat" | "activity";
-type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 
 const PANEL_LABELS: Record<OfficePanel, string> = {
   workspace: "Office", people: "People", chat: "Chat", activity: "Activity",
-};
-const CONNECTION_LABELS: Record<ConnectionState, string> = {
-  connecting: "Connecting…", connected: "Connected", reconnecting: "Reconnecting…",
-  disconnected: "Disconnected", error: "Connection failed",
 };
 const PANEL_ICONS: Record<OfficePanel, string> = {
   workspace: "M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1Z",
@@ -45,34 +40,22 @@ export function OfficeNavigation({ panel, open, unread, onSelect, mainMenu }: Na
 }
 
 interface HeaderProps {
-  officeName: string;
-  status: ConnectionState;
-  peopleCount: number;
   username: string;
   accountOpen: boolean;
-  onPeople(): void;
   onAccount(): void;
-  onSearch?(): void;
 }
 
 export function OfficeHeader(props: HeaderProps) {
   return <header className="office-header">
-    <div className="office-header-name"><span className="office-header-eyebrow">GAMVERSE</span><strong title={props.officeName}>{props.officeName}</strong></div>
+    <div className="office-header-brand" aria-label="GAMVerse">GAMVerse</div>
     <div className="office-header-actions">
-      {props.onSearch && <button type="button" className="office-search-button" onClick={props.onSearch} aria-label="Search people, rooms and actions">Search <kbd>⌘ / Ctrl K</kbd></button>}
-      <span className="office-connection" data-status={props.status} role="status"><i aria-hidden="true" />{CONNECTION_LABELS[props.status]}</span>
-      <button type="button" className="office-online-button" onClick={props.onPeople} aria-label={`Show ${props.peopleCount} people in the office`}><span aria-hidden="true">●</span> {props.peopleCount} <span className="office-online-label">in office</span></button>
       <button type="button" className="office-account-button" aria-label="Account and settings" title="Account and settings" aria-expanded={props.accountOpen} aria-controls={props.accountOpen ? "character-drawer" : undefined} onClick={props.onAccount}>{props.username.slice(0, 1).toUpperCase()}</button>
     </div>
   </header>;
 }
 
-export function OfficePanelHeader({ panel, onClose }: { panel: OfficePanel; onClose(): void }) {
+export function OfficePanelHeader({ panel }: { panel: OfficePanel }) {
   return <header className="office-panel-header">
     <h2 id="office-panel-title">{PANEL_LABELS[panel]}</h2>
-    <button type="button" aria-label={`Close ${PANEL_LABELS[panel].toLowerCase()} panel`} title="Close panel" onClick={() => {
-      onClose();
-      document.getElementById(`office-nav-${panel}`)?.focus();
-    }}><span aria-hidden="true">×</span></button>
   </header>;
 }

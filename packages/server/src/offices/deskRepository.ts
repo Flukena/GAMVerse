@@ -18,7 +18,7 @@ export async function assertDeskMembership(client: Queryable, officeId: string, 
      ON members.office_id = offices.id AND members.username = $2
      WHERE offices.id = $1 AND offices.archived_at IS NULL
        AND (offices.owner_username = $2 OR members.username IS NOT NULL OR $3::boolean)
-       AND (NOT $4::boolean OR offices.owner_username = $2 OR members.role = 'admin')`, [officeId, username, maintainer, requireMapEditor]);
+       AND (NOT $4::boolean OR $3::boolean OR offices.owner_username = $2 OR members.role = 'admin')`, [officeId, username, maintainer, requireMapEditor]);
   if (!result.rowCount) throw new Error(ACCESS_DENIED_LABEL);
 }
 export async function readOfficeDesks(client: Queryable, officeId: string): Promise<OfficeDesk[]> {
