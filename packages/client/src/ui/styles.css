@@ -37,7 +37,8 @@ button:focus-visible { outline: 3px solid #287a59; outline-offset: 3px; }
 .password-visibility-toggle:focus-visible { outline: 2px solid #219ebc; outline-offset: 1px; }
 .password-visibility-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 .auth-submit { height: 44px; margin-top: 20px; border: 0; border-radius: 10px; background: #3f715d; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
-.auth-submit:disabled { opacity: .6; cursor: wait; }
+.auth-submit:disabled { opacity: .6; cursor: not-allowed; }
+.auth-submit:disabled[aria-busy="true"] { cursor: wait; }
 .auth-switch { margin-top: 14px; padding: 6px; border: 0; background: transparent; color: #5e806b; font-size: 11px; cursor: pointer; }
 .auth-error { margin: 12px 0 0 !important; color: #a34d42 !important; font-size: 11px !important; }
 .lobby-shell { min-height: 100vh; background: #edf2ee; }
