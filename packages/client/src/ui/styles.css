@@ -44,6 +44,7 @@ button:focus-visible { outline: 3px solid #287a59; outline-offset: 3px; }
 .lobby-header { height: 78px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; background: rgba(249, 251, 248, .94); border-bottom: 1px solid rgba(30, 50, 40, .08); }
 .lobby-account { display: flex; align-items: center; gap: 14px; color: #66756d; font-size: 12px; }
 .lobby-content { width: min(1060px, calc(100% - 40px)); margin: 48px auto; }
+.lobby-intro-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .lobby-intro h1 { margin: 7px 0; font: 800 28px "Manrope", sans-serif; letter-spacing: -.8px; }
 .lobby-intro p { margin: 0; color: #7e8a82; font-size: 13px; }
 .lobby-create-office-action { display: flex; justify-content: flex-start; margin: 28px 0; }
@@ -556,6 +557,8 @@ button.voice-participant-media:disabled { opacity: .45; cursor: default; }
   .lobby-account { gap: 8px; font-size: 10px; }
   .lobby-content { width: calc(100% - 24px); margin: 26px auto; }
   .lobby-intro h1 { font-size: 23px; }
+  .lobby-intro-heading { gap: 8px; }
+  .lobby-intro-heading .lobby-button { flex: 0 0 auto; min-height: 40px; padding: 0 10px; }
   .lobby-create-office-action .lobby-button { width: 100%; min-height: 44px; }
   .create-office-generator-fields { grid-template-columns: 1fr; }
   .lobby-columns { grid-template-columns: 1fr; }

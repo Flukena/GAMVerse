@@ -579,7 +579,7 @@ export function OfficeApp() {
   appPausedRef.current = appPaused || Boolean(social.interaction);
   const [userStatusMenuOpen, setUserStatusMenuOpen] = useState(false);
   const [workspacePanelOpen, setWorkspacePanelOpen] = useState(false);
-  const [activeLobbyTab, setActiveLobbyTab] = useState<"offices" | "invitations">("offices");
+  const [activeLobbyTab, setActiveLobbyTab] = useState<"offices" | "invitations" | "accounts" | "audit">("offices");
   const workspacePanelMounted = usePanelPresence(workspacePanelOpen);
   const characterPanelMounted = usePanelPresence(characterPanelOpen);
   const [chatContainer, setChatContainer] = useState<HTMLDivElement | null>(null);
@@ -2645,8 +2645,8 @@ export function OfficeApp() {
           <div className="user-settings-content"><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setCharacterPanelOpen(false); setProfileDialogOpen(true); }}><span><strong>Profile</strong><small>Edit your display name</small></span><span aria-hidden="true">›</span></button></section><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setAccountError(null); setChangePasswordOpen(true); }}><span><strong>Change password</strong><small>Update your sign-in password</small></span><span aria-hidden="true">›</span></button></section></div>
         </aside>}
         <section className="lobby-content">
-          <div className="lobby-intro"><span className="eyebrow">YOUR WORKSPACE</span><h1>{authUser.role === "maintainer" ? "Manage offices" : "Choose an office"}</h1><p>Enter an office you belong to, accept an invitation, or start a new office.</p></div>
-          <div className="lobby-create-office-action"><button data-tutorial-target="lobby-create-office" className="lobby-button primary" type="button" onClick={() => { setLobbyError(null); setCreateOfficeDialogOpen(true); }}>＋ Create office</button></div>
+          <div className="lobby-intro"><span className="eyebrow">YOUR WORKSPACE</span><div className="lobby-intro-heading"><h1>{authUser.role === "maintainer" ? "Manage offices" : "Choose an office"}</h1><button data-tutorial-target="lobby-create-office" className="lobby-button primary" type="button" onClick={() => { setLobbyError(null); setCreateOfficeDialogOpen(true); }}>＋ Create office</button></div><p>Enter an office you belong to, accept an invitation, or start a new office.</p></div>
+          {authUser.role === "maintainer" && <MaintainerSystemPanel endpoint={endpoint} />}
           {lobbyError && <p className="auth-error" role="alert">{lobbyError}</p>}
           {accountError && <p className="auth-error" role="alert">{accountError}</p>}
           {createOfficeDialogOpen && <div className="manager-backdrop create-office-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !lobbyBusy) setCreateOfficeDialogOpen(false); }}><form className="manager-dialog create-office-dialog" role="dialog" aria-modal="true" aria-labelledby="create-office-title" onSubmit={(event) => void createOfficeAction(event)}>
@@ -2661,22 +2661,13 @@ export function OfficeApp() {
             {lobbyError && <p className="auth-error" role="alert">{lobbyError}</p>}
             <footer className="create-office-dialog-actions"><button className="lobby-button" type="button" disabled={lobbyBusy} onClick={() => setCreateOfficeDialogOpen(false)}>Cancel</button><button className="lobby-button primary" type="submit" disabled={lobbyBusy || !createOfficeInputsValid}>{lobbyBusy ? "Creating…" : "Create office & map"}</button></footer>
           </form></div>}
-          {authUser.role === "maintainer" && <MaintainerSystemPanel endpoint={endpoint} />}
-          {authUser.role === "maintainer" && <MaintainerAccountSafety
-            accounts={accounts}
-            loading={accountsLoading}
-            loadError={accountsLoadError}
-            onRetry={() => setAccountReloadToken((current) => current + 1)}
-            endpoint={endpoint}
-            currentUsername={authUser.username}
-            resetUrls={resetUrls}
-            onGenerateResetLink={issueResetLink}
-            onAccountUpdated={(updated) => setAccounts((current) => current.map((account) => account.username === updated.username ? updated : account))}
-          />}
-          {authUser.role === "maintainer" && <MaintainerAuditPanel endpoint={endpoint} />}
           <nav className="lobby-section-tabs" role="tablist" aria-label="Workspace sections">
             <button data-tutorial-target="lobby-offices" type="button" role="tab" id="offices-tab" aria-selected={activeLobbyTab === "offices"} aria-controls="offices-panel" className={activeLobbyTab === "offices" ? "active" : ""} onClick={() => setActiveLobbyTab("offices")}>Offices <span>{offices.length}</span></button>
             <button data-tutorial-target="lobby-invitations" type="button" role="tab" id="invitations-tab" aria-selected={activeLobbyTab === "invitations"} aria-controls="invitations-panel" className={activeLobbyTab === "invitations" ? "active" : ""} onClick={() => setActiveLobbyTab("invitations")}>Invitations <span>{invites.length}</span></button>
+            {authUser.role === "maintainer" && <>
+              <button type="button" role="tab" id="accounts-tab" aria-selected={activeLobbyTab === "accounts"} aria-controls="accounts-panel" className={activeLobbyTab === "accounts" ? "active" : ""} onClick={() => setActiveLobbyTab("accounts")}>Accounts <span>{accounts.length}</span></button>
+              <button type="button" role="tab" id="audit-tab" aria-selected={activeLobbyTab === "audit"} aria-controls="audit-panel" className={activeLobbyTab === "audit" ? "active" : ""} onClick={() => setActiveLobbyTab("audit")}>Audit</button>
+            </>}
           </nav>
           <div className="lobby-tab-content">
             {activeLobbyTab === "offices" && <section id="offices-panel" role="tabpanel" aria-labelledby="offices-tab" className="lobby-panel"><div className="card-heading"><div><span className="eyebrow">OFFICES</span><h2>Your offices</h2></div><span className="count-chip">{offices.length}</span></div>
@@ -2692,6 +2683,18 @@ export function OfficeApp() {
               {invites.length === 0 ? <p className="empty-people">No pending invitations.</p> : <ul className="invite-list">{invites.map((invite) => <li key={invite.id}><div><strong>{invite.officeName}</strong><small>Invited by {invite.inviter} as {invite.role}</small></div><button className="lobby-button primary" disabled={lobbyBusy} onClick={() => void acceptInvite(invite.id)}>Accept</button></li>)}</ul>}
               {inviteLinkToken && <p className="invite-notice">Processing your one-time office invite…</p>}
             </section>}
+            {authUser.role === "maintainer" && activeLobbyTab === "accounts" && <section id="accounts-panel" role="tabpanel" aria-labelledby="accounts-tab"><MaintainerAccountSafety
+              accounts={accounts}
+              loading={accountsLoading}
+              loadError={accountsLoadError}
+              onRetry={() => setAccountReloadToken((current) => current + 1)}
+              endpoint={endpoint}
+              currentUsername={authUser.username}
+              resetUrls={resetUrls}
+              onGenerateResetLink={issueResetLink}
+              onAccountUpdated={(updated) => setAccounts((current) => current.map((account) => account.username === updated.username ? updated : account))}
+            /></section>}
+            {authUser.role === "maintainer" && activeLobbyTab === "audit" && <section id="audit-panel" role="tabpanel" aria-labelledby="audit-tab"><MaintainerAuditPanel endpoint={endpoint} /></section>}
           </div>
         </section>
         {profileDialog}

@@ -1,4 +1,4 @@
-.maintainer-system-panel { display: grid; gap: 14px; }
+.maintainer-system-panel { display: grid; gap: 14px; margin-top: 20px; }
 .maintainer-system-refresh-meta { display: flex; align-items: center; gap: 9px; color: #87958c; font-size: 10px; }
 .maintainer-system-services { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
 .maintainer-system-card { display: grid; align-content: start; gap: 10px; min-height: 94px; padding: 13px; border: 1px solid #e3ebe5; border-radius: 12px; background: #fbfdfb; }
