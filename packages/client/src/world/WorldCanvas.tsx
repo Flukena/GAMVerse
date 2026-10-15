@@ -1198,6 +1198,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     zoneDraftPreview.renderOrder = 4;
     campusRoot.add(zoneDraftPreview);
     const mapCollisionOverlays: THREE.Object3D[] = [];
+    const movableVehicleEditHandles = new Map<string, THREE.Object3D[]>();
+    const trackMovableVehicleHandle = (propId: string, object: THREE.Object3D) => {
+      const handles = movableVehicleEditHandles.get(propId) ?? [];
+      handles.push(object);
+      movableVehicleEditHandles.set(propId, handles);
+    };
     const mapPropSelectionHighlights = new Map<string, THREE.Group>();
     const mapZoneSelectionHighlights = new Map<string, THREE.Group>();
     const campusRoomNameLabels: THREE.Sprite[] = [];
@@ -1757,6 +1763,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           selection.visible = false;
           selection.userData.officeMapPropId = prop.id;
           selection.userData.mapPropSelection = true;
+          if (catalog.vehicleId) trackMovableVehicleHandle(prop.id, selection);
           const selectedFootprint = new THREE.Mesh(
             new THREE.BoxGeometry(collisionFootprint.width, 0.035, collisionFootprint.depth),
             new THREE.MeshBasicMaterial({ color: "#ffb703", transparent: true, opacity: 0.22, depthWrite: false }),
@@ -1787,6 +1794,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           );
           dragTarget.userData.officeMapPropId = prop.id;
           dragTarget.userData.mapPropDragHitTarget = true;
+          if (catalog.vehicleId) trackMovableVehicleHandle(prop.id, dragTarget);
           campusMapProps.add(dragTarget);
         }
         // Driveable props are rendered by the vehicle layer so they can be
@@ -1827,6 +1835,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           proxy.userData.officeMapPropId = prop.id;
           proxy.userData.mapCollisionOverlay = true;
           proxy.userData.collision = true;
+          if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, proxy);
           campusMapProps.add(proxy);
           mapCollisionOverlays.push(proxy);
           // The movement solver keeps the player's center one radius outside
@@ -1840,6 +1849,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           clearanceOutline.position.set(prop.x + mapWorld.width / 2, (prop.elevation ?? 0) + 0.018, prop.z + mapWorld.depth / 2);
           clearanceOutline.userData.officeMapPropId = prop.id;
           clearanceOutline.userData.mapCollisionOverlay = true;
+          if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, clearanceOutline);
           campusMapProps.add(clearanceOutline);
           mapCollisionOverlays.push(clearanceOutline);
           const outline = new THREE.LineSegments(
@@ -1849,6 +1859,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           outline.position.set(prop.x + mapWorld.width / 2, (prop.elevation ?? 0) + 0.04, prop.z + mapWorld.depth / 2);
           outline.userData.officeMapPropId = prop.id;
           outline.userData.mapCollisionOverlay = true;
+          if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, outline);
           campusMapProps.add(outline);
           mapCollisionOverlays.push(outline);
         }
@@ -2002,7 +2013,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       if (!model) {
         model = loadGltfAsset(path);
         cache.set(id, model);
-        void model.catch(() => undefined);
+        void model.catch(() => {
+          if (cache.get(id) === model) cache.delete(id);
+        });
       }
       return model;
     };
@@ -2732,11 +2745,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       }
       let nearestVehicle: { vehicleId: KenneyVehicleId; propId: string } | null = null;
       let nearestDistance = 3.2;
-      const occupiedVehicleIds = new Set<string>();
+      const occupiedVehiclePropIds = new Set<string>();
       const occupantsByProp = new Map<string, PlayerSnapshot>();
       const parkedByProp = new Map<string, PlayerSnapshot>();
       for (const player of players.values()) {
-        if (player.vehicleId) occupiedVehicleIds.add(player.vehicleId);
+        if (player.vehicleId && player.vehiclePropId) occupiedVehiclePropIds.add(player.vehiclePropId);
         if (!player.vehiclePropId) continue;
         if (player.vehicleId) {
           if (!occupantsByProp.has(player.vehiclePropId)) occupantsByProp.set(player.vehiclePropId, player);
@@ -2745,8 +2758,17 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       for (const prop of driveableProps) {
         const occupant = occupantsByProp.get(prop.id);
         const parkedAt = parkedByProp.get(prop.id);
+        const vehicleState = occupant ?? parkedAt;
+        if (vehicleState) {
+          const worldX = vehicleState.vehiclePropX ?? prop.x;
+          const worldZ = vehicleState.vehiclePropZ ?? prop.z;
+          for (const handle of movableVehicleEditHandles.get(prop.id) ?? []) {
+            handle.position.x = worldX + mapWorld.width / 2;
+            handle.position.z = worldZ + mapWorld.depth / 2;
+          }
+        }
         let parked = parkedVehicleGroups.get(prop.id);
-        if (occupant || (occupiedVehicleIds.has(prop.vehicleId) && !parkedAt)) {
+        if (occupant || (occupiedVehiclePropIds.has(prop.id) && !parkedAt)) {
           if (parked) scene.remove(parked);
         } else {
           if (!parked) {
@@ -2777,7 +2799,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           }
         }
         // A just-exited car is parked at its driver's position and remains usable there.
-        const canInteract = !occupant && (!occupiedVehicleIds.has(prop.vehicleId) || Boolean(parkedAt));
+        const canInteract = !occupant && (!occupiedVehiclePropIds.has(prop.id) || Boolean(parkedAt));
         if (localPlayer && !localPlayer.vehicleId && canInteract) {
           const dx = localPlayer.x - (parkedAt?.vehiclePropX ?? prop.x);
           const dz = localPlayer.z - (parkedAt?.vehiclePropZ ?? prop.z);

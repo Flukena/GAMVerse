@@ -1237,6 +1237,7 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .office-sidebar-content > .sidebar-activity { width: 100%; padding-right: 14px; padding-left: 14px; }
 .office-sidebar-content > .sidebar-chat-container.is-active { width: 100%; }
 .hand-raise-button.active { color: #ffd166; border-color: rgba(255,209,102,.8); background: rgba(255,209,102,.18); }
+.hand-raise-button svg { width: 15px; height: 15px; }
 .hand-raise-button:disabled { opacity: .45; cursor: not-allowed; }
 @media (hover: none) {
   .app-shell:has(.office-minimap) .page-tutorial-reopen { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
