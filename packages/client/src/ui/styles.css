@@ -1188,8 +1188,11 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .app-shell .page-tutorial-reopen:focus-visible { opacity: 1; pointer-events: auto; transform: scale(1); }
 .app-shell:has(.office-sidebar.is-open) .office-minimap { visibility: hidden; }
 .app-shell > .office-sidebar {
-  --sidebar-dock-clearance: 84px;
-  bottom: calc(var(--sidebar-dock-clearance) + env(safe-area-inset-bottom));
+  top: 0;
+  bottom: 0;
+  z-index: 8;
+  padding-top: 72px;
+  box-sizing: border-box;
   border-radius: 0 0 18px 0;
 }
 .office-sidebar > .left-sidebar-nav {
@@ -1215,7 +1218,7 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .person-row > button:hover { border-color: rgba(33,158,188,.35); background: rgba(255,255,255,.9); }
 .person-actions { max-width: 100%; flex-wrap: wrap; }
 @media (max-width: 760px) {
-  .app-shell > .office-sidebar { --sidebar-dock-clearance: 74px; }
+  .app-shell > .office-sidebar { padding-top: 64px; }
   .office-sidebar > .left-sidebar-nav { padding-right: 12px; padding-left: 12px; }
   .sidebar-workspace,
   .sidebar-people,
@@ -1231,7 +1234,7 @@ button:focus-visible, .focus-character-control:focus-visible { outline-color: va
 .office-sidebar > .left-sidebar-nav > button:not(.icon-button) { position: relative; display: grid; flex: 0 0 40px; width: 40px; height: 40px; min-height: 40px; place-items: center; padding: 0; border-radius: 11px; }
 .office-sidebar > .left-sidebar-nav > button svg { width: 19px; height: 19px; }
 .office-sidebar > .left-sidebar-nav > button > span { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; border: 1px solid #f8fbfc; border-radius: 999px; background: #219ebc; color: white; font-size: 9px; line-height: 14px; }
-.office-sidebar-content { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.office-sidebar-content { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); overflow: hidden; box-sizing: border-box; }
 .office-sidebar-content > .sidebar-workspace,
 .office-sidebar-content > .sidebar-people,
 .office-sidebar-content > .sidebar-activity { width: 100%; padding-right: 14px; padding-left: 14px; }
