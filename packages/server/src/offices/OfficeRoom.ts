@@ -3,7 +3,7 @@ import { deskAssignmentFences } from "./deskAssignmentFences.js";
 import { readOfficeMapProjection } from "./officeMapProjection.js";
 import { DESK_ASSIGNMENT_MAP_CHANGED_LABEL, DESK_ASSIGNMENT_MEDIA_UNAVAILABLE_LABEL, DeskAssignmentError } from "./deskAssignments.js";
 import { type DeskAssignmentFence } from "@gammyverse/shared";
-import { restrictedZoneWorld, findAccessibleSpawn } from "./privateMovement.js";
+import { restrictedZoneWorld, findAccessibleSpawn, isAccessibleSpawn } from "./privateMovement.js";
 import { vehicleExitPosition } from "./vehicleExitPosition.js";
 import { PrivateConversations } from "./privateConversations.js";
 import { privateAccessFrame } from "./privateAccessFrame.js";
@@ -594,13 +594,25 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     for (const client of this.clients) client.send("ghost-mode-status", payload);
   }
 
-  onJoin(client: Client, _options: unknown, auth: { username: string; nickname?: string | null; mediaIdentity: string; characterId: string | null; officeRole: string; availability?: AvailabilityProfile }) {
-    const spawn = findAccessibleSpawn(
-      [...this.state.players.entries()]
-        .filter(([sessionId]) => sessionId !== client.sessionId)
-        .map(([, player]) => ({ x: player.x, z: player.z })),
-      this.movementAccessWorld(client.sessionId,this.world),
-    );
+  onJoin(client: Client, options: unknown, auth: { username: string; nickname?: string | null; mediaIdentity: string; characterId: string | null; officeRole: string; availability?: AvailabilityProfile }) {
+    const occupied = [...this.state.players.entries()]
+      .filter(([sessionId]) => sessionId !== client.sessionId)
+      .map(([, player]) => ({ x: player.x, z: player.z }));
+    const accessWorld = this.movementAccessWorld(client.sessionId, this.world);
+    const requestedPosition = typeof options === "object" && options !== null && "lastPosition" in options
+      ? (options as { lastPosition?: unknown }).lastPosition
+      : null;
+    const preferredPosition = typeof requestedPosition === "object" && requestedPosition !== null &&
+      "x" in requestedPosition && "z" in requestedPosition &&
+      typeof requestedPosition.x === "number" && typeof requestedPosition.z === "number"
+      ? { x: requestedPosition.x, z: requestedPosition.z }
+      : null;
+    // Client storage may suggest a return point, but the room still owns
+    // spawn authority and accepts it only if it is walkable, accessible,
+    // inside the map, and clear of other players.
+    const spawn = preferredPosition && isAccessibleSpawn(preferredPosition, occupied, accessWorld)
+      ? preferredPosition
+      : findAccessibleSpawn(occupied, accessWorld);
     if(!spawn){this.sessionSecurity.finish(auth.username,client.sessionId);client.leave(OFFICE_ACCESS_REVOKED_CLOSE_CODE,SPAWN_ACCESS_UNAVAILABLE_LABEL);return;}
     const player = new PlayerState();
     player.x = spawn.x;

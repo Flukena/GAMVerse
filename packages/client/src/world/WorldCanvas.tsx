@@ -1,5 +1,5 @@
 import { playerName } from "../identity/playerName";
-import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, JUMP_DURATION_MS, jumpHeightAt, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, parseRoomPropSeatReference, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone, type UserStatus } from "@gammyverse/shared";
+import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, JUMP_DURATION_MS, jumpHeightAt, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, parseRoomPropSeatReference, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone, type UserStatus } from "@gammyverse/shared";
 import type { MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -20,7 +20,7 @@ import { computeCameraFrame, applyCameraProjection, campusOverviewDistance } fro
 import { rotateFirstPersonAim, panCameraTarget, cameraPanDistanceM, hasExceededCameraDragThreshold, isCameraClickGesture, classifyCampusMapPointerAction, findClosestScreenTarget, cameraWheelEvent, panEditorCamera, hasCameraMovement, isConflictingCameraPointerDown, canFinishCameraPointerGesture } from "./camera/cameraInput";
 import { CameraOcclusion } from "./camera/cameraOcclusion";
 import { smoothCameraPose, type CameraPose } from "./camera/cameraPose";
-import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMERA_PAN_DRAG_SENSITIVITY, CAMPUS_3D_DISTANCE_LIMIT_RATIO, CAMPUS_BOUNDARY_WALL_HEIGHT_M, FOLLOW_FACING_RESPONSE_PER_SECOND, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, TPP_FOV_DEG } from "./camera/constants";
+import { CAMERA_MOVEMENT_KEY_CODES, CAMERA_FAR_MIN_M, CAMERA_NEAR_MAX_M, CAMERA_PAN_DRAG_SENSITIVITY, CAMPUS_3D_DISTANCE_LIMIT_RATIO, CAMPUS_BOUNDARY_WALL_HEIGHT_M, FOLLOW_FACING_RESPONSE_PER_SECOND, FPP_INITIAL_PITCH_DEG, FPP_POINTER_SENSITIVITY_RAD_PER_PIXEL, LOOK_TARGET_HEIGHT_M, TPP_FOV_DEG } from "./camera/constants";
 
 import { WorldControls } from "./WorldControls";
 import { makeUserStatusBadge } from "./playerStatusBadge";
@@ -756,6 +756,31 @@ function snapCampusPropPoint(point: { x: number; z: number }, width: number, dep
   };
 }
 
+function snapCampusPropPointInZone(
+  point: { x: number; z: number },
+  width: number,
+  depth: number,
+  zone: { x: number; z: number; width: number; depth: number },
+  bounds: { width: number; depth: number },
+) {
+  const wallClearance = 0.1;
+  const minX = zone.x - zone.width / 2 + bounds.width / 2 + wallClearance;
+  const maxX = zone.x + zone.width / 2 + bounds.width / 2 - wallClearance;
+  const minZ = zone.z - zone.depth / 2 + bounds.depth / 2 + wallClearance;
+  const maxZ = zone.z + zone.depth / 2 + bounds.depth / 2 - wallClearance;
+  const minCellX = Math.ceil(minX);
+  const maxCellX = Math.floor(maxX - width);
+  const minCellZ = Math.ceil(minZ);
+  const maxCellZ = Math.floor(maxZ - depth);
+  if (minCellX > maxCellX || minCellZ > maxCellZ) return null;
+  const halfWidth = width / 2;
+  const halfDepth = depth / 2;
+  return {
+    x: THREE.MathUtils.clamp(Math.round(point.x - halfWidth), minCellX, maxCellX) + halfWidth,
+    z: THREE.MathUtils.clamp(Math.round(point.z - halfDepth), minCellZ, maxCellZ) + halfDepth,
+  };
+}
+
 export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, playersRef, localSessionIdRef, localPetIdRef, speakingUsernamesRef, heldKeysRef, cameraYawRef, cameraBehindCharacterRef, firstPersonViewRef, map2dDecorationsRef, map2dViewRef, map2dToggleRef, locateRequestRef, travelFeedback = null, travelRequesting = false, onCancelTravel, propsConfigVersion = 0, roomPortals = [], roomLayout, personalDeskZone = null, onReturnToDesk, currentPrivateZoneId = null, inboundAudioMuted = false, appPaused = false, idleAnimationsEnabled = true, ghostSessionIds = new Set<string>(), mapEditMode = false, spawnPlacementMode = false, onMoveSpawnPoint, zoneDrawing = false, onZoneAreaDrawn, onSelectDeskZone, onSelectMapZone, selectedMapZoneId = null, lockedZoneIds = [], onClaimDeskZone, canClaimDesk = true, deskClaimingZoneId = null, buildMode = false, buildTool = "select", selectedAsset = null, onPlaceProp, onPlacementComplete, onMoveProp, onRotateProp, onDeleteProp, onSelectMapItem, selectedMapItemId = null, onDrawPrivateZone, onAutoMove, onSelectPlayer, onGhostModeChange, onBlasterShot, onWeaponEquip, blasterEventsRef, jumpStartedAtRef, onJump, onVehicleInteract, canEditMap = false, mapEditorUsername = null, mapEditLockPending = false, onEditMap, onModifyProps, onMapViewChange }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [propActionMenu, setPropActionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -883,9 +908,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   useEffect(() => { zoneStartRef.current = null; }, [buildTool]);
   useEffect(() => { const canvas = hostRef.current?.querySelector("canvas"); if (canvas) canvas.style.cursor = zoneDrawing ? "crosshair" : buildMode ? (buildTool === "place" ? "copy" : "crosshair") : "default"; }, [buildMode, buildTool, zoneDrawing]);
   useEffect(() => {
-    const lookTarget = cameraLookTargetRef.current;
-    if ((buildMode || mapEditMode) && cameraStateRef.current.following && lookTarget) cameraPanTargetRef.current?.copy(lookTarget);
-    dispatchCamera({ type: "edit", active: buildMode || mapEditMode });
     if (!buildMode && !mapEditMode) return;
     setFirstPersonView(false);
     firstPersonViewRef.current = false;
@@ -943,7 +965,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     renderer.domElement.tabIndex = 0;
     host.appendChild(map2dCanvas);
     map2dCanvasRef.current = map2dCanvas;
-    const destinationBeacon = createWorldDestinationBeacon(host);
+    const destinationBeacon = createWorldDestinationBeacon(host, scene);
     const socialOverlay = new WorldSocialOverlay(host, scene);
     const map2dRenderer = new Map2dRenderer(map2dCanvas, {
       pan: (center) => { map2dCenterRef.current = center; if (cameraStateRef.current.following) dispatchCamera({ type: "manual-drag" }); },
@@ -1105,17 +1127,30 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const mapRaycaster = new THREE.Raycaster();
     const mapPointerNdc = new THREE.Vector2();
     const mapGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const mapPointerPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const mapGroundHit = new THREE.Vector3();
     let fireFirstPerson: () => void = () => undefined;
     let lastFirstPersonShotAt = 0;
-    let draggingMapProp: { id: string; pointerId: number; last: { x: number; z: number }; startPointer: { x: number; z: number }; offset: { x: number; z: number }; center: { x: number; z: number }; moved: boolean; elevation: number; preview: THREE.Group; hiddenVisuals: Array<{ object: THREE.Object3D; visible: boolean }> } | null = null;
+    let draggingMapProp: { id: string; pointerId: number; last: { x: number; z: number }; startPointer: { x: number; z: number }; offset: { x: number; z: number }; center: { x: number; z: number }; moved: boolean; elevation: number; pointerPlaneY: number; preview: THREE.Group; hiddenVisuals: Array<{ object: THREE.Object3D; visible: boolean }> } | null = null;
     let zoneAreaDrag: { pointerId: number; start: { x: number; z: number } } | null = null;
-    const mapPositionFromPointer = (event: { clientX: number; clientY: number }) => {
+    const mapPositionFromPointer = (event: { clientX: number; clientY: number }, planeY = 0) => {
       const bounds = renderer.domElement.getBoundingClientRect();
       mapPointerNdc.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
       mapRaycaster.setFromCamera(mapPointerNdc, camera);
-      if (!mapRaycaster.ray.intersectPlane(mapGroundPlane, mapGroundHit)) return null;
+      mapPointerPlane.constant = -planeY;
+      const plane = planeY === 0 ? mapGroundPlane : mapPointerPlane;
+      if (!mapRaycaster.ray.intersectPlane(plane, mapGroundHit)) return null;
       return { x: THREE.MathUtils.clamp(mapGroundHit.x, 0, mapWorld.width), z: THREE.MathUtils.clamp(mapGroundHit.z, 0, mapWorld.depth) };
+    };
+    const snapPlacementPoint = (point: { x: number; z: number }, item: (typeof ROOM_PROP_CATALOG)[number]) => {
+      const zones = roomLayout?.zones ?? [];
+      const localX = point.x - mapWorld.width / 2;
+      const localZ = point.z - mapWorld.depth / 2;
+      const containingZone = zones
+        .filter((zone) => Math.abs(localX - zone.x) <= zone.width / 2 && Math.abs(localZ - zone.z) <= zone.depth / 2)
+        .sort((a, b) => a.width * a.depth - b.width * b.depth)[0];
+      if (!containingZone) return snapCampusPropPoint(point, item.width, item.depth, 0, mapWorld);
+      return snapCampusPropPointInZone(point, item.width, item.depth, containingZone, mapWorld);
     };
     const placementPositionFromPointer = (event: { clientX: number; clientY: number }, item: (typeof ROOM_PROP_CATALOG)[number]) => {
       const groundPoint = mapPositionFromPointer(event);
@@ -1137,7 +1172,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         const topY = (prop.elevation ?? 0) + definition.height;
         return compatible && Math.abs(hit.point.y - topY) <= Math.max(0.18, definition.height * 0.12);
       });
-      if (!topHit) return groundPoint;
+      if (!topHit) return item.placementClass === "small" ? null : groundPoint;
 
       // The clicked point is where the cursor landed, not the center of the
       // new prop. Clamp that center into the support's usable top footprint so
@@ -1146,7 +1181,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       while (supportNode && supportNode !== campusMapProps && typeof supportNode.userData.officeMapPropId !== "string") supportNode = supportNode.parent;
       const supportProp = roomLayout?.props.find((entry) => entry.id === supportNode?.userData.officeMapPropId);
       const supportDefinition = supportProp && ROOM_PROP_CATALOG.find((entry) => entry.asset === supportProp.asset);
-      if (!supportProp || !supportDefinition) return groundPoint;
+      if (!supportProp || !supportDefinition) return item.placementClass === "small" ? null : groundPoint;
 
       const supportCenterX = supportProp.x + mapWorld.width / 2;
       const supportCenterZ = supportProp.z + mapWorld.depth / 2;
@@ -1187,7 +1222,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       );
       return validGridPoints.sort((a, b) =>
         Math.hypot(a.x - topHit.point.x, a.z - topHit.point.z) - Math.hypot(b.x - topHit.point.x, b.z - topHit.point.z),
-      )[0] ?? groundPoint;
+      )[0] ?? (item.placementClass === "small" ? null : groundPoint);
     };
     const zonePositionFromPointer = (event: { clientX: number; clientY: number }) => {
       // Let zone drawing reach the real map perimeter. The zone creation
@@ -1778,6 +1813,31 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         // drawing both causes coplanar z-fighting and striped intersections.
         if (roomLayout.roadways?.length && catalog?.group === "Roads · Tiles") continue;
         if (catalog) {
+          // Raycasting the visible GLTF surface is unreliable across the prop
+          // library: some tables and shelves have open frames or uneven tops.
+          // Add a non-rendering, catalog-sized top plane so small props and
+          // shelves can consistently target the same support height used by
+          // shared validation. Small props intentionally do not become
+          // supports, so multiple tabletop items may overlap/stack freely.
+          if (catalog.supportsPlacement || catalog.placementClass === "shelf") {
+            const supportSurface = new THREE.Group();
+            supportSurface.position.set(
+              prop.x + mapWorld.width / 2,
+              (prop.elevation ?? 0) + catalog.height + 0.006,
+              prop.z + mapWorld.depth / 2,
+            );
+            supportSurface.rotation.y = prop.rotation;
+            supportSurface.userData.officeMapPropId = prop.id;
+            const supportPlane = new THREE.Mesh(
+              new THREE.PlaneGeometry(prop.width, prop.depth),
+              new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0, colorWrite: false, depthWrite: false }),
+            );
+            supportPlane.rotation.x = -Math.PI / 2;
+            supportPlane.userData.officeMapPropId = prop.id;
+            supportPlane.userData.mapPropSupportSurface = true;
+            supportSurface.add(supportPlane);
+            campusMapProps.add(supportSurface);
+          }
           // The saved collision shape is axis-aligned after rotating the prop.
           // Use that exact footprint for selection feedback so the orange frame
           // no longer turns with the mesh or disagrees with the green blocker.
@@ -1862,20 +1922,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, proxy);
           campusMapProps.add(proxy);
           mapCollisionOverlays.push(proxy);
-          // The movement solver keeps the player's center one radius outside
-          // the blocker. Show that clearance too, so the empty strip where a
-          // player stops is visible while editing props.
-          const clearance = roomPropCollisionClearanceRadius(prop, CAMPUS_WORLD.playerRadius);
-          const clearanceOutline = new THREE.LineSegments(
-            new THREE.EdgesGeometry(new THREE.BoxGeometry(blockerWidth + clearance * 2, 0.02, blockerDepth + clearance * 2)),
-            new THREE.LineBasicMaterial({ color: "#ef476f", depthTest: false, transparent: true, opacity: 0.86 }),
-          );
-          clearanceOutline.position.set(prop.x + mapWorld.width / 2, (prop.elevation ?? 0) + 0.018, prop.z + mapWorld.depth / 2);
-          clearanceOutline.userData.officeMapPropId = prop.id;
-          clearanceOutline.userData.mapCollisionOverlay = true;
-          if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, clearanceOutline);
-          campusMapProps.add(clearanceOutline);
-          mapCollisionOverlays.push(clearanceOutline);
           const outline = new THREE.LineSegments(
             new THREE.EdgesGeometry(new THREE.BoxGeometry(blockerWidth, 0.02, blockerDepth)),
             new THREE.LineBasicMaterial({ color: "#26b866" }),
@@ -2128,6 +2174,21 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       while (node && node !== campusMapProps && typeof node.userData.officeMapPropId !== "string") node = node.parent;
       return node && node !== campusMapProps ? String(node.userData.officeMapPropId) : null;
     };
+    const getOfficePropHitAt = (id: string, clientX: number, clientY: number): THREE.Vector3 | null => {
+      const bounds = renderer.domElement.getBoundingClientRect();
+      mapPointerNdc.set((clientX - bounds.left) / bounds.width * 2 - 1, -((clientY - bounds.top) / bounds.height) * 2 + 1);
+      mapRaycaster.setFromCamera(mapPointerNdc, camera);
+      const hit = mapRaycaster.intersectObjects(campusMapProps.children, true).find((entry) => {
+        let node: THREE.Object3D | null = entry.object;
+        while (node && node !== campusMapProps) {
+          if (node.userData.mapCollisionOverlay || node.userData.mapPropSelection) return false;
+          if (node.userData.officeMapPropId === id) return true;
+          node = node.parent;
+        }
+        return false;
+      });
+      return hit?.point ?? null;
+    };
     const getOfficePropActionPosition = (id: string, fallbackX: number, fallbackY: number) => {
       const propObject = campusMapProps.children.find((child) => child.userData.officeMapPropId === id);
       if (!propObject) return { x: Math.min(fallbackX + 12, window.innerWidth - 174), y: Math.min(fallbackY + 12, window.innerHeight - 142) };
@@ -2141,7 +2202,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       const y = bounds.top + (1 - anchor.y) * bounds.height / 2;
       return { x: Math.min(Math.max(8, x + 12), window.innerWidth - 174), y: Math.min(Math.max(8, y), window.innerHeight - 142) };
     };
-    const beginMapPropDrag = (id: string, pointerId: number, point: { x: number; z: number }, prop: RoomLayoutProp) => {
+    const beginMapPropDrag = (id: string, pointerId: number, point: { x: number; z: number }, prop: RoomLayoutProp, pointerPlaneY: number) => {
       const center = { x: prop.x + mapWorld.width / 2, z: prop.z + mapWorld.depth / 2 };
       const preview = new THREE.Group();
       preview.name = `Drag preview ${id}`;
@@ -2175,6 +2236,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         center,
         moved: false,
         elevation: prop.elevation ?? 0,
+        pointerPlaneY,
         preview,
         hiddenVisuals,
       };
@@ -2254,13 +2316,17 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         setPropActionMenu(null);
         const armedMoveId = movePropArmedIdRef.current;
         if (armedMoveId) {
-          const point = mapPositionFromPointer(event);
           const selectedProp = roomLayout?.props.find((item) => item.id === armedMoveId);
-          if (point && selectedProp) {
+          const clickedPropId = getOfficePropIdAt(event.clientX, event.clientY);
+          if (selectedProp && clickedPropId === armedMoveId) {
+            const hit = getOfficePropHitAt(armedMoveId, event.clientX, event.clientY);
+            const pointerPlaneY = hit?.y ?? selectedProp.elevation ?? 0;
+            const point = mapPositionFromPointer(event, pointerPlaneY);
+            if (!point) return;
             // Hide the placed model and show a dedicated preview attached to
             // the pointer. This keeps the held prop from appearing frozen at
             // its saved position while it is being moved.
-            beginMapPropDrag(armedMoveId, event.pointerId, point, selectedProp);
+            beginMapPropDrag(armedMoveId, event.pointerId, point, selectedProp, pointerPlaneY);
             movePropArmedIdRef.current = null;
             setMovePropArmedId(null);
             renderer.domElement.setPointerCapture(event.pointerId);
@@ -2268,13 +2334,18 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             event.preventDefault();
             return;
           }
+          // Moving starts by dragging the selected prop itself. Clicking empty
+          // map space must not send it to a position inferred from an unrelated point.
+          event.preventDefault();
+          return;
         }
         const asset = selectedAssetRef.current;
         const definition = asset ? ROOM_PROP_CATALOG.find((item) => item.asset === asset) : undefined;
         const point = definition ? placementPositionFromPointer(event, definition) : mapPositionFromPointer(event);
         if (!point) return;
         if (asset) {
-          const snapped = snapCampusPropPoint(point, definition?.width ?? 1, definition?.depth ?? 1, 0, mapWorld);
+          const snapped = definition ? snapPlacementPoint(point, definition) : null;
+          if (!snapped) return;
           placementGhostPosition = snapped;
           placementGhostElevation = definition ? roomPropPlacementSupport(roomLayout?.props ?? [], definition.asset, snapped.x - mapWorld.width / 2, snapped.z - mapWorld.depth / 2)?.elevation ?? 0 : 0;
           hasPlacementPointer = true;
@@ -2293,7 +2364,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
         if (propId && movePropArmedIdRef.current === propId) {
           const selectedProp = roomLayout?.props.find((item) => item.id === propId);
-          if (selectedProp) beginMapPropDrag(propId, event.pointerId, point, selectedProp);
+          if (selectedProp) {
+            const hit = getOfficePropHitAt(propId, event.clientX, event.clientY);
+            const pointerPlaneY = hit?.y ?? selectedProp.elevation ?? 0;
+            const dragPoint = mapPositionFromPointer(event, pointerPlaneY);
+            if (dragPoint) beginMapPropDrag(propId, event.pointerId, dragPoint, selectedProp, pointerPlaneY);
+          }
           movePropArmedIdRef.current = null;
           setMovePropArmedId(null);
           renderer.domElement.setPointerCapture(event.pointerId);
@@ -2360,9 +2436,16 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         const definition = ROOM_PROP_CATALOG.find((item) => item.asset === selectedAssetRef.current);
         const point = definition ? placementPositionFromPointer(event, definition) : mapPositionFromPointer(event);
         if (point && definition) {
-          placementGhostPosition = snapCampusPropPoint(point, definition.width, definition.depth, 0, mapWorld);
-          placementGhostElevation = roomPropPlacementSupport(roomLayout?.props ?? [], definition.asset, placementGhostPosition.x - mapWorld.width / 2, placementGhostPosition.z - mapWorld.depth / 2)?.elevation ?? 0;
-          hasPlacementPointer = true;
+          const snapped = snapPlacementPoint(point, definition);
+          if (!snapped) {
+            hasPlacementPointer = false;
+          } else {
+            placementGhostPosition = snapped;
+            placementGhostElevation = roomPropPlacementSupport(roomLayout?.props ?? [], definition.asset, placementGhostPosition.x - mapWorld.width / 2, placementGhostPosition.z - mapWorld.depth / 2)?.elevation ?? 0;
+            hasPlacementPointer = true;
+          }
+        } else if (definition) {
+          hasPlacementPointer = false;
         }
         if (!cameraDrag) return;
       }
@@ -2381,12 +2464,17 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         return;
       }
       if (draggingMapProp?.pointerId === event.pointerId && buildModeRef.current) {
-        const rawPoint = mapPositionFromPointer(event);
+        const rawPoint = mapPositionFromPointer(event, draggingMapProp.pointerPlaneY);
         if (!rawPoint) return;
         const prop = roomLayout?.props.find((item) => item.id === draggingMapProp!.id);
         const point = prop
           ? snapCampusPropPoint({ x: rawPoint.x + draggingMapProp.offset.x, z: rawPoint.z + draggingMapProp.offset.z }, prop.width, prop.depth, prop.rotation, mapWorld)
           : draggingMapProp.center;
+        if (prop) {
+          const support = roomPropPlacementSupport(roomLayout?.props.filter((item) => item.id !== prop.id) ?? [], prop.asset, point.x - mapWorld.width / 2, point.z - mapWorld.depth / 2, prop.rotation);
+          const definition = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
+          if (definition?.placementClass === "small" && !support) return;
+        }
         const dx = point.x - draggingMapProp.center.x;
         const dz = point.z - draggingMapProp.center.z;
         if (Math.hypot(rawPoint.x - draggingMapProp.startPointer.x, rawPoint.z - draggingMapProp.startPointer.z) > 0.08) draggingMapProp.moved = true;
@@ -2556,7 +2644,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         if (point && point.x >= 0 && point.x <= mapWorld.width && point.z >= 0 && point.z <= mapWorld.depth) {
           // Campus rendering uses map-space [0..width/depth] coordinates while
           // Colyseus player coordinates are centered around the origin.
-          destinationBeacon.setTarget({ x: point.x, z: point.z }, { x: event.clientX, y: event.clientY });
+          destinationBeacon.setTarget({ x: point.x, z: point.z });
           buildCallbacksRef.current.onAutoMove?.({ x: point.x - mapWorld.width / 2, z: point.z - mapWorld.depth / 2 }, true);
         }
       } else if (mapAction !== "select-player") {
@@ -3281,7 +3369,16 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         previousCameraPose = null;
       }
       const editing = mapEditModeRef.current || buildModeRef.current;
-      if (cameraStateRef.current.editing !== editing) dispatchCamera({ type: "edit", active: editing });
+      if (cameraStateRef.current.editing !== editing) {
+        // Freeze the edit camera at the character's current focus point. A
+        // React effect may run between frames while the saved look target is
+        // stale (or still at the map center after canvas setup).
+        if (editing && cameraStateRef.current.following) {
+          if (local) cameraPanTarget.copy(local.position).add(new THREE.Vector3(0, LOOK_TARGET_HEIGHT_M, 0));
+          else cameraPanTarget.copy(currentLookTarget);
+        }
+        dispatchCamera({ type: "edit", active: editing });
+      }
       const heldKeys = heldKeysRef?.current;
       const walkingInput = Boolean(heldKeys && hasCameraMovement(heldKeys));
       if (walkingInput) dispatchCamera({ type: "walk-input" });
@@ -3647,7 +3744,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   return (
     <>
       <div className="world-canvas" ref={hostRef} aria-label="Office map. Walk up to a parked vehicle and press E to drive. Press E again to get out." />
-      {buildMode && movePropArmedId && <div className="modify-props-move-toast" role="status">Drag the selected prop on the map. Right-drag pans the camera.</div>}
+      {buildMode && movePropArmedId && <div className="modify-props-move-toast" role="status">Click and drag the selected prop. Right-drag pans the camera.</div>}
       {buildMode && propActionMenu && <div ref={propActionMenuElementRef} className="prop-action-menu" style={{ left: propActionMenu.x, top: propActionMenu.y }} role="toolbar" aria-label="Actions for selected prop" onPointerDown={(event) => event.stopPropagation()}>
         <button type="button" title="Click, then left-drag on the map to move this prop" aria-label="Move prop" onClick={() => { onSelectMapItem?.(propActionMenu.id); onPlacementComplete?.(); movePropArmedIdRef.current = propActionMenu.id; setMovePropArmedId(propActionMenu.id); setPropActionMenu(null); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7M5 5v14" /></svg><span>Move</span></button>
         <button type="button" title="Rotate prop 90 degrees" aria-label="Rotate prop 90 degrees" onClick={() => { onSelectMapItem?.(propActionMenu.id); onRotateProp?.(propActionMenu.id); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 7v5h-5M20 12a8 8 0 1 1-2.34-5.66L20 9" /></svg><span>Rotate</span></button>

@@ -16,6 +16,7 @@ import { useWorkspaceTheme } from "./workspace/useWorkspaceTheme";
 import { WorkspaceDialog } from "./workspace/WorkspaceDialog";
 import { MapPersonDialog } from "./workspace/MapPersonDialog";
 import { isWorkspaceInputBlocked } from "./workspace/workspaceInput";
+import { clearLastOfficePositions, readLastOfficePosition, saveLastOfficePosition } from "./lastOfficePosition";
 import { useWorkspacePanelFocus } from "./workspace/useWorkspacePanelFocus";
 import { useTravelFeedback } from "./workspace/useTravelFeedback";
 import { AvailabilityDialog } from "./workspace/AvailabilityDialog";
@@ -65,6 +66,7 @@ import type { LockedTurnState } from "../world/camera/lockedMovement";
 import { resolveHeldMovement } from "../world/camera/heldMovement";
 import { FullScreenLoading } from "./FullScreenLoading";
 import { ModifyPropsEditor } from "./ModifyPropsEditor";
+import { MapBuildingPicker } from "./MapBuildingPicker";
 import { PropModelPreview } from "./PropModelPreview";
 import { PageTutorial } from "./PageTutorial";
 import { LobbyDirectory } from "./lobby/LobbyDirectory";
@@ -353,6 +355,8 @@ export function OfficeApp() {
   const blasterEventsRef = useRef<BlasterShotEvent[]>([]);
   const jumpStartedAtRef = useRef(new Map<string, number>());
   const localSessionIdRef = useRef<string | null>(null);
+  const lastPositionSavedAtRef = useRef(0);
+  const positionStorageEpochRef = useRef(0);
   const cameraYawRef = useRef(DEFAULT_CAMERA_YAW);
   const cameraBehindCharacterRef = useRef(true);
   const lockedMovementRef = useRef<LockedTurnState | null>(null);
@@ -407,6 +411,8 @@ export function OfficeApp() {
   const [initialLobbyLoading, setInitialLobbyLoading] = useState(false);
   const [managingOffice, setManagingOffice] = useState<Office | null>(null);
   const [mapEditMode, setMapEditMode] = useState(false);
+  const [mapBuildingPickerOpen, setMapBuildingPickerOpen] = useState(false);
+  const [selectedMapBuildingAsset, setSelectedMapBuildingAsset] = useState<RoomLayoutProp["asset"] | null>(null);
   const [spawnPlacementMode, setSpawnPlacementMode] = useState(false);
   const [mapSpawnSaving, setMapSpawnSaving] = useState(false);
   const mapEditModeRef = useRef(mapEditMode);
@@ -796,6 +802,8 @@ export function OfficeApp() {
       });
       const result = await response.json() as { user?: AuthUser; error?: string };
       if (!response.ok || !result.user) throw new Error(result.error ?? "Could not sign in.");
+      positionStorageEpochRef.current += 1;
+      clearLastOfficePositions();
       setInitialLobbyLoading(true);
       setAuthUser(result.user);
       setAuthPassword("");
@@ -1207,6 +1215,9 @@ export function OfficeApp() {
     setMapZoneDrawing(false);
     setMapZoneArea(null);
     setSelectedMapZoneId(null);
+    setMapBuildingPickerOpen(false);
+    setSelectedMapBuildingAsset(null);
+    setSelectedModifyPropId(null);
     setModifyPropsOpen(false);
   };
 
@@ -1431,6 +1442,8 @@ export function OfficeApp() {
     mediaSuppressed, listening.effectiveMode, conversationAdmitted, conversationKnown, conversation?.admissionLeaseId, voiceRealtimeSessionKey]);
 
   const signOut = () => {
+    positionStorageEpochRef.current += 1;
+    clearLastOfficePositions();
     voiceSessionRef.current?.dispose();
     privateZoneIdRef.current = null; setPrivateZoneId(null);
     proximityGroupIdRef.current = null;
@@ -1446,6 +1459,8 @@ export function OfficeApp() {
   };
 
   const returnToSignIn = () => {
+    positionStorageEpochRef.current += 1;
+    clearLastOfficePositions();
     voiceSessionRef.current?.dispose();
     privateZoneIdRef.current = null; setPrivateZoneId(null);
     proximityGroupIdRef.current = null;
@@ -1763,16 +1778,44 @@ export function OfficeApp() {
   const placeOfficeProp = (asset: RoomLayoutProp["asset"], position: { x: number; z: number; elevation?: number }) => {
     const definition = ROOM_PROP_CATALOG.find((item) => item.asset === asset);
     if (!definition) return;
-    const prop: RoomLayoutProp = { id: `prop-${crypto.randomUUID()}`, asset, x: Math.max(-mapDimensions.width / 2 + definition.width / 2, Math.min(mapDimensions.width / 2 - definition.width / 2, position.x)), z: Math.max(-mapDimensions.depth / 2 + definition.depth / 2, Math.min(mapDimensions.depth / 2 - definition.depth / 2, position.z)), rotation: 0, collision: definition.collision, width: definition.width, depth: definition.depth, ...(position.elevation && position.elevation > 0 ? { elevation: position.elevation } : {}) };
-    setModifyPropsDraft((current) => [...current, prop]);
-    setSelectedModifyPropId(prop.id);
+    const id = `prop-${crypto.randomUUID()}`;
+    const x = Math.max(-mapDimensions.width / 2 + definition.width / 2, Math.min(mapDimensions.width / 2 - definition.width / 2, position.x));
+    const z = Math.max(-mapDimensions.depth / 2 + definition.depth / 2, Math.min(mapDimensions.depth / 2 - definition.depth / 2, position.z));
+    setModifyPropsDraft((current) => {
+      // Resolve height against the final clamped point and latest draft. This
+      // keeps stacked shelf/tabletop placement from saving a stale preview Y.
+      const support = roomPropPlacementSupport(current, asset, x, z);
+      if (definition.placementClass === "small" && !support) return current;
+      const elevation = support?.elevation ?? 0;
+      const prop: RoomLayoutProp = { id, asset, x, z, rotation: 0, collision: definition.collision, width: definition.width, depth: definition.depth, ...(elevation > 0 ? { elevation } : {}) };
+      return [...current, prop];
+    });
+    setSelectedModifyPropId(id);
+  };
+
+  const placeMapBuilding = (asset: RoomLayoutProp["asset"], position: { x: number; z: number; elevation?: number }) => {
+    const definition = ROOM_PROP_CATALOG.find((item) => item.asset === asset && (item.editorRole === "building-prefab" || item.editorRole === "map-component"));
+    if (!definition) return;
+    const id = `map-building-${crypto.randomUUID()}`;
+    const x = Math.max(-mapDimensions.width / 2 + definition.width / 2, Math.min(mapDimensions.width / 2 - definition.width / 2, position.x));
+    const z = Math.max(-mapDimensions.depth / 2 + definition.depth / 2, Math.min(mapDimensions.depth / 2 - definition.depth / 2, position.z));
+    setOfficeMapLayout((layout) => {
+      if (!layout) return layout;
+      const support = roomPropPlacementSupport(layout.props, asset, x, z);
+      const elevation = support?.elevation ?? 0;
+      const prop: RoomLayoutProp = { id, asset, x, z, rotation: 0, collision: definition.collision, width: definition.width, depth: definition.depth, ...(elevation > 0 ? { elevation } : {}) };
+      return { ...layout, props: [...layout.props, prop] };
+    });
+    setSelectedModifyPropId(id);
   };
 
   const moveOfficeProp = (id: string, position: { x: number; z: number; elevation?: number }) => {
     setModifyPropsDraft((current) => current.map((prop) => {
       if (prop.id !== id) return prop;
       const support = roomPropPlacementSupport(current.filter((item) => item.id !== id), prop.asset, position.x, position.z, prop.rotation);
-      const elevation = position.elevation ?? support?.elevation ?? 0;
+      const definition = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
+      if (definition?.placementClass === "small" && !support) return prop;
+      const elevation = support?.elevation ?? 0;
       return { ...prop, x: position.x, z: position.z, ...(elevation > 0 ? { elevation } : { elevation: undefined }) };
     }));
   };
@@ -1789,13 +1832,64 @@ export function OfficeApp() {
       const maxCell = Math.max(0, Math.floor(boundary - footprint));
       return Math.min(maxCell, Math.max(0, Math.round(center - half))) + half;
     };
+    const x = snapCenter(prop.x + mapDimensions.width / 2, footprintWidth, mapDimensions.width) - mapDimensions.width / 2;
+    const z = snapCenter(prop.z + mapDimensions.depth / 2, footprintDepth, mapDimensions.depth) - mapDimensions.depth / 2;
+    const wasElevated = (prop.elevation ?? 0) > 0.001;
+    const support = roomPropPlacementSupport(current.filter((item) => item.id !== id), prop.asset, x, z, rotation);
+    // Keep supported props on their table/shelf after rotation. If the rotated
+    // footprint no longer fits, leave the prop unchanged instead of saving an
+    // invalid overhang or silently dropping it to the floor.
+    if (wasElevated && !support) return prop;
+    const elevation = support?.elevation ?? 0;
     return {
       ...prop,
       rotation,
-      x: snapCenter(prop.x + mapDimensions.width / 2, footprintWidth, mapDimensions.width) - mapDimensions.width / 2,
-      z: snapCenter(prop.z + mapDimensions.depth / 2, footprintDepth, mapDimensions.depth) - mapDimensions.depth / 2,
+      x,
+      z,
+      ...(elevation > 0 ? { elevation } : { elevation: undefined }),
     };
   }));
+
+  const moveMapBuilding = (id: string, position: { x: number; z: number; elevation?: number }) => setOfficeMapLayout((layout) => {
+    if (!layout) return layout;
+    return { ...layout, props: layout.props.map((prop) => {
+      if (prop.id !== id) return prop;
+      const support = roomPropPlacementSupport(layout.props.filter((item) => item.id !== id), prop.asset, position.x, position.z, prop.rotation);
+      const definition = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
+      if (definition?.placementClass === "small" && !support) return prop;
+      const elevation = support?.elevation ?? 0;
+      return { ...prop, x: position.x, z: position.z, ...(elevation > 0 ? { elevation } : { elevation: undefined }) };
+    }) };
+  });
+
+  const rotateMapBuilding = (id: string) => setOfficeMapLayout((layout) => {
+    if (!layout) return layout;
+    return { ...layout, props: layout.props.map((prop) => {
+      if (prop.id !== id) return prop;
+      const rotation = (prop.rotation + Math.PI / 2) % (Math.PI * 2);
+      const cos = Math.abs(Math.cos(rotation));
+      const sin = Math.abs(Math.sin(rotation));
+      const footprintWidth = prop.width * cos + prop.depth * sin;
+      const footprintDepth = prop.depth * cos + prop.width * sin;
+      const snapCenter = (center: number, footprint: number, boundary: number) => {
+        const half = footprint / 2;
+        const maxCell = Math.max(0, Math.floor(boundary - footprint));
+        return Math.min(maxCell, Math.max(0, Math.round(center - half))) + half;
+      };
+      const x = snapCenter(prop.x + mapDimensions.width / 2, footprintWidth, mapDimensions.width) - mapDimensions.width / 2;
+      const z = snapCenter(prop.z + mapDimensions.depth / 2, footprintDepth, mapDimensions.depth) - mapDimensions.depth / 2;
+      const wasElevated = (prop.elevation ?? 0) > 0.001;
+      const support = roomPropPlacementSupport(layout.props.filter((item) => item.id !== id), prop.asset, x, z, rotation);
+      if (wasElevated && !support) return prop;
+      const elevation = support?.elevation ?? 0;
+      return { ...prop, rotation, x, z, ...(elevation > 0 ? { elevation } : { elevation: undefined }) };
+    }) };
+  });
+
+  const deleteMapBuilding = (id: string) => {
+    setOfficeMapLayout((layout) => layout ? { ...layout, props: layout.props.filter((prop) => prop.id !== id) } : layout);
+    setSelectedModifyPropId((current) => current === id ? null : current);
+  };
   const deleteOfficeProp = (id: string) => {
     setModifyPropsDraft((current) => current.filter((prop) => prop.id !== id));
     setSelectedModifyPropId((current) => current === id ? null : current);
@@ -2176,6 +2270,7 @@ export function OfficeApp() {
     let inputTimer: number | undefined;
     let rejoinTimer: number | undefined;
     let disposeReconnection: (() => void) | undefined;
+    const positionStorageEpoch = positionStorageEpochRef.current;
     const sendHeldMovement = () => {
       const room = roomRef.current;
       if (!room) return;
@@ -2191,6 +2286,12 @@ export function OfficeApp() {
       lockedMovementRef.current = movement.lockedTurn;
       sendMovementInput(movement.input);
     };
+    const persistCurrentOfficePosition = () => {
+      if (positionStorageEpoch !== positionStorageEpochRef.current) return;
+      const localPlayer = localSessionIdRef.current ? playersRef.current.get(localSessionIdRef.current) : undefined;
+      if (localPlayer) saveLastOfficePosition(connectionUsername, connectionOfficeId, { x: localPlayer.x, z: localPlayer.z });
+    };
+    window.addEventListener("pagehide", persistCurrentOfficePosition);
     sendHeldMovementRef.current = sendHeldMovement;
     const onKeyDown = (event: KeyboardEvent) => {
       if (isWorkspaceInputBlocked(event.target)) { heldKeysRef.current.clear(); lockedMovementRef.current = null; sendHeldMovement(); return; }
@@ -2223,7 +2324,11 @@ export function OfficeApp() {
     const connect = async () => {
       try {
         intentionalLeaveRef.current = false;
-        const room = await client.joinOrCreate<OfficeStateType>("office", { officeId: connectionOfficeId }, OfficeState);
+        const lastPosition = readLastOfficePosition(connectionUsername, connectionOfficeId);
+        const room = await client.joinOrCreate<OfficeStateType>("office", {
+          officeId: connectionOfficeId,
+          ...(lastPosition ? { lastPosition } : {}),
+        }, OfficeState);
         if (disposed) {
           await room.leave();
           return;
@@ -2294,6 +2399,11 @@ export function OfficeApp() {
           }
           playersRef.current = snapshot;
           const localSnapshot = localSessionIdRef.current ? snapshot.get(localSessionIdRef.current) : undefined;
+          const now = performance.now();
+          if (localSnapshot && now - lastPositionSavedAtRef.current >= 1000 && positionStorageEpoch === positionStorageEpochRef.current) {
+            saveLastOfficePosition(connectionUsername, connectionOfficeId, { x: localSnapshot.x, z: localSnapshot.z });
+            lastPositionSavedAtRef.current = now;
+          }
           setInboundAudioMuted(availabilityPolicy(localSnapshot?.status ?? "available").suppressAutomaticMedia);
           userStatusRef.current = localSnapshot?.status ?? "available";
           setUserStatus(userStatusRef.current);
@@ -2610,6 +2720,8 @@ export function OfficeApp() {
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pagehide", persistCurrentOfficePosition);
+      persistCurrentOfficePosition();
       const room = roomRef.current;
       roomRef.current = null;
       if (room?.connection.isOpen) void room.leave();
@@ -2852,7 +2964,7 @@ export function OfficeApp() {
     }}>
       <PageTutorial page={meetingEntry ? "meeting" : "office"} username={authUser.username} />
       {profileDialog}
-      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} localPetIdRef={localPetIdRef} map2dToggleRef={map2dToggleRef} onMapViewChange={setMap2dViewActive} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} cameraBehindCharacterRef={cameraBehindCharacterRef} firstPersonViewRef={firstPersonViewRef} map2dDecorationsRef={social.decorationsRef} map2dViewRef={map2dViewRef} locateRequestRef={locateRequestRef} travelFeedback={travel.feedback} travelRequesting={travel.requesting} onCancelTravel={() => roomRef.current?.send("auto-move-cancel", {})} propsConfigVersion={modifyPropsOpen ? modifyPropsVersion : mapPropsConfigVersion} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} onReturnToDesk={returnToDesk} deskClaimingZoneId={deskClaimingZoneId} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={deskManagerOpen || conversationsOpen || Boolean(social.interaction) || workspaceOverlayOpen || Boolean(mapPlayerAction)} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={authUser?.role === "maintainer" || activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} jumpStartedAtRef={jumpStartedAtRef} onJump={() => roomRef.current?.send("jump", true)} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination) => { if (appPausedRef.current) return; if (!travel.expectDestination(destination)) return; heldKeysRef.current.clear(); lockedMovementRef.current = null; roomRef.current?.send("auto-move", { ...destination, randomVehicle: true }); }} onSelectPlayer={(sessionId) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") { heldKeysRef.current.clear(); setMapPlayerAction({ sessionId }); } }} onGhostModeChange={setGhostMode} />
+      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} localPetIdRef={localPetIdRef} map2dToggleRef={map2dToggleRef} onMapViewChange={setMap2dViewActive} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} cameraBehindCharacterRef={cameraBehindCharacterRef} firstPersonViewRef={firstPersonViewRef} map2dDecorationsRef={social.decorationsRef} map2dViewRef={map2dViewRef} locateRequestRef={locateRequestRef} travelFeedback={travel.feedback} travelRequesting={travel.requesting} onCancelTravel={() => roomRef.current?.send("auto-move-cancel", {})} propsConfigVersion={modifyPropsOpen ? modifyPropsVersion : mapPropsConfigVersion} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} onReturnToDesk={returnToDesk} deskClaimingZoneId={deskClaimingZoneId} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={deskManagerOpen || conversationsOpen || Boolean(social.interaction) || workspaceOverlayOpen || Boolean(mapPlayerAction)} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen || mapBuildingPickerOpen} selectedAsset={mapBuildingPickerOpen ? selectedMapBuildingAsset : selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={(asset, position) => mapEditMode ? placeMapBuilding(asset, position) : placeOfficeProp(asset, position)} onPlacementComplete={() => { if (!mapEditMode) setSelectedModifyPropAsset(null); else if (ROOM_PROP_CATALOG.find((item) => item.asset === selectedMapBuildingAsset)?.editorRole !== "map-component") setSelectedMapBuildingAsset(null); }} onMoveProp={(id, position) => mapEditMode ? moveMapBuilding(id, position) : moveOfficeProp(id, position)} onRotateProp={(id) => mapEditMode ? rotateMapBuilding(id) : rotateOfficeProp(id)} onDeleteProp={(id) => mapEditMode ? deleteMapBuilding(id) : deleteOfficeProp(id)} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={authUser?.role === "maintainer" || activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} jumpStartedAtRef={jumpStartedAtRef} onJump={() => roomRef.current?.send("jump", true)} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination) => { if (appPausedRef.current) return; if (!travel.expectDestination(destination)) return; heldKeysRef.current.clear(); lockedMovementRef.current = null; roomRef.current?.send("auto-move", { ...destination, randomVehicle: true }); }} onSelectPlayer={(sessionId) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") { heldKeysRef.current.clear(); setMapPlayerAction({ sessionId }); } }} onGhostModeChange={setGhostMode} />
       <OfficeSocialOverlay social={social} room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} endpoint={endpoint} officeId={activeOffice.id} username={authUser.username} sessionKey={localSessionIdRef.current} chatTarget={chatTarget} chatTargetRevision={chatTargetRevision} chatContainer={chatContainer} chatVisible={activeLeftTab === "chat" && workspacePanelOpen} onUnread={setChatUnread} doNotDisturb={mediaSuppressed} zoneUsernames={zoneAudioUsernames} />
       <Minimap layout={displayedOfficeMapLayout} configVersion={mapPropsConfigVersion} playersRef={playersRef} localSessionIdRef={localSessionIdRef} cameraYawRef={cameraYawRef} hidden={mapEditMode || modifyPropsOpen} />
       <VoiceParticipantRoster people={voiceRosterPeople} speakingUsernames={speakingUsernames} activities={voiceRosterActivities}
@@ -2958,11 +3070,13 @@ export function OfficeApp() {
         <div className="map-edit-mode-bar"><div><span className="eyebrow">EDIT MAP · REAL WORLD</span><strong>{mapDimensions.width} × {mapDimensions.depth} m</strong><small>1 m grid · 10 m major lines</small></div>
           {mapZoneDrawing ? <><span className="map-edit-hint">Drag on the map to draw a zone</span><button type="button" className="lobby-button" onClick={() => setMapZoneDrawing(false)}>Cancel</button></> : <button type="button" className="lobby-button primary" onClick={() => { setSpawnPlacementMode(false); startMapZoneDrawing(); }}>＋ Create zone</button>}
           {!mapZoneDrawing && <button type="button" className="lobby-button" onClick={() => { setSpawnPlacementMode(false); setMapGeneratorOpen((open) => !open); setGeneratorError(null); }}>Generate layout</button>}
+          {!mapZoneDrawing && <button type="button" className={`lobby-button${mapBuildingPickerOpen ? " primary" : ""}`} onClick={() => { setSpawnPlacementMode(false); setMapZoneDrawing(false); setMapGeneratorOpen(false); setMapBuildingPickerOpen((open) => !open); setSelectedMapBuildingAsset(null); setSelectedModifyPropId(null); }}>Building components</button>}
           {!mapZoneDrawing && <button type="button" className={`lobby-button${spawnPlacementMode ? " primary" : ""}`} disabled={mapSpawnSaving} title="Choose where new users start" onClick={() => { setMapZoneDrawing(false); setLobbyError(null); setSpawnPlacementMode((placing) => !placing); }}>{mapSpawnSaving ? "Saving spawn…" : spawnPlacementMode ? "Cancel spawn placement" : "◎ Set spawn"}</button>}
           {spawnPlacementMode && <span className="map-edit-hint">Click the map to move the spawn point</span>}
           {mapDraftDirty && <button type="button" className="lobby-button primary" disabled={mapSaving || Boolean(mapConflictLatest)} onClick={() => void saveMapDraft()}>{mapSaving ? "Saving map…" : "Save map"}</button>}
           <button type="button" className="lobby-button" onClick={exitMapEditMode}>{mapDraftDirty ? "Discard & exit" : "Exit edit mode"}</button>
         </div>
+        {mapBuildingPickerOpen && officeMapLayout && <MapBuildingPicker props={officeMapLayout.props} selectedAsset={selectedMapBuildingAsset} selectedPropId={selectedModifyPropId} onSelectAsset={(asset) => setSelectedMapBuildingAsset(asset as RoomLayoutProp["asset"] | null)} onSelectProp={setSelectedModifyPropId} onDeleteProp={deleteMapBuilding} onClose={() => { setMapBuildingPickerOpen(false); setSelectedMapBuildingAsset(null); setSelectedModifyPropId(null); }} />}
         {mapConflictLatest && <div className="map-edit-error map-edit-conflict" role="alert"><span>{mapConflictLatest.message} Your unsaved draft is preserved. Reloading the latest map will discard it.</span><button type="button" className="lobby-button" onClick={reloadLatestMapAfterConflict}>Discard draft & load latest</button></div>}
         {lobbyError && !mapConflictLatest && <p className="map-edit-error" role="alert">{lobbyError}</p>}
         {mapGeneratorOpen && <section className="map-layout-generator" aria-label="Generate office layout">

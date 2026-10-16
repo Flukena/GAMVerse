@@ -92,7 +92,7 @@ export async function saveOfficeProps(username: string, officeId: string, value:
     if (![x, z, rotation].every(Number.isFinite)) throw new Error("Office prop coordinates are invalid.");
     const rawElevation = "elevation" in original ? original.elevation : 0;
     if (typeof rawElevation !== "number" || !Number.isFinite(rawElevation) || rawElevation < 0 || rawElevation > 15) throw new Error("Office prop elevation is invalid.");
-    if (rawElevation > 0.001) {
+    if (catalog.placementClass === "small" || rawElevation > 0.001) {
       if (!catalog.wallMounted) {
         const support = roomPropPlacementSupport(props.filter((candidate) => candidate.id !== prop.id), prop.asset, x, z, rotation);
         if (!support || Math.abs(support.elevation - rawElevation) > 0.02) throw new Error("Place small props on a table or shelf, and stack shelves on another shelf.");

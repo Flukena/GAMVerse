@@ -35,11 +35,15 @@ function* spawnCandidates(world: WorldConfig): Generator<Position> {
   }
 }
 
+export function isAccessibleSpawn(position: Position, occupied: readonly Position[], world: WorldConfig): boolean {
+  return Number.isFinite(position.x) && Number.isFinite(position.z) &&
+    isPositionWalkable(position, world) &&
+    occupied.every(player => Math.hypot(player.x - position.x, player.z - position.z) >= MIN_SPAWN_SEPARATION_M);
+}
+
 export function findAccessibleSpawn(occupied: readonly Position[], world: WorldConfig): Position | null {
   for (const candidate of spawnCandidates(world)) {
-    if (!isPositionWalkable(candidate, world)) continue;
-    const separated = occupied.every(player => Math.hypot(player.x - candidate.x, player.z - candidate.z) >= MIN_SPAWN_SEPARATION_M);
-    if (separated) return { x: candidate.x, z: candidate.z };
+    if (isAccessibleSpawn(candidate, occupied, world)) return { x: candidate.x, z: candidate.z };
   }
   return null;
 }
