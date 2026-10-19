@@ -1,9 +1,9 @@
-const FOOTSTEP_DURATION_S = 0.095;
-const FOOTSTEP_ATTACK_S = 0.009;
-const FOOTSTEP_FREQUENCY_START_HZ = 150;
-const FOOTSTEP_FREQUENCY_END_HZ = 65;
-const FOOTSTEP_PEAK_GAIN = 0.035;
-const FOOTSTEP_SILENT_GAIN = 0.0001;
+import { createFootstepPcmVariants } from "./footstepPcm";
+
+const FOOTSTEP_PLAYBACK_RATES_RATIO = [1, 0.97, 1.04, 0.99] as const;
+const FOOTSTEP_GAIN_LEVELS = [0.12, 0.11, 0.125, 0.115] as const;
+const FOOTSTEP_CHANNEL_COUNT = 1;
+const FOOTSTEP_CHANNEL_INDEX = 0;
 
 export interface FootstepSound {
   unlock(): void;
@@ -12,17 +12,22 @@ export interface FootstepSound {
   dispose(): void;
 }
 
-/** Quiet, rounded shoe impacts; the context is only created inside a user gesture. */
+/** Cached dry crunch and rounded impacts, with one short voice active at a time. */
 export class SoftFootstepSound implements FootstepSound {
   private context: AudioContext | null = null;
   private disposed = false;
-  private oscillator: OscillatorNode | null = null;
+  private source: AudioBufferSourceNode | null = null;
   private gain: GainNode | null = null;
+  private buffers: readonly AudioBuffer[] = [];
+  private nextVariantIndex = 0;
 
   unlock() {
     if (this.disposed || typeof window.AudioContext === "undefined") return;
     try {
-      this.context ??= new window.AudioContext();
+      if (!this.context) {
+        this.context = new window.AudioContext();
+        this.buffers = this.createBuffers(this.context);
+      }
     } catch (cause) {
       if (cause instanceof DOMException) return;
       throw cause;
@@ -30,43 +35,48 @@ export class SoftFootstepSound implements FootstepSound {
     if (this.context.state === "suspended") void this.context.resume().catch(() => undefined);
   }
 
+  private createBuffers(context: AudioContext) {
+    return createFootstepPcmVariants(context.sampleRate).map((samples) => {
+      const buffer = context.createBuffer(FOOTSTEP_CHANNEL_COUNT, samples.length, context.sampleRate);
+      buffer.copyToChannel(samples, FOOTSTEP_CHANNEL_INDEX);
+      return buffer;
+    });
+  }
+
   play() {
     const context = this.context;
-    if (context?.state !== "running") return;
+    if (context?.state !== "running" || this.buffers.length === 0) return;
     this.stop();
-    const oscillator = context.createOscillator();
+    const index = this.nextVariantIndex;
+    this.nextVariantIndex = (index + 1) % this.buffers.length;
+    const source = context.createBufferSource();
     const gain = context.createGain();
-    const startAtS = context.currentTime;
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(FOOTSTEP_FREQUENCY_START_HZ, startAtS);
-    oscillator.frequency.exponentialRampToValueAtTime(FOOTSTEP_FREQUENCY_END_HZ, startAtS + FOOTSTEP_DURATION_S);
-    gain.gain.setValueAtTime(FOOTSTEP_SILENT_GAIN, startAtS);
-    gain.gain.exponentialRampToValueAtTime(FOOTSTEP_PEAK_GAIN, startAtS + FOOTSTEP_ATTACK_S);
-    gain.gain.exponentialRampToValueAtTime(FOOTSTEP_SILENT_GAIN, startAtS + FOOTSTEP_DURATION_S);
-    oscillator.connect(gain);
+    source.buffer = this.buffers[index]!;
+    source.playbackRate.value = FOOTSTEP_PLAYBACK_RATES_RATIO[index]!;
+    gain.gain.value = FOOTSTEP_GAIN_LEVELS[index]!;
+    source.connect(gain);
     gain.connect(context.destination);
-    this.oscillator = oscillator;
+    this.source = source;
     this.gain = gain;
-    oscillator.onended = () => {
-      oscillator.disconnect();
+    source.onended = () => {
+      source.disconnect();
       gain.disconnect();
-      if (this.oscillator === oscillator) {
-        this.oscillator = null;
+      if (this.source === source) {
+        this.source = null;
         this.gain = null;
       }
     };
-    oscillator.start(startAtS);
-    oscillator.stop(startAtS + FOOTSTEP_DURATION_S);
+    source.start(context.currentTime);
   }
 
   stop() {
-    if (this.oscillator) {
-      this.oscillator.onended = null;
-      this.oscillator.stop();
-      this.oscillator.disconnect();
+    if (this.source) {
+      this.source.onended = null;
+      this.source.stop();
+      this.source.disconnect();
     }
     this.gain?.disconnect();
-    this.oscillator = null;
+    this.source = null;
     this.gain = null;
   }
 
@@ -75,5 +85,6 @@ export class SoftFootstepSound implements FootstepSound {
     this.stop();
     if (this.context && this.context.state !== "closed") void this.context.close().catch(() => undefined);
     this.context = null;
+    this.buffers = [];
   }
 }
