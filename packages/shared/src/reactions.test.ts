@@ -13,15 +13,15 @@ test("reaction and hand raise validators reject unknown values", () => {
   assert.equal(isValidHandRaise({ raised: true }), true);
   assert.equal(isValidHandRaise({ raised: "true" }), false);
   assert.equal(
-    isValidSpotlightCommand({ targetUsername: "bob", on: true }),
+    isValidSpotlightCommand({ action: "request", targetUsername: "bob" }),
     true,
   );
   assert.equal(
-    isValidSpotlightCommand({ targetUsername: "", on: true }),
+    isValidSpotlightCommand({ action: "request", targetUsername: "" }),
     false,
   );
   assert.equal(
-    isValidSpotlightCommand({ targetUsername: "bob", on: 1 }),
+    isValidSpotlightCommand({ action: "respond", requestId: "request-123", accept: 1 }),
     false,
   );
 });

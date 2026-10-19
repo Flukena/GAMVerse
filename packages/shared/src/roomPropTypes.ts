@@ -34,6 +34,7 @@ export type RoomPropDefinition = Pick<
     | "townhall-stage"
     | "townhall-podium"
     | "restroom-partition"
+    | "restroom-wash-backboard"
     | "wayfinding-sign"
     | "wall-picture"
     | "wall-shelf";

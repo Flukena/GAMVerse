@@ -31,6 +31,23 @@ test("opening lists reusable links, creation retains the URL when clipboard acce
   await shares.copy(async value => { assert.equal(value, url); });
   assert.equal(shares.snapshot.copyMessage, "Link copied.");
 });
+test("the dialog can create a public multi-person link and a separate one-person link", async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const shares = new OfficeShareLinks("https://api.example", "https://office.example", async (url, init) => {
+    calls.push({ url, init });
+    if (url.endsWith("/invites")) return response({ invite: { token: TOKEN, role: "user" } }, 201);
+    return init.method === "POST" ? response({ link: { ...LINK, token: TOKEN } }, 201) : response({ links: [] });
+  });
+  await shares.open(OFFICE);
+  await shares.create();
+  assert.equal(shares.snapshot.url, `https://office.example/share/${TOKEN}`);
+  await shares.createOneTime();
+  assert.equal(shares.snapshot.oneTimeUrl, `https://office.example/join/${TOKEN}`);
+  assert.equal(calls[2].url, "https://api.example/offices/office-a/invites");
+  assert.deepEqual(JSON.parse(String(calls[2].init.body)), { role: "user" });
+  await shares.copyOneTime(async url => { assert.equal(url, shares.snapshot.oneTimeUrl); });
+  assert.equal(shares.snapshot.copyMessage, "Link copied.");
+});
 test("failed revocation leaves the active link visible and successful retry clears its raw URL", async () => {
   let fail = true;
   const shares = new OfficeShareLinks("https://api.example", "https://office.example", async (_url, init) => {

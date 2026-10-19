@@ -9,6 +9,17 @@ const PROP_LIMIT_LABEL = "This campus exceeds the office prop limit. Choose fewe
 export function createCampusOfficeDraft(inputs: CampusMapGeneratorInputs, interiors: CampusInteriorPreset): GeneratedCampusMap {
   const generated = generateCampusMap(inputs);
   if (generated.layout.props.length > MAX_OFFICE_PROPS) throw new Error(PROP_LIMIT_LABEL);
-  if (interiors === "empty") return generated;
+  if (interiors === "empty") {
+    const restroomStarterPrefixes = generated.layout.zones
+      .filter((zone) => zone.kind === "restroom")
+      .map((zone) => `${zone.id}-starter-`);
+    return {
+      ...generated,
+      layout: {
+        ...generated.layout,
+        props: generated.layout.props.filter((prop) => !restroomStarterPrefixes.some((prefix) => prop.id.startsWith(prefix))),
+      },
+    };
+  }
   return { ...generated, layout: { ...generated.layout, props: appendCampusStarterProps(generated.layout) } };
 }

@@ -84,6 +84,11 @@ function authContext(): AuthContext {
     origin: "http://localhost:5173", cookie: `gv_session=${SESSION_TOKEN}`,
   }) } as AuthContext;
 }
+async function activateSpotlight(spotlight: Spotlight, requester: string, target: string) {
+  await spotlight.command(requester, { action: "request", targetUsername: target });
+  const request = spotlight.requestSnapshot(target).incoming[0]!;
+  await spotlight.command(target, { action: "respond", requestId: request.id, accept: true });
+}
 
 function queryBoundary(accountActive = true, membership?: Promise<unknown>) {
   assert.ok(database);
@@ -205,7 +210,7 @@ test("OfficeRoom drop then suspension rejects seat and never restores revoked st
 test("OfficeRoom closes dropped publisher immediately and rotates once through final leave/dispose", async () => {
   const f = fixture();
   try {
-    await f.spotlight.command(USERNAME, { targetUsername: USERNAME, on: true });
+    await activateSpotlight(f.spotlight, USERNAME, USERNAME);
     const before = f.rotations();
     f.room.onDrop(f.client, TRANSPORT_DROP_CLOSE_CODE);
     OfficeRoom.closeOffice(OFFICE_ID);
@@ -306,7 +311,7 @@ test("OfficeRoom query rejection denies reconnect with security rotation and 400
 test("OfficeRoom disposal rejects dropped seats and rotates once before terminal callback", async () => {
   const f = fixture();
   try {
-    await f.spotlight.command(USERNAME, { targetUsername: USERNAME, on: true });
+    await activateSpotlight(f.spotlight, USERNAME, USERNAME);
     const before = f.rotations();
     f.room.onDrop(f.client, TRANSPORT_DROP_CLOSE_CODE);
     f.room.onDispose();
@@ -325,7 +330,7 @@ test("OfficeRoom closure rejects seats in multiple rooms sharing one spotlight a
   second.internals.spotlight = first.spotlight;
   registry.roomsByOffice.set(OFFICE_ID, new Set([first.room, second.room]));
   try {
-    await first.spotlight.command(USERNAME, { targetUsername: USERNAME, on: true });
+    await activateSpotlight(first.spotlight, USERNAME, USERNAME);
     const before = first.rotations();
     first.room.onDrop(first.client, TRANSPORT_DROP_CLOSE_CODE);
     second.room.onDrop(second.client, TRANSPORT_DROP_CLOSE_CODE);
@@ -366,7 +371,7 @@ test("OfficeRoom disposal preserves shared spotlight until the last room closes"
   second.internals.spotlight = first.spotlight;
   registry.roomsByOffice.set(OFFICE_ID, new Set([first.room, second.room]));
   try {
-    await first.spotlight.command(USERNAME, { targetUsername: USERNAME, on: true });
+    await activateSpotlight(first.spotlight, USERNAME, USERNAME);
     const before = first.rotations();
     first.room.onDrop(first.client, TRANSPORT_DROP_CLOSE_CODE);
     first.room.onDispose();
@@ -423,8 +428,8 @@ test("OfficeRoom disposal removes a dropped presenter absent from live peer room
   second.internals.usernamesBySessionId.set(SESSION_ID, PEER_USERNAME);
   registry.roomsByOffice.set(OFFICE_ID, new Set([first.room, second.room]));
   try {
-    await first.spotlight.command(USERNAME, { targetUsername: USERNAME, on: true });
-    await first.spotlight.command(USERNAME, { targetUsername: PEER_USERNAME, on: true });
+    await activateSpotlight(first.spotlight, USERNAME, USERNAME);
+    await activateSpotlight(first.spotlight, USERNAME, PEER_USERNAME);
     const before = first.rotations();
     first.room.onDrop(first.client, TRANSPORT_DROP_CLOSE_CODE);
     first.room.onDispose();
@@ -462,7 +467,7 @@ test("OfficeRoom disposal ignores revoked peer ownership of a dropped presenter"
   second.internals.spotlight = first.spotlight;
   registry.roomsByOffice.set(OFFICE_ID, new Set([first.room, second.room]));
   try {
-    await first.spotlight.command(USERNAME, { targetUsername: USERNAME, on: true });
+    await activateSpotlight(first.spotlight, USERNAME, USERNAME);
     const before = first.rotations();
     assert.equal(second.internals.sessionSecurity.revoke(SESSION_ID), true);
     assert.equal(second.internals.sessionSecurity.activeSession(USERNAME), SESSION_ID);
@@ -512,7 +517,7 @@ test("OfficeRoom non-last disposal of pending-seat non-presenter keeps spotlight
   second.internals.usernamesBySessionId.set(SESSION_ID, PEER_USERNAME);
   registry.roomsByOffice.set(OFFICE_ID, new Set([first.room, second.room]));
   try {
-    await first.spotlight.command(USERNAME, { targetUsername: PEER_USERNAME, on: true });
+    await activateSpotlight(first.spotlight, USERNAME, PEER_USERNAME);
     const before = first.spotlight.snapshot();
     first.room.onDrop(first.client, TRANSPORT_DROP_CLOSE_CODE);
     first.room.onDispose();

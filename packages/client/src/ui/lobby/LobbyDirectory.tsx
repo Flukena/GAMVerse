@@ -3,11 +3,12 @@ import { SHARE_OFFICE_LABEL } from "../workspace/officeShareLinks";
 import { MaintainerAccountSafety, type MaintainerAccount } from "../MaintainerAccountSafety";
 import { MaintainerAuditPanel } from "../MaintainerAuditPanel";
 import { LobbyCollectionFeedback, LobbyCollectionPagination, LobbyCollectionSearch } from "./LobbyCollectionControls";
+import { OfficeIdChip } from "./OfficeIdChip";
 import { useLobbyCollection } from "./useLobbyCollection";
 import "./LobbyDirectory.css";
 
 type Office = { id: string; name: string; ownerUsername: string; role: "owner" | "admin" | "user" | "maintainer" };
-type Invite = { id: string; officeName: string; inviter: string; role: "admin" | "user" };
+type Invite = { id: string; officeId: string; officeName: string; inviter: string; role: "admin" | "user" };
 type Props = {
   endpoint: string;
   username: string;
@@ -31,9 +32,9 @@ function OfficesPanel({ props }: { props: Props }) {
     <LobbyCollectionSearch label="offices" {...collection} />
     <LobbyCollectionFeedback {...collection} />
     {!collection.loading && !collection.error && (collection.items.length === 0 ? <p className="empty-people">{collection.search ? "No offices match your search." : "No offices yet. Create one or accept an invite."}</p> : <div className="office-grid">{collection.items.map((office) => <article className="office-tile" key={office.id}>
-      <div><span className="live-indicator" /><span className="office-role">{office.role}</span></div><h3>{office.name}</h3><p>Owner: {office.ownerUsername}</p>
+      <div><span className="live-indicator" /><span className="office-role">{office.role}</span></div><h3>{office.name}</h3><p>Owner: {office.ownerUsername}</p><OfficeIdChip officeId={office.id} />
       <div className="office-tile-actions"><button className="lobby-button primary" disabled={props.busy} onClick={() => props.onEnter(office)}>Enter office</button>
-        {["owner", "admin", "maintainer"].includes(office.role) ? <><button className="lobby-button" disabled={props.busy} onClick={() => props.onShareOffice(office)}>{SHARE_OFFICE_LABEL}</button><button className="lobby-button office-manage-button" disabled={props.busy} onClick={() => props.onManage(office)}>Manage office</button></> : <p className="invite-notice">Ask an office admin to invite someone.</p>}
+        {["owner", "admin", "maintainer"].includes(office.role) ? <><button className="lobby-button" disabled={props.busy} onClick={() => props.onShareOffice(office)}>{SHARE_OFFICE_LABEL}</button><button className="lobby-button office-manage-button" disabled={props.busy} onClick={() => props.onManage(office)}>Manage office</button></> : null}
       </div>
     </article>)}</div>)}
     <LobbyCollectionPagination label="Offices" {...collection} />
@@ -45,7 +46,7 @@ function InvitationsPanel({ props }: { props: Props }) {
   return <section className="lobby-panel" aria-labelledby="invites-title">
     <div className="card-heading"><div><span className="eyebrow">INVITATIONS</span><h2 id="invites-title">Invited to join</h2></div><span className="count-chip">{collection.total}</span></div>
     <LobbyCollectionSearch label="invitations" {...collection} /><LobbyCollectionFeedback {...collection} />
-    {!collection.loading && !collection.error && (collection.items.length === 0 ? <p className="empty-people">{collection.search ? "No invitations match your search." : "No pending invitations."}</p> : <ul className="invite-list">{collection.items.map((invite) => <li key={invite.id}><div><strong>{invite.officeName}</strong><small>Invited by {invite.inviter} as {invite.role}</small></div><button className="lobby-button primary" disabled={props.busy} onClick={() => props.onAccept(invite.id)}>Accept</button></li>)}</ul>)}
+    {!collection.loading && !collection.error && (collection.items.length === 0 ? <p className="empty-people">{collection.search ? "No invitations match your search." : "No pending invitations."}</p> : <ul className="invite-list">{collection.items.map((invite) => <li key={invite.id}><div><strong>{invite.officeName}</strong><small>Invited by {invite.inviter} as {invite.role}</small>{invite.officeId ? <OfficeIdChip officeId={invite.officeId} /> : null}</div><button className="lobby-button primary" disabled={props.busy} onClick={() => props.onAccept(invite.id)}>Accept</button></li>)}</ul>)}
     {props.inviteToken && <p className="invite-notice">Processing your one-time office invite…</p>}
     <LobbyCollectionPagination label="Invitations" {...collection} />
   </section>;

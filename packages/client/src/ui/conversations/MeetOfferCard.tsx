@@ -3,7 +3,7 @@ import { meetOfferActions } from "./meetOfferState";
 
 const MILLISECONDS_PER_SECOND = 1_000;
 const OFFER_STATE_LABELS: Record<MeetOffer["state"], string> = {
-  pending: "Waiting for a response", accepted: "Accepted. Follow the office navigation feedback; audio joins after membership is confirmed.",
+  pending: "Waiting for a response", accepted: "Accepted. You are both on your way to the meeting room.",
   declined: "Invitation declined", cancelled: "Invitation cancelled", expired: "Invitation expired", unavailable: "Meeting destination is unavailable. Please try again.",
 };
 const LOCALLY_EXPIRED_LABEL = "Invitation expired. Waiting for server confirmation.";

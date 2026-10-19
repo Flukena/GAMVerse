@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { availabilityPolicy, isMeetOfferError, type MeetActionCommand, type MeetOfferKind, type MeetOfferSnapshot, type UserStatus } from "@gammyverse/shared";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isMeetOfferError, type MeetActionCommand, type MeetOfferKind, type MeetOfferSnapshot, type UserStatus } from "@gammyverse/shared";
 import type { ConversationTransport } from "../media/conversationState";
 import { MeetOfferState, meetOfferActions } from "./meetOfferState";
 import { useConversationRequest } from "./useConversationRequest";
+import { playSocialNotificationSound } from "../../audio/notificationSounds";
 
 const MEET_OFFERS_EVENT = "meet-offers";
 const MEET_ERROR_EVENT = "meet-error";
@@ -16,12 +17,16 @@ export function useMeetOffers(room: MeetTransport | null, officeId: string | nul
   const [accepted, setAccepted] = useState<{ owner: MeetOfferState; snapshot: MeetOfferSnapshot } | null>(null);
   const [nowMs, setNowMs] = useState(Date.now);
   const request = useConversationRequest(room);
+  const notifiedOffers = useRef(new Set<string>());
   useEffect(() => {
     if (!room || !owner) return;
     let active = true;
     const disposeSnapshot = room.onMessage(MEET_OFFERS_EVENT, payload => {
       if (!active || !owner.acceptsContext(payload)) return;
       if (payload.requestId) request.acknowledge(payload.requestId);
+      const incoming = payload.offers.filter(offer => offer.to.sessionId === room.sessionId && offer.state === "pending");
+      if (incoming.some(offer => !notifiedOffers.current.has(offer.id))) playSocialNotificationSound("meet");
+      notifiedOffers.current = new Set(incoming.map(offer => offer.id));
       if (owner.receive(payload) && owner.snapshot) setAccepted({ owner, snapshot: owner.snapshot });
     });
     const disposeError = room.onMessage(MEET_ERROR_EVENT, payload => { if (active && isMeetOfferError(payload)) request.acknowledge(payload.requestId, payload.error); });
@@ -37,7 +42,7 @@ export function useMeetOffers(room: MeetTransport | null, officeId: string | nul
     return () => clearInterval(timer);
   }, [hasPendingOffers]);
   const create = (kind: MeetOfferKind, targetSessionId: string): boolean => {
-    if (!room || room.sessionId === targetSessionId || availabilityPolicy(status).suppressInterruptions) return false;
+    if (room?.sessionId === targetSessionId) return false;
     return request.send(MEET_CREATE_EVENT, { kind, targetSessionId });
   };
   const act = (offerId: string, action: MeetActionCommand["action"]): boolean => {

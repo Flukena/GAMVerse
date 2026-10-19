@@ -25,8 +25,10 @@ export function PropInteractionEditor({
     setError(null);
   };
   return (
-    <fieldset>
-      <legend>Interaction</legend>
+    <fieldset className="modify-props-interaction">
+      <legend>Interaction settings</legend>
+      <label className="modify-props-interaction-kind">
+        Type
       <select
         aria-label="Interaction kind"
         value={interaction?.kind ?? ""}
@@ -49,10 +51,11 @@ export function PropInteractionEditor({
         <option value="note">Note</option>
         <option value="embed">Embed / whiteboard</option>
       </select>
+      </label>
       {interaction && (
-        <>
+        <div className="modify-props-interaction-fields">
           <label>
-            Title
+            <span>Title</span>
             <input
               value={interaction.title}
               onChange={(event) =>
@@ -62,7 +65,7 @@ export function PropInteractionEditor({
           </label>
           {interaction.kind === "note" ? (
             <label>
-              Note
+              <span>Note</span>
               <textarea
                 value={interaction.text ?? ""}
                 onChange={(event) =>
@@ -72,7 +75,7 @@ export function PropInteractionEditor({
             </label>
           ) : (
             <label>
-              HTTPS URL
+              <span>HTTPS URL</span>
               <input
                 value={interaction.url ?? ""}
                 onChange={(event) =>
@@ -81,7 +84,7 @@ export function PropInteractionEditor({
               />
             </label>
           )}
-        </>
+        </div>
       )}
       {error && <p role="alert">{error}</p>}
     </fieldset>

@@ -1,6 +1,6 @@
 /* Lobby surfaces follow the active palette; primary is reserved for actions. */
-:root .lobby-shell { background: var(--color-page); color: var(--color-ink); }
-:root .lobby-shell .lobby-content { padding: 36px 4px 48px; scrollbar-gutter: stable; }
+:root .lobby-shell { width: 100%; min-height: 0; background: var(--color-page); color: var(--color-ink); }
+:root .lobby-shell .lobby-content { width: 100%; padding: 36px max(20px, calc((100% - 1060px) / 2)) 48px; scrollbar-gutter: stable both-edges; }
 :root .lobby-shell .lobby-intro { margin-bottom: 24px; }
 :root .lobby-shell .lobby-intro-heading { gap: 20px; flex-wrap: wrap; }
 :root .lobby-shell .lobby-intro h1,
@@ -17,10 +17,11 @@
 :root .lobby-shell .lobby-section-tabs { flex-wrap: wrap; gap: 8px; padding: 6px; margin: 24px 0 18px; border-color: var(--glass-edge); background: var(--glass-surface); }
 :root .lobby-shell .lobby-section-tabs button { min-height: 40px; padding: 0 16px; color: var(--color-muted); }
 :root .lobby-shell .lobby-section-tabs button.active { background: var(--color-surface-soft); color: var(--color-ink); }
-:root .lobby-shell .office-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 18px; }
+:root .lobby-shell .office-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 14px; align-items: stretch; }
 :root .lobby-shell .office-tile { display: flex; flex-direction: column; min-width: 0; padding: 22px; }
 :root .lobby-shell .office-tile h3 { overflow-wrap: anywhere; margin-top: 14px; }
-.office-tile-actions { display: grid; gap: 10px; margin-top: auto; }
+.office-tile-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.lobby-shell .office-tile-actions > .lobby-button { width: auto; min-width: 0; margin: 0; padding-inline: 11px; font-size: 12px; white-space: nowrap; }
 :root .lobby-shell .lobby-button { min-height: 40px; padding: 10px 16px; line-height: 1.35; }
 :root .lobby-shell .lobby-button:not(.primary):not(.danger) { background: var(--color-surface-soft); color: var(--color-ink); border-color: var(--color-border); }
 :root .lobby-shell .lobby-button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-primary) 85%, var(--color-ink)); border-color: var(--color-primary); }
@@ -33,7 +34,7 @@
 :root .lobby-shell .member-actions,
 :root .lobby-shell .maintainer-account-safety-actions { gap: 10px; }
 .lobby-collection-search { display: flex; align-items: end; gap: 12px; margin: 0 0 20px; }
-.lobby-collection-search label { display: grid; gap: 8px; flex: 1; color: var(--color-muted); font-size: 12px; font-weight: 600; }
+.lobby-collection-search label { display: grid; min-width: 0; gap: 8px; flex: 1; color: var(--color-muted); font-size: 12px; font-weight: 600; }
 :root .lobby-shell .lobby-collection-search input,
 :root .lobby-shell .maintainer-audit-filters input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 42px; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-soft); color: var(--color-ink); font: inherit; }
 :root .lobby-shell input:focus-visible,
@@ -46,10 +47,20 @@
 .lobby-collection-pagination > div { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .lobby-collection-error { display: flex; align-items: center; gap: 12px; }
 @media (max-width: 600px) {
-  :root .lobby-shell .lobby-content { padding-top: 24px; }
+  :root .lobby-shell .lobby-content { padding: 24px 12px 32px; }
   :root .lobby-shell .lobby-panel { padding: 20px; }
   :root .lobby-shell .lobby-intro-heading .lobby-button { width: 100%; }
   :root .lobby-shell .lobby-section-tabs { width: 100%; box-sizing: border-box; }
   :root .lobby-shell .lobby-section-tabs button { flex: 1 1 auto; justify-content: center; padding-inline: 12px; }
+  :root .lobby-shell .office-tile-actions { display: flex; }
   .lobby-collection-pagination > div { width: 100%; justify-content: space-between; }
 }
+
+/* Office id chip keeps same-named offices distinguishable and copyable. */
+:root .lobby-shell .office-id-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; width: auto; max-width: 100%; min-height: 28px; margin: 8px 0 14px; padding: 4px 10px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface-soft); color: var(--color-muted); font-size: 12px; cursor: pointer; overflow-wrap: anywhere; }
+:root .lobby-shell .office-id-chip:hover { border-color: var(--color-primary); color: var(--color-ink); }
+:root .lobby-shell .office-id-chip .office-id-chip-key { font-weight: 700; letter-spacing: .08em; }
+:root .lobby-shell .office-id-chip code { font-family: "DM Mono", ui-monospace, monospace; overflow-wrap: anywhere; }
+:root .lobby-shell .office-id-chip .office-id-chip-feedback:not(:empty) { color: var(--color-primary); font-weight: 600; }
+:root .lobby-shell .office-id-chip .office-id-chip-feedback.is-error:not(:empty) { color: #a3362c; }
+:root .lobby-shell .invite-list .office-id-chip { margin: 6px 0 0; }

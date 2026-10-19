@@ -15,10 +15,10 @@ function fixture() {
   let authorize: () => Promise<string | null> = async () => "user";
   const people = new Map<string, MeetTravelParticipant>();
   for (const [username, x] of [["alice", -6], ["bob", 6], ["eve", 10]] as const) people.set(`${username}-session`, { username, displayName: username, sessionId: `${username}-session`, x, z: 0, active: true, presence: "online", vehicleId: "", status: "available" });
-  const geometry: MeetGeometry = { world: { ...CAMPUS_WORLD, width: 40, depth: 40, walls: [], obstacles: [], collisionGrid: undefined }, layout: { version: 1, props: [], zones: [], walls: [], doors: [] }, lockedZoneIds: new Set(), revision: 1 };
+  const geometry: MeetGeometry = { world: { ...CAMPUS_WORLD, width: 40, depth: 40, walls: [], obstacles: [], collisionGrid: undefined }, layout: { version: 1, props: [], zones: [{ id: "meeting-1", kind: "meeting", name: "Meeting 1", x: 0, z: 8, width: 10, depth: 10, color: "#fff" }], walls: [], doors: [] }, lockedZoneIds: new Set(), revision: 1 };
   const commits: MeetRoutePlan[] = [];
   const events: Array<{ sessionId: string; event: string; payload: unknown }> = [];
-  const state: MeetState = { participant: id => people.get(id), geometry: () => geometry, commit: plan => { commits.push(plan); }, send: (sessionId, event, payload) => { events.push({ sessionId, event, payload: structuredClone(payload) }); } };
+  const state: MeetState = { participant: id => people.get(id), participants: () => [...people.values()], geometry: () => geometry, commit: plan => { commits.push(plan); }, send: (sessionId, event, payload) => { events.push({ sessionId, event, payload: structuredClone(payload) }); } };
   const messages = new MeetMessages(OFFICE_ID, "incarnation-1", state, { nowMs: () => nowMs, id: () => `offer-${++counter}`, role: async () => { roleCalls += 1; return authorize(); } });
   const offers = () => messages.requests.visible(FROM_ID);
   const offer = () => offers()[0]!;
@@ -37,6 +37,7 @@ test("creation is party-only, correlated and idempotent; accepted replay commits
   await f.action("accept"); await f.action("accept");
   assert.equal(f.commits.length, 1); assert.equal(f.offer().state, "accepted");
   assert.equal(f.commits[0]!.routes.length, 2);
+  assert.ok(f.commits[0]!.routes.every(route => Math.abs(route.destination.z - 8) < 5));
 });
 test("third party and wrong party actions are denied before membership work", async () => {
   const f = fixture(); await f.messages.create({ sessionId: FROM_ID }, CREATE);

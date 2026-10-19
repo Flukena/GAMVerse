@@ -27,3 +27,11 @@ test("read layout preserves normalized interaction without trusting extra metada
     url: "https://example.com/",
   });
 });
+
+test("shower catalog height renders a full-size shower instead of normalizing it to one meter", () => {
+  const shower = ROOM_PROP_CATALOG.find((item) => item.asset === "kit:shower");
+  assert.ok(shower);
+  assert.equal(shower.height, 2);
+  assert.equal(shower.width, 1);
+  assert.equal(shower.depth, 1);
+});

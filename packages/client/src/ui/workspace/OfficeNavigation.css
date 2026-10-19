@@ -25,7 +25,10 @@
 .office-rail-item.is-active::before { content: ""; position: absolute; left: -6px; width: 3px; height: 24px; border-radius: 0 3px 3px 0; background: var(--workspace-accent); }
 .office-rail-item .office-rail-badge { position: absolute; right: 1px; top: 3px; display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 3px; border: 2px solid var(--workspace-subtle); border-radius: 9px; background: #c74751; color: var(--color-surface); font-size: 9px; }
 .office-header { position: absolute; z-index: 41; inset: 0 0 auto var(--office-rail-width); height: var(--office-header-height); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 20px; padding: 0 20px; border-bottom: 1px solid var(--workspace-glass-edge); background: var(--workspace-glass); color: var(--office-ink); box-shadow: 0 8px 30px color-mix(in srgb, var(--color-ink) 9%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--color-ink) 12%, transparent); -webkit-backdrop-filter: blur(24px) saturate(155%); backdrop-filter: blur(24px) saturate(155%); }
-.office-header-brand { grid-column: 2; grid-row: 1; justify-self: center; color: var(--workspace-ink); font: 800 15px "Manrope", sans-serif; letter-spacing: -.025em; }
+.office-header-brand { grid-column: 2; grid-row: 1; justify-self: center; display: grid; justify-items: center; gap: 2px; color: var(--workspace-ink); letter-spacing: -.025em; }
+.office-header-brand strong { font: 800 15px/1.1 "Manrope", sans-serif; }
+.office-online-status { display: inline-flex; align-items: center; gap: 5px; min-height: 15px; padding: 0 7px; border: 1px solid #c7e7d5; border-radius: 999px; background: #edf8f1; color: #397b56; font: 700 9px/1 "DM Sans", sans-serif; letter-spacing: .01em; }
+.office-online-status i { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #36a66a; box-shadow: 0 0 0 2px #d9f0e2; }
 .office-header-actions { grid-column: 3; grid-row: 1; display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
 .office-account-button { width: 32px; height: 32px; border: 1px solid var(--workspace-edge); border-radius: 50%; background: var(--workspace-selected); color: var(--workspace-ink); font-weight: 700; cursor: pointer; }
 .office-account-button[aria-expanded="true"] { box-shadow: 0 0 0 3px var(--workspace-selected); }
@@ -74,7 +77,7 @@
   .office-rail { padding-inline: 4px; }
   .office-rail-item { width: 46px; min-height: 52px; font-size: 9px; }
   .office-header { gap: 8px; padding-inline: 12px; }
-  .office-header-brand { font-size: 14px; }
+  .office-header-brand strong { font-size: 14px; }
   .office-experience .sidebar-workspace,
   .office-experience .directory-panel,
   .office-experience .sidebar-activity { padding: 22px 20px calc(92px + env(safe-area-inset-bottom, 0px)); }

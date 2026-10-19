@@ -4,6 +4,7 @@ import { appendChatMessage, chatThreadKey } from "./socialState";
 import { ChatPanelView } from "./ChatPanelView";
 import { chatThreads } from "./chatPresentation";
 import type { ChatMessage, ChatTransport } from "./chatTypes";
+import { playSocialNotificationSound } from "../../audio/notificationSounds";
 
 export type { ChatMessage, ChatTransport } from "./chatTypes";
 
@@ -68,11 +69,14 @@ export function ChatPanel({
         setMessages((current) => appendChatMessage(current, message));
         const key = chatThreadKey(message, username);
         const selected = selectionRef.current;
-        if (!selected.visible || key !== selected.thread)
+        const unreadMessage = message.senderUsername !== username && (!selected.visible || key !== selected.thread);
+        if (unreadMessage) {
+          playSocialNotificationSound("chat");
           setUnread((current) => ({
             ...current,
             [key]: (current[key] ?? 0) + 1,
           }));
+        }
         if (message.scope === "nearby") onNearby(message);
       },
     );

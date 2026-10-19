@@ -60,6 +60,20 @@ test("meeting occupants retain existing moderation rights without an office role
   await f.settle();
   assert.equal((await f.command("alice", "unlock")).ok, true);
 });
+test("automatically locked meeting grants access only to its two invitees and releases an unused reservation", () => {
+  const f = fixture("meeting");
+  (f.frame.zoneBySession as Map<string, string>).clear();
+  f.privacy.access.lockForMeeting(ZONE_ID, ["alice", "carol"], f.now());
+  assert.equal(f.privacy.access.canEnter("alice", ZONE_ID, f.now()), true);
+  assert.equal(f.privacy.access.canEnter("carol", ZONE_ID, f.now()), true);
+  assert.equal(f.privacy.access.canEnter("dave", ZONE_ID, f.now()), false);
+  (f.frame.zoneBySession as Map<string, string>).clear();
+  f.privacy.reconcile(f.frame);
+  assert.equal(f.privacy.lockedIds().has(ZONE_ID), true);
+  f.advance(PRIVATE_ADMISSION_TTL_MS);
+  f.privacy.reconcile(f.frame);
+  assert.equal(f.privacy.lockedIds().has(ZONE_ID), false);
+});
 test("knock metadata is private; admission grants entry but not remote media; revocation blocks an inside guest", async () => {
   const f = fixture();
   const leaseId = await f.admit();

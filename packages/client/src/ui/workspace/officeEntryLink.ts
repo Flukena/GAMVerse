@@ -29,3 +29,23 @@ export async function acceptOfficeEntryLink(endpoint: string, path: string, requ
   if (typeof result.officeId !== "string" || result.officeId.length === 0) throw new Error(MISSING_OFFICE_LABEL);
   return result.officeId;
 }
+
+/** Accept a username-targeted invite when its recipient follows a direct office URL. */
+export async function acceptPendingOfficeInvite(
+  endpoint: string,
+  officeId: string,
+  invites: readonly { id: string; officeId: string }[],
+  request: OfficeShareRequest = fetch,
+): Promise<boolean> {
+  const invite = invites.find((item) => item.officeId === officeId);
+  if (!invite) return false;
+  const response = await request(`${endpoint}/office-invites/accept`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ inviteId: invite.id }),
+  });
+  const result = await response.json() as { error?: string };
+  if (!response.ok) throw new Error(result.error ?? "Invite could not be accepted.");
+  return true;
+}

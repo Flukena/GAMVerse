@@ -1,3 +1,5 @@
+import { AMBIENT_SOUND_PREFERENCE_EVENT, readAmbientSoundsEnabled } from "./ambientSoundPreference";
+
 let audioContext: AudioContext | null = null;
 let footstepBuffer: AudioBuffer | null = null;
 let footstepLoad: Promise<void> | null = null;
@@ -5,11 +7,22 @@ let footstepLoadFailed = false;
 let walkingRequested = false;
 let footstepSource: AudioBufferSourceNode | null = null;
 let footstepGain: GainNode | null = null;
-let engine: { oscillator: OscillatorNode; filter: BiquadFilterNode; gain: GainNode } | null = null;
+let engineBuffer: AudioBuffer | null = null;
+let engineLoad: Promise<void> | null = null;
+let engineLoadFailed = false;
+let engineRequested = false;
+let engineMoving = false;
+let engineSource: AudioBufferSourceNode | null = null;
+let engineGain: GainNode | null = null;
+let ambientSoundsEnabled = true;
+let ambientListenersReady = false;
 
-const FOOTSTEP_GAIN = 0.1;
-const ENGINE_IDLE_GAIN = 0.004;
-const ENGINE_DRIVE_GAIN = 0.012;
+const MOVEMENT_SOUND_VOLUME_REDUCTION = 0.85;
+const FOOTSTEP_GAIN = 0.1 * MOVEMENT_SOUND_VOLUME_REDUCTION;
+const ENGINE_IDLE_GAIN = 0.004 * MOVEMENT_SOUND_VOLUME_REDUCTION;
+const ENGINE_DRIVE_GAIN = 0.012 * MOVEMENT_SOUND_VOLUME_REDUCTION;
+const ENGINE_IDLE_PLAYBACK_RATE = 0.86;
+const ENGINE_DRIVE_PLAYBACK_RATE = 1;
 
 /** Unlock browser audio from a user gesture before movement sounds are needed. */
 export function unlockMovementAudio() {
@@ -21,15 +34,16 @@ export function unlockMovementAudio() {
   }
 }
 
-/** Play a softly mixed licensed sneaker-on-concrete recording while the local player walks. */
+/** Play the local walking recording while the local player walks. */
 export function updateFootstepSound(walking: boolean, sprinting: boolean, deltaS: number) {
   void deltaS;
-  walkingRequested = walking;
+  ensureAmbientPreferenceSync();
+  walkingRequested = walking && ambientSoundsEnabled;
   const context = getAudioContext();
   if (!context) return;
   if (context.state === "suspended") void context.resume().catch(() => undefined);
 
-  if (!walking) {
+  if (!walkingRequested) {
     footstepLoadFailed = false;
     stopFootsteps(context);
     return;
@@ -54,11 +68,11 @@ async function loadFootsteps(context: AudioContext, sprinting: boolean) {
       .catch(() => { footstepLoad = null; footstepLoadFailed = true; });
   }
   await footstepLoad;
-  if (walkingRequested && footstepBuffer && !footstepSource) startFootsteps(context, sprinting);
+  if (walkingRequested && ambientSoundsEnabled && footstepBuffer && !footstepSource) startFootsteps(context, sprinting);
 }
 
 function startFootsteps(context: AudioContext, sprinting: boolean) {
-  if (!footstepBuffer || footstepSource || !walkingRequested) return;
+  if (!footstepBuffer || footstepSource || !walkingRequested || !ambientSoundsEnabled) return;
   const source = context.createBufferSource();
   const gain = context.createGain();
   source.buffer = footstepBuffer;
@@ -92,51 +106,103 @@ function stopFootsteps(context: AudioContext) {
   source.stop(context.currentTime + 0.12);
 }
 
-/** Keep a soft local engine hum while the local player is in a vehicle. */
+/** Keep the supplied car recording softly mixed while the local player is driving. */
 export function updateVehicleEngineSound(driving: boolean, moving: boolean) {
   try {
+    ensureAmbientPreferenceSync();
     const context = getAudioContext();
     if (!context) return;
     if (context.state === "suspended") void context.resume().catch(() => undefined);
-    if (!driving) {
+    engineRequested = driving && ambientSoundsEnabled;
+    engineMoving = moving;
+    if (!engineRequested) {
       stopEngine(context);
       return;
     }
-    if (!engine) {
-      const oscillator = context.createOscillator();
-      const filter = context.createBiquadFilter();
-      const gain = context.createGain();
-      oscillator.type = "sawtooth";
-      oscillator.frequency.setValueAtTime(48, context.currentTime);
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(145, context.currentTime);
-      gain.gain.setValueAtTime(0.0001, context.currentTime);
-      oscillator.connect(filter);
-      filter.connect(gain);
-      gain.connect(context.destination);
-      oscillator.start();
-      engine = { oscillator, filter, gain };
+    if (engineSource && engineGain) {
+      updateEngineMix(context);
+      return;
     }
-    const now = context.currentTime;
-    engine.oscillator.frequency.setTargetAtTime(moving ? 68 : 48, now, 0.16);
-    engine.gain.gain.setTargetAtTime(moving ? ENGINE_DRIVE_GAIN : ENGINE_IDLE_GAIN, now, 0.12);
+    if (engineBuffer) startEngine(context);
+    else if (!engineLoad && !engineLoadFailed) void loadEngine(context);
   } catch {
     // Audio can be unavailable in restricted or muted browser contexts.
   }
 }
 
-function stopEngine(context: AudioContext) {
-  if (!engine) return;
-  const stopped = engine;
-  engine = null;
-  stopped.gain.gain.cancelScheduledValues(context.currentTime);
-  stopped.gain.gain.setTargetAtTime(0.0001, context.currentTime, 0.025);
-  stopped.oscillator.onended = () => {
-    stopped.oscillator.disconnect();
-    stopped.filter.disconnect();
-    stopped.gain.disconnect();
+async function loadEngine(context: AudioContext) {
+  if (!engineLoad) {
+    engineLoad = fetch(`${import.meta.env.BASE_URL}assets/car-engine.mp3`)
+      .then(response => {
+        if (!response.ok) throw new Error(`Vehicle audio request failed: ${response.status}`);
+        return response.arrayBuffer();
+      })
+      .then(data => context.decodeAudioData(data))
+      .then(buffer => { engineBuffer = buffer; })
+      .catch(() => { engineLoad = null; engineLoadFailed = true; });
+  }
+  await engineLoad;
+  if (engineRequested && ambientSoundsEnabled && engineBuffer && !engineSource) startEngine(context);
+}
+
+function startEngine(context: AudioContext) {
+  if (!engineBuffer || engineSource || !engineRequested || !ambientSoundsEnabled) return;
+  const source = context.createBufferSource();
+  const gain = context.createGain();
+  source.buffer = engineBuffer;
+  source.loop = true;
+  source.playbackRate.setValueAtTime(engineMoving ? ENGINE_DRIVE_PLAYBACK_RATE : ENGINE_IDLE_PLAYBACK_RATE, context.currentTime);
+  gain.gain.setValueAtTime(0.0001, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(engineMoving ? ENGINE_DRIVE_GAIN : ENGINE_IDLE_GAIN, context.currentTime + 0.2);
+  source.connect(gain);
+  gain.connect(context.destination);
+  source.onended = () => {
+    source.disconnect();
+    gain.disconnect();
+    if (engineSource === source) {
+      engineSource = null;
+      engineGain = null;
+    }
   };
-  stopped.oscillator.stop(context.currentTime + 0.14);
+  engineSource = source;
+  engineGain = gain;
+  source.start();
+}
+
+function updateEngineMix(context: AudioContext) {
+  if (!engineSource || !engineGain) return;
+  const now = context.currentTime;
+  engineSource.playbackRate.setTargetAtTime(engineMoving ? ENGINE_DRIVE_PLAYBACK_RATE : ENGINE_IDLE_PLAYBACK_RATE, now, 0.16);
+  engineGain.gain.setTargetAtTime(engineMoving ? ENGINE_DRIVE_GAIN : ENGINE_IDLE_GAIN, now, 0.12);
+}
+
+function stopEngine(context: AudioContext) {
+  if (!engineSource || !engineGain) return;
+  const source = engineSource;
+  const gain = engineGain;
+  engineSource = null;
+  engineGain = null;
+  gain.gain.cancelScheduledValues(context.currentTime);
+  gain.gain.setTargetAtTime(0.0001, context.currentTime, 0.025);
+  source.stop(context.currentTime + 0.14);
+}
+
+function ensureAmbientPreferenceSync() {
+  if (ambientListenersReady || typeof window === "undefined") return;
+  ambientListenersReady = true;
+  const applyPreference = (enabled: boolean) => {
+    ambientSoundsEnabled = enabled;
+    if (enabled) return;
+    walkingRequested = false;
+    engineRequested = false;
+    if (audioContext) {
+      stopFootsteps(audioContext);
+      stopEngine(audioContext);
+    }
+  };
+  applyPreference(readAmbientSoundsEnabled());
+  window.addEventListener(AMBIENT_SOUND_PREFERENCE_EVENT, (event) => applyPreference((event as CustomEvent<boolean>).detail));
+  window.addEventListener("storage", () => applyPreference(readAmbientSoundsEnabled()));
 }
 
 function getAudioContext() {
@@ -145,4 +211,3 @@ function getAudioContext() {
   audioContext ??= new window.AudioContext();
   return audioContext;
 }
-

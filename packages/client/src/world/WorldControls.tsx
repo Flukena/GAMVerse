@@ -1,9 +1,10 @@
 import type { Map2dTravelFeedback } from "./map2d/map2dTravelFeedback";
-import { CAMERA, type RoomLayoutZone } from "@gammyverse/shared";
+import type { RoomLayoutZone } from "@gammyverse/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { cameraZoomButtonEvent } from "./camera/cameraInput";
 import type { CameraEvent, CameraState } from "./camera/cameraState";
 import { CAMERA_ZOOM_BUTTON_RATIO } from "./camera/constants";
+import { distanceZoomButtons, type DistanceZoomButton } from "./camera/distanceZoom";
 import { Map2dControls } from "./map2d/Map2dControls";
 
 interface WorldControlsProps {
@@ -65,14 +66,12 @@ function CameraControls({ activeFloatingGroup, setActiveFloatingGroup, firstPers
 }
 
 function DistanceControls({ cameraState, dispatchCamera, tppZoomMaxDistanceM }: WorldControlsProps) {
-  const zoomOut = () => {
-    const distanceM = cameraState.distanceM + CAMERA.zoomStep;
-    dispatchCamera({ type: "distance", distanceM, maxDistanceM: tppZoomMaxDistanceM });
-  };
+  const buttons = distanceZoomButtons(cameraState.distanceM, tppZoomMaxDistanceM);
+  const nudge = (button: DistanceZoomButton) => <button key={button.direction} className="tpp-zoom-nudge" type="button" aria-label={button.label} title={button.title} disabled={button.disabled} onClick={() => dispatchCamera({ type: "distance", distanceM: button.distanceM, maxDistanceM: tppZoomMaxDistanceM })}>{button.symbol}</button>;
   return <div className="overview-zoom-controls tpp-zoom-controls" role="group" aria-label="3D camera distance">
-    <button className="tpp-zoom-nudge" type="button" aria-label="Zoom in 10 meters" title="Zoom in 10 m" disabled={cameraState.distanceM <= CAMERA.minZoom} onClick={() => dispatchCamera({ type: "distance", distanceM: cameraState.distanceM - CAMERA.zoomStep, maxDistanceM: tppZoomMaxDistanceM })}>−</button>
+    {nudge(buttons[0])}
     <div className="tpp-zoom-panel"><div className="tpp-zoom-readout"><output aria-label="Current camera distance">{Math.round(cameraState.distanceM)} m</output></div></div>
-    <button className="tpp-zoom-nudge" type="button" aria-label="Zoom out 10 meters" title="Zoom out 10 m" disabled={cameraState.distanceM >= tppZoomMaxDistanceM} onClick={zoomOut}>+</button>
+    {nudge(buttons[1])}
   </div>;
 }
 
@@ -104,8 +103,8 @@ function ZoomControls(props: WorldControlsProps) {
   return <div className={`world-control-group${activeFloatingGroup === "zoom" ? " is-active" : ""}`}>
     {activeFloatingGroup === "zoom" && <div className="world-control-actions" id="map-zoom-actions" role="group" aria-label="Zoom actions">
       {distanceView ? <DistanceControls {...props} /> : <div className="overview-zoom-controls">
-        <button type="button" aria-label="Zoom in one level" title="Zoom in 1×" onClick={() => dispatchCamera(cameraZoomButtonEvent(cameraState, CAMERA_ZOOM_BUTTON_RATIO))}>+</button>
         <button type="button" aria-label="Zoom out one level" title="Zoom out 1×" onClick={() => dispatchCamera(cameraZoomButtonEvent(cameraState, 1 / CAMERA_ZOOM_BUTTON_RATIO))}>−</button>
+        <button type="button" aria-label="Zoom in one level" title="Zoom in 1×" onClick={() => dispatchCamera(cameraZoomButtonEvent(cameraState, CAMERA_ZOOM_BUTTON_RATIO))}>+</button>
       </div>}
     </div>}
     <button type="button" className="world-control-trigger" aria-label="Zoom controls" title="Zoom controls" aria-expanded={activeFloatingGroup === "zoom"} aria-controls="map-zoom-actions" onClick={() => setActiveFloatingGroup((group) => group === "zoom" ? null : "zoom")}>

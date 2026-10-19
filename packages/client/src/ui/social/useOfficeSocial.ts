@@ -14,8 +14,10 @@ import {
   type RoomLayout,
   type PropInteraction,
 } from "@gammyverse/shared";
+import type { SpotlightRequest } from "@gammyverse/shared";
 import type { ChatMessage, ChatTransport } from "./ChatPanel";
 import type { Map2dDecoration } from "../../world/map2d/map2dDynamicLayer";
+import { playSocialNotificationSound } from "../../audio/notificationSounds";
 
 interface SocialPlayer {
   x: number;
@@ -53,11 +55,14 @@ export function useOfficeSocial({
   paused,
 }: SocialInputs) {
   const spotlightOfficeRef = useRef(officeId);
+  const spotlightRequestIds = useRef(new Set<string>());
   const decorationsRef = useRef<Map2dDecoration[]>([]);
   const [spotlight, setSpotlight] = useState<{
     usernames: string[];
     epoch: string;
   }>({ usernames: [], epoch: "" });
+  const [spotlightRequests, setSpotlightRequests] = useState<{ incoming: SpotlightRequest[]; outgoing: SpotlightRequest[] }>({ incoming: [], outgoing: [] });
+  const [spotlightCommandError, setSpotlightCommandError] = useState<string | null>(null);
   const [interaction, setInteraction] = useState<PropInteraction | null>(null);
   const [nearestTitle, setNearestTitle] = useState<string | null>(null);
   const nearbyMessage = useCallback((message: ChatMessage) => {
@@ -73,6 +78,10 @@ export function useOfficeSocial({
     setSpotlight((current) =>
       spotlightAfterRoomChange(current, previousOfficeId, officeId),
     );
+    if (previousOfficeId !== officeId) {
+      setSpotlightRequests({ incoming: [], outgoing: [] });
+      spotlightRequestIds.current.clear();
+    }
     setInteraction(null);
     decorationsRef.current = [];
     if (!room) return;
@@ -89,10 +98,24 @@ export function useOfficeSocial({
       "spotlight-state",
       (state: { usernames: string[]; epoch: string }) => setSpotlight(state),
     );
+    const removeSpotlightRequests = room.onMessage("spotlight-requests", (state: { incoming: SpotlightRequest[]; outgoing: SpotlightRequest[] }) => {
+      const incomingIds = new Set(state.incoming.map(request => request.id));
+      if (state.incoming.some(request => !spotlightRequestIds.current.has(request.id))) playSocialNotificationSound("spotlight");
+      spotlightRequestIds.current = incomingIds;
+      setSpotlightRequests(state);
+      setSpotlightCommandError(null);
+    });
+    const removeSpotlightError = room.onMessage("spotlight-error", (payload: unknown) => {
+      const error = typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string" ? payload.error : "Spotlight request failed.";
+      setSpotlightCommandError(error);
+    });
+    room.send("spotlight-sync", {});
     room.send("request-spatial-state", {});
     return () => {
       removeReaction();
       removeSpotlight();
+      removeSpotlightRequests();
+      removeSpotlightError();
       decorationsRef.current = [];
     };
   }, [room, officeId]);
@@ -156,6 +179,8 @@ export function useOfficeSocial({
   return {
     decorationsRef,
     spotlight,
+    spotlightRequests,
+    spotlightCommandError,
     interaction,
     nearestTitle,
     nearbyMessage,

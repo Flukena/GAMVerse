@@ -76,3 +76,25 @@ export function planMeetRoutes(kind: MeetOfferKind, from: MeetTravelParticipant,
   const anchor = { sessionId: from.sessionId, points: [], destination: { x: from.x, z: from.z } };
   return route ? { routes: [anchor, route], geometryRevision: geometry.revision } : null;
 }
+
+export function planMeetRoomRoutes(from: MeetTravelParticipant, to: MeetTravelParticipant, geometry: MeetGeometry, zone: RoomLayoutZone): MeetRoutePlan | null {
+  if (zone.kind !== "meeting" || geometry.lockedZoneIds.has(zone.id)
+    || !meetParticipantAvailable(from) || !meetParticipantAvailable(to)
+    || !isPublicMeetPoint(from, geometry) || !isPublicMeetPoint(to, geometry)) return null;
+  const world = publicWorld(geometry);
+  const centerX = zone.x;
+  const centerZ = zone.z;
+  const offsets = [PARTICIPANT_SEPARATION_M / 2, -PARTICIPANT_SEPARATION_M / 2];
+  for (const offset of [0, -0.5, 0.5, -1, 1]) {
+    const first = routeTo(from, { x: centerX + offset, z: centerZ - offsets[0] }, world);
+    const second = routeTo(to, { x: centerX + offset, z: centerZ + offsets[1] }, world);
+    if (first && second) return { routes: [first, second], geometryRevision: geometry.revision };
+  }
+  return null;
+}
+
+export function meetingZoneIsEmpty(zone: RoomLayoutZone, participants: readonly MeetTravelParticipant[]) {
+  return zone.kind === "meeting" && !participants.some(person => person.active && person.presence === "online"
+    && person.x >= zone.x - zone.width / 2 && person.x <= zone.x + zone.width / 2
+    && person.z >= zone.z - zone.depth / 2 && person.z <= zone.z + zone.depth / 2);
+}

@@ -1,4 +1,5 @@
 import { createOfficeMediaSession } from "../media/officeMediaSession";
+import type { SpotlightRequest } from "@gammyverse/shared";
 import { useEffect, useRef, useState } from "react";
 import type { RemoteAudioTrack, RemoteTrack, Room } from "livekit-client";
 import { createVoiceRoom } from "../media/voiceRoomSdk";
@@ -21,10 +22,17 @@ interface SpotlightProps {
   sessionKey: string;
   epoch: string;
   usernames: readonly string[];
+  incomingRequests: readonly SpotlightRequest[];
+  outgoingRequests: readonly SpotlightRequest[];
+  commandError: string | null;
   spotlighted: boolean;
   doNotDisturb: boolean;
   zoneUsernames: ReadonlySet<string>;
   paused: boolean;
+  onAcceptRequest(requestId: string): void;
+  onDeclineRequest(requestId: string): void;
+  onCancelRequest(requestId: string): void;
+  onLeave(): void;
 }
 interface SpotlightTrack {
   key: string;
@@ -38,10 +46,17 @@ export function SpotlightSession({
   sessionKey,
   epoch,
   usernames,
+  incomingRequests,
+  outgoingRequests,
+  commandError,
   spotlighted,
   doNotDisturb,
   zoneUsernames,
   paused,
+  onAcceptRequest,
+  onDeclineRequest,
+  onCancelRequest,
+  onLeave,
 }: SpotlightProps) {
   const [consent, setConsent] = useState<SpotlightConsent | null>(null);
   const consentedEpoch = isSpotlightConsentCurrent(
@@ -140,18 +155,19 @@ export function SpotlightSession({
     connectKey,
     consented,
   ]);
-  if (usernames.length === 0) return null;
+  if (usernames.length === 0 && incomingRequests.length === 0 && outgoingRequests.length === 0 && !commandError) return null;
 
   return (
     <section className="gather-spotlight" aria-label="Spotlight">
-      <header className="spotlight-header">
+      {usernames.length > 0 && <header className="spotlight-header">
         <span className="spotlight-live-indicator" aria-hidden="true" />
         <div><strong>Spotlight is live</strong><small>{usernames.join(", ")}</small></div>
-      </header>
+      </header>}
       {spotlighted && !consented && (
         <div className="spotlight-invitation">
           <p>You’ve been invited to speak to everyone in this office. Your microphone stays off until you choose to share.</p>
           <button className="spotlight-primary-action" type="button" onClick={() => setConsent({ epoch, officeId, sessionKey })}>Share microphone</button>
+          <button type="button" className="spotlight-stop-action" onClick={onLeave}>Leave spotlight</button>
         </div>
       )}
       {spotlighted && consented && (
@@ -162,10 +178,22 @@ export function SpotlightSession({
             setCamera(next);
             void sessionRef.current?.control((room) => room.localParticipant.setCameraEnabled(next));
           }}>{camera ? "Turn camera off" : "Share camera"}</button>
-          <button type="button" className="spotlight-stop-action" onClick={() => { setConsent(null); setCamera(false); }}>Stop sharing</button>
+          <button type="button" className="spotlight-secondary-action" onClick={() => { setConsent(null); setCamera(false); }}>Turn microphone off</button>
+          <button type="button" className="spotlight-stop-action" onClick={onLeave}>Leave spotlight</button>
         </div>
       )}
-      {!spotlighted && <p className="spotlight-listener-note">Spotlight audio is shared with everyone in the office.</p>}
+      {incomingRequests.map(request => <article className="spotlight-request" key={request.id} aria-label="Spotlight request">
+        <strong>{request.fromUsername} invited you to Spotlight</strong>
+        <p>Your microphone stays off until you choose to share.</p>
+        <div><button type="button" className="spotlight-primary-action" onClick={() => onAcceptRequest(request.id)}>Accept</button>
+          <button type="button" className="spotlight-secondary-action" onClick={() => onDeclineRequest(request.id)}>Decline</button></div>
+      </article>)}
+      {outgoingRequests.map(request => <article className="spotlight-request" key={request.id} aria-label="Pending spotlight request">
+        <strong>Spotlight request sent to {request.targetUsername}</strong>
+        <button type="button" className="spotlight-stop-action" onClick={() => onCancelRequest(request.id)}>Cancel request</button>
+      </article>)}
+      {commandError && <p className="spotlight-error" role="alert">{commandError}</p>}
+      {usernames.length > 0 && !spotlighted && <p className="spotlight-listener-note">Spotlight audio is shared with everyone in the office.</p>}
       {error && <p className="spotlight-error" role="alert">Spotlight connection failed: {error}</p>}
       {tracks.length > 0 && <div className="spotlight-media-grid" aria-label="Spotlight video">{tracks.map((item) => (
         <SpotlightMedia

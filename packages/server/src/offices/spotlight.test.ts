@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getRecentServerErrorCount } from "../infra/logger.js";
 import { Spotlight, spotlightDepartureReason } from "./spotlight.js";
+async function activate(spotlight: Spotlight, requester: string, target: string) {
+  await spotlight.command(requester, { action: "request", targetUsername: target });
+  const request = spotlight.requestSnapshot(target).incoming[0]!;
+  await spotlight.command(target, { action: "respond", requestId: request.id, accept: true });
+}
 test("only current owner/admin commands and publish eligibility follows revocation epoch", async () => {
   let role = "user";
   const removed: string[] = [];
@@ -13,21 +18,49 @@ test("only current owner/admin commands and publish eligibility follows revocati
     changed: () => {},
   });
   await assert.rejects(
-    spotlight.command("alice", { targetUsername: "bob", on: true }),
+    spotlight.command("alice", { action: "request", targetUsername: "bob" }),
   );
   role = "admin";
-  await spotlight.command("alice", { targetUsername: "bob", on: true });
+  await activate(spotlight, "alice", "bob");
   assert.equal(spotlight.grant("carol", true), null);
   const old = spotlight.grant("bob", true)!;
   spotlight.track("bob", "identity");
-  await spotlight.command("alice", { targetUsername: "bob", on: false });
+  await spotlight.command("alice", { action: "stop", targetUsername: "bob" });
   assert.equal(spotlight.grant("bob", true), null);
   assert.notEqual(spotlight.grant("bob", false)!.epoch, old.epoch);
   assert.equal(removed.length, 1);
   role = "user";
   await assert.rejects(
-    spotlight.command("alice", { targetUsername: "bob", on: true }),
+    spotlight.command("alice", { action: "request", targetUsername: "bob" }),
   );
+});
+test("spotlight request needs target acceptance and requester can cancel; recipient can decline", async () => {
+  const roles = new Map([["admin", "admin"], ["alice", "user"], ["bob", "user"], ["carol", "user"]]);
+  const updates: string[] = [];
+  const spotlight = new Spotlight("request-office", {
+    role: async username => roles.get(username) ?? null,
+    revoke: async () => {}, changed: () => {},
+    requestsChanged: username => updates.push(username),
+  });
+  await spotlight.command("admin", { action: "request", targetUsername: "alice" });
+  const incoming = spotlight.requestSnapshot("alice").incoming[0]!;
+  assert.ok(incoming);
+  assert.equal(spotlight.grant("alice", true), null);
+  assert.deepEqual(spotlight.requestSnapshot("admin").outgoing.map(item => item.id), [incoming.id]);
+  await spotlight.command("alice", { action: "respond", requestId: incoming.id, accept: true });
+  assert.ok(spotlight.grant("alice", true));
+  assert.deepEqual(spotlight.requestSnapshot("alice").incoming, []);
+
+  await spotlight.command("admin", { action: "request", targetUsername: "bob" });
+  const cancellable = spotlight.requestSnapshot("bob").incoming[0]!;
+  await spotlight.command("admin", { action: "cancel", requestId: cancellable.id });
+  assert.deepEqual(spotlight.requestSnapshot("bob").incoming, []);
+
+  await spotlight.command("admin", { action: "request", targetUsername: "carol" });
+  const declinable = spotlight.requestSnapshot("carol").incoming[0]!;
+  await spotlight.command("carol", { action: "respond", requestId: declinable.id, accept: false });
+  assert.deepEqual(spotlight.requestSnapshot("carol").incoming, []);
+  assert.ok(updates.includes("admin") && updates.includes("alice") && updates.includes("carol"));
 });
 test("subscriber leave keeps epoch and removes only own identities", async () => {
   const removed: string[] = [];
@@ -56,7 +89,7 @@ test("publisher drop keeps spotlight membership and subscriber drop does not kic
     },
     changed: () => {},
   });
-  await spotlight.command("admin", { targetUsername: "bob", on: true });
+  await activate(spotlight, "admin", "bob");
   spotlight.track("bob", "publisher");
   spotlight.track("alice", "listener");
   const epoch = spotlight.snapshot().epoch;
@@ -76,7 +109,7 @@ test("security departure rotates even for subscriber and publisher replacement r
   let epoch = spotlight.snapshot().epoch;
   await spotlight.depart("alice", "security");
   assert.notEqual(spotlight.snapshot().epoch, epoch);
-  await spotlight.command("admin", { targetUsername: "bob", on: true });
+  await activate(spotlight, "admin", "bob");
   epoch = spotlight.snapshot().epoch;
   await spotlight.depart("bob", "replace");
   assert.notEqual(spotlight.snapshot().epoch, epoch);
@@ -121,7 +154,7 @@ test("security departure removes a publisher from the set and rotates immediatel
     },
     changed: () => {},
   });
-  await spotlight.command("admin", { targetUsername: "bob", on: true });
+  await activate(spotlight, "admin", "bob");
   spotlight.track("bob", "publisher");
   spotlight.track("carol", "listener");
   const before = spotlight.grant("bob", true)!.epoch;
@@ -136,7 +169,7 @@ test("a plain drop of a publisher does not rotate (contrast with security)", asy
     revoke: async () => {},
     changed: () => {},
   });
-  await spotlight.command("admin", { targetUsername: "bob", on: true });
+  await activate(spotlight, "admin", "bob");
   const before = spotlight.grant("bob", true)!.epoch;
   await spotlight.depart("bob", spotlightDepartureReason(1006, "drop"));
   assert.equal(spotlight.grant("bob", true)!.epoch, before);
@@ -150,7 +183,7 @@ test("spotlight closure is idempotent and denies grants and tracking", async () 
     role: async () => "owner", revoke: async () => {},
     changed: () => { rotations += 1; },
   });
-  await spotlight.command(username, { targetUsername: username, on: true });
+  await activate(spotlight, username, username);
   const before = rotations;
   await spotlight.close();
   await spotlight.close();
@@ -167,7 +200,7 @@ test("spotlight command awaiting authorization cannot repopulate a closed office
   const spotlight = new Spotlight("waiting-office", {
     role: () => role, revoke: async () => {}, changed: () => {},
   });
-  const command = spotlight.command(username, { targetUsername: username, on: true });
+  const command = spotlight.command(username, { action: "request", targetUsername: username });
   await spotlight.close();
   resolveRole("owner");
   await assert.rejects(command, /access changed/);
@@ -182,8 +215,8 @@ test("spotlight batch security departure rotates once and preserves other publis
     role: async () => "owner", revoke: async () => {},
     changed: () => { rotations += 1; },
   });
-  await spotlight.command(departing, { targetUsername: departing, on: true });
-  await spotlight.command(retained, { targetUsername: retained, on: true });
+  await activate(spotlight, departing, departing);
+  await activate(spotlight, retained, retained);
   const before = rotations;
   await spotlight.departSecurity([departing, "subscriber"]);
   assert.equal(rotations - before, 1);

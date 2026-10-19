@@ -1032,8 +1032,15 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
 
   private navigationIntent(sessionId: string) { this.conversationActions?.navigationIntent(sessionId); }
 
-  private commitConversationRoutes(plan: MeetRoutePlan) {
+  private commitConversationRoutes(plan: MeetRoutePlan, zoneId?: string) {
     if (plan.geometryRevision !== this.navigationGeometryRevision || !plan.routes.every(route => this.conversationActions?.participant(route.sessionId)?.active)) throw new Error("The conversation route changed. Try again.");
+    if (zoneId) {
+      if (!this.privacy) throw new Error("Meeting room access is unavailable.");
+      this.privacy.access.lockForMeeting(zoneId, plan.routes.map(route => route.sessionId), Date.now());
+      this.lockedZoneIds = this.privacy.lockedIds();
+      this.navigationGeometryRevision += 1;
+      this.broadcast("zone-locks", { zoneIds: [...this.lockedZoneIds] });
+    }
     for (const route of plan.routes) this.commitConversationRoute(route);
   }
 
@@ -1055,7 +1062,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   private initializeConversationActions() {
     if (!this.conversations) return;
     this.conversationActions = new ConversationActions(this.officeId,this,{players:this.state.players,security:this.sessionSecurity,conversations:this.conversations,
-      editingSessionId:()=>this.mapEditorSessionId,geometry:()=>this.navigationGeometry(),commit:plan=>this.commitConversationRoutes(plan),
+      editingSessionId:()=>this.mapEditorSessionId,geometry:()=>this.navigationGeometry(),commit:(plan,zoneId)=>this.commitConversationRoutes(plan,zoneId),
       send:(id,event,payload)=>{this.clients.find(client=>client.sessionId===id)?.send(event,payload);},broadcast:(event,payload)=>this.broadcast(event,payload)});
   }
 

@@ -26,6 +26,7 @@ type ZoneState = {
   revision: number;
   admissions: Map<string, Admission>;
   lastMembers: Set<string>;
+  retainEmptyUntilMs: number | null;
 };
 type StoredKnock = PrivateKnock & {
   zoneId: string;
@@ -48,6 +49,22 @@ export class PrivateZoneAccess {
   audienceSessions(nowMs:number){return new Set([...this.frame.zoneBySession].filter(([sessionId,zoneId])=>this.mayHear(sessionId,zoneId,nowMs)).map(([sessionId])=>sessionId));}
   zoneIds() { return [...this.zones.keys()]; }
   lockedIds() { return new Set([...this.zones].filter(([, zone]) => zone.locked).map(([id]) => id)); }
+  lockForMeeting(zoneId: string, sessionIds: readonly string[], nowMs: number) {
+    const zone = this.requireZone(zoneId);
+    if (zone.zone.kind !== "meeting" || zone.locked || sessionIds.length !== 2 || this.physical(zoneId).length)
+      throw new PrivateAccessDeniedError(INVALID_ZONE_LABEL);
+    const people = sessionIds.map(id => this.person(id));
+    if (people.some(person => !person?.active || !person.online))
+      throw new PrivateAccessDeniedError(INVALID_ZONE_LABEL);
+    zone.locked = true;
+    zone.retainEmptyUntilMs = nowMs + PRIVATE_ADMISSION_TTL_MS;
+    for (const person of people) zone.admissions.set(person!.sessionId, {
+      sessionId: person!.sessionId, username: person!.username, displayName: person!.displayName,
+      expiresAtMs: null,
+    });
+    zone.revision += 1;
+    return true;
+  }
   revision(id: string) { return this.requireZone(id).revision; }
   touch(id: string) {
     const zone = this.zones.get(id);
@@ -82,7 +99,7 @@ export class PrivateZoneAccess {
   private reconcileZone(incoming: RoomLayoutZone, nowMs: number): boolean {
     let zone = this.zones.get(incoming.id);
     if (!zone) {
-      zone = { zone: { ...incoming }, locked: false, revision: 0, admissions: new Map(), lastMembers: new Set() };
+      zone = { zone: { ...incoming }, locked: false, revision: 0, admissions: new Map(), lastMembers: new Set(), retainEmptyUntilMs: null };
       this.zones.set(incoming.id, zone);
       zone.lastMembers=this.admittedPhysical(zone,nowMs);
       return false;
@@ -94,7 +111,8 @@ export class PrivateZoneAccess {
       zone.revision += 1;
       changed = true;
     }
-    if (zone.locked && this.physical(incoming.id).length === 0) {
+    if (zone.retainEmptyUntilMs !== null && nowMs >= zone.retainEmptyUntilMs) zone.retainEmptyUntilMs = null;
+    if (zone.locked && this.physical(incoming.id).length === 0 && zone.retainEmptyUntilMs === null) {
       this.unlock(zone);
       return true;
     }
@@ -269,7 +287,7 @@ export class PrivateZoneAccess {
       if (request.sessionId === sessionId && request.zoneId === zoneId && request.state === "admitted")
         request.state = state;
   }
-  private unlock(zone: ZoneState) { zone.locked = false; zone.admissions.clear(); zone.revision += 1; this.invalidateKnocks(zone.zone.id); }
+  private unlock(zone: ZoneState) { zone.locked = false; zone.retainEmptyUntilMs = null; zone.admissions.clear(); zone.revision += 1; this.invalidateKnocks(zone.zone.id); }
   private invalidateKnocks(zoneId: string) {
     for (const request of this.knocks.values())
       if (request.zoneId === zoneId && request.state === "pending")

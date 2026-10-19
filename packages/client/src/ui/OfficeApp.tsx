@@ -26,12 +26,13 @@ import { useAvailabilityStatus } from "./workspace/useAvailabilityStatus";
 import { useOfficeDesks } from "./workspace/useOfficeDesks";
 import { SHARE_OFFICE_LABEL } from "./workspace/officeShareLinks";
 import { useOfficeShareLinks } from "./workspace/useOfficeShareLinks";
-import { acceptOfficeEntryLink, getInviteRouteToken, getOfficeShareRouteToken } from "./workspace/officeEntryLink";
+import { acceptOfficeEntryLink, acceptPendingOfficeInvite, getInviteRouteToken, getOfficeShareRouteToken } from "./workspace/officeEntryLink";
 import { useSignOutConfirmation } from "./workspace/useSignOutConfirmation";
 import { CreateOfficeDialog } from "./workspace/CreateOfficeDialog";
 import { DeskManagerDialog } from "./workspace/DeskManagerDialog";
 import { useDeskAssignmentNotice } from "./workspace/useDeskAssignmentNotice";
 import { createCampusOfficeDraft, type CampusInteriorPreset } from "@gammyverse/shared";
+import { createOfficeWithLayout } from "./workspace/officeCreation";
 import { availabilityPolicy, USER_STATUSES, type UserStatus, type CustomStatus } from "@gammyverse/shared";
 import type { PersonActionCallbacks, PersonActionContext } from "./workspace/personActions";
 import "./social/social.css";
@@ -1472,9 +1473,18 @@ export function OfficeApp() {
           window.history.replaceState(null, "", "/");
           setRoutePath("/");
         }
-        const response = await fetch(`${endpoint}/offices`, { credentials: "include" });
-        const result = await response.json() as { offices?: Office[]; invites?: OfficeInvite[]; error?: string };
+        let response = await fetch(`${endpoint}/offices`, { credentials: "include" });
+        let result = await response.json() as { offices?: Office[]; invites?: OfficeInvite[]; error?: string };
         if (!response.ok) throw new Error(result.error ?? "Could not load offices.");
+        const directOfficeId = getOfficeRouteId(currentPath) ?? getMeetingRouteOfficeId(currentPath);
+        if (!invitedOfficeId && directOfficeId && !(result.offices ?? []).some((office) => office.id === directOfficeId)) {
+          const acceptedPendingInvite = await acceptPendingOfficeInvite(endpoint, directOfficeId, result.invites ?? []);
+          if (acceptedPendingInvite) {
+            response = await fetch(`${endpoint}/offices`, { credentials: "include" });
+            result = await response.json() as { offices?: Office[]; invites?: OfficeInvite[]; error?: string };
+            if (!response.ok) throw new Error(result.error ?? "Could not load offices.");
+          }
+        }
         if (!disposed) {
           setOfficeListVerified(true);
           setOffices(result.offices ?? []); setInvites(result.invites ?? []); setLobbyError(null);
@@ -1487,7 +1497,7 @@ export function OfficeApp() {
             const destination = (result.offices ?? []).find((office) => office.id === officeId);
             if (destination) selectOffice(destination);
             else {
-              setLobbyError("You must be signed in and invited to this office before opening its link.");
+              setLobbyError("You need an invitation for this account before opening the office. Ask an office admin to invite your username or send you a one-time invite link.");
               localStorage.removeItem("gammyverse.activeOfficeId");
               window.history.replaceState(null, "", "/");
               setRoutePath("/");
@@ -1551,7 +1561,6 @@ export function OfficeApp() {
 
   const createOfficeAction = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    let createdOffice: Office | null = null;
     let generatedLayout: RoomLayout;
     try {
       generatedLayout = createCampusOfficeDraft({ totalPeople: generatorTotalPeople, peoplePerTeam: createOfficePeoplePerTeam, teamCount: generatorTeamCount, seed: Math.floor(Math.random() * 0x1_0000_0000) }, createOfficeInteriors).layout;
@@ -1561,41 +1570,20 @@ export function OfficeApp() {
     }
     setLobbyBusy(true);
     setLobbyError(null);
-    try {
-      const response = await fetch(`${endpoint}/offices`, {
-        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: officeName }),
-      });
-      const result = await response.json() as { office?: Office; error?: string };
-      if (!response.ok || !result.office) throw new Error(result.error ?? "Could not create office.");
-      createdOffice = result.office;
-      setOfficeName("");
-      setOffices((current) => [result.office!, ...current]);
-      const mapResponse = await fetch(`${endpoint}/offices/${result.office.id}/map`, {
-        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ version: 1, configVersion: 1, layout: generatedLayout }),
-      });
-      const mapResult = await mapResponse.json() as { config?: unknown; error?: string };
-      if (!mapResponse.ok || !mapResult.config) throw new Error(`Office created, but its generated map could not be saved: ${mapResult.error ?? "Please open Edit map and save the layout again."}`);
-      const propsResponse = await fetch(`${endpoint}/offices/${result.office.id}/props`, {
-        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ configVersion: 1, props: generatedLayout.props }),
-      });
-      const propsResult = await propsResponse.json() as { error?: string };
-      if (!propsResponse.ok) throw new Error(`Office created and map saved, but its generated props could not be saved: ${propsResult.error ?? "Please open Edit map and save the props again."}`);
-      setCreateOfficeDialogOpen(false);
-      selectOffice(result.office);
-    } catch (cause) {
-      setLobbyError(cause instanceof Error ? cause.message : "Could not create office.");
-      // The office record is already durable after the first request. If map
-      // generation or persistence fails, still take the owner into that office
-      // so they can inspect and repair it instead of leaving an orphaned office
-      // behind in the lobby.
-      if (createdOffice) {
-        setCreateOfficeDialogOpen(false);
-        selectOffice(createdOffice);
-      }
-    } finally { setLobbyBusy(false); }
+    const outcome = await createOfficeWithLayout({ endpoint, name: officeName, layout: generatedLayout });
+    if (outcome.office) setOffices((current) => [outcome.office!, ...current]);
+    if (!outcome.ok) {
+      // The office row can already be durable, but a half-saved office is not a
+      // success: keep the dialog open with the failure instead of walking the
+      // owner into an empty space.
+      setLobbyError(outcome.error);
+      setLobbyBusy(false);
+      return;
+    }
+    setOfficeName("");
+    setCreateOfficeDialogOpen(false);
+    setLobbyBusy(false);
+    selectOffice(outcome.office);
   };
 
   const deleteManagedOffice = async () => {
@@ -2861,18 +2849,23 @@ export function OfficeApp() {
   const openWorkspacePanel = (panel: OfficePanel) => { setActiveLeftTab(panel); setWorkspacePanelOpen(true); setCharacterPanelOpen(false); };
   const personActionContext: PersonActionContext = {
     localSessionId: localSessionIdRef.current, localUsername: authUser.username, followingSessionId,
-    spotlightUsernames: social.spotlight.usernames, canSpotlight: activeOffice.role === "owner" || activeOffice.role === "admin",
+    spotlightUsernames: social.spotlight.usernames, spotlightPendingUsernames: social.spotlightRequests.outgoing.map(request => request.targetUsername), canSpotlight: activeOffice.role === "owner" || activeOffice.role === "admin",
     disabled: status !== "connected", canMeet: true, localStatus: userStatus, meetPending: meetOffers.pending,
   };
   const personActionCallbacks: PersonActionCallbacks = {
-    onMeet: sessionId => { if (meetOffers.create("meet", sessionId)) openConversations(); },
-    onInviteToJoin: sessionId => { if (meetOffers.create("join-me", sessionId)) openConversations(); },
+    onMeet: sessionId => { meetOffers.create("meet", sessionId); },
+    onInviteToJoin: sessionId => { meetOffers.create("join-me", sessionId); },
     onMessage: username => { setChatTarget(username); setChatTargetRevision(revision => revision + 1); openWorkspacePanel("chat"); },
     onGoTo: sessionId => { if (!travel.expectDestination(null)) return; roomRef.current?.send("auto-move-to-player", { targetSessionId: sessionId }); },
     onLocate: sessionId => { locateRequestRef.current = { sessionId, requestId: performance.now() }; },
     onFollow: sessionId => { travel.reset(); if (followingSessionId === sessionId) roomRef.current?.send("follow-stop"); else roomRef.current?.send("follow-player", { targetSessionId: sessionId }); },
     onWave: sessionId => roomRef.current?.send("wave", { targetSessionId: sessionId }),
-    onSpotlight: username => roomRef.current?.send("spotlight", { targetUsername: username, on: !social.spotlight.usernames.includes(username) }),
+    onSpotlight: username => {
+      const pending = social.spotlightRequests.outgoing.find(request => request.targetUsername === username);
+      if (pending) roomRef.current?.send("spotlight", { action: "cancel", requestId: pending.id });
+      else if (social.spotlight.usernames.includes(username)) roomRef.current?.send("spotlight", { action: "stop", targetUsername: username });
+      else roomRef.current?.send("spotlight", { action: "request", targetUsername: username });
+    },
   };
   const selectedMapPerson = people.find(([sessionId]) => sessionId === mapPlayerAction?.sessionId);
   return (
@@ -2895,7 +2888,7 @@ export function OfficeApp() {
       {selectedMapPerson && <MapPersonDialog {...personActionContext} {...personActionCallbacks} entry={selectedMapPerson} onClose={() => setMapPlayerAction(null)} />}
       {blasterHitNotice !== null && <div className="blaster-hit-feedback" key={blasterHitNotice} aria-hidden="true" />}
       <WorkspaceChrome key={activeOffice.id} officeId={activeOffice.id} offices={offices}
-        username={authUser.nickname ?? authUser.username} people={people.filter(([id]) => id !== localSessionIdRef.current).map(([sessionId, person]) => ({ ...person, sessionId }))}
+        username={authUser.nickname ?? authUser.username} onlineCount={people.filter(([, person]) => person.presence === "online").length} people={people.filter(([id]) => id !== localSessionIdRef.current).map(([sessionId, person]) => ({ ...person, sessionId }))}
         rooms={officeMapLayout?.zones ?? []} panel={activeLeftTab} panelOpen={workspacePanelOpen} unread={chatUnread} accountOpen={characterPanelOpen}
         navigationDisabled={status !== "connected" || mapEditMode || modifyPropsOpen} onInputBlocked={setWorkspaceInputBlocked}
         onSelectPanel={(panel) => { setWorkspacePanelOpen(panel !== activeLeftTab || !workspacePanelOpen); setActiveLeftTab(panel); setCharacterPanelOpen(false); }}
@@ -2915,7 +2908,6 @@ export function OfficeApp() {
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10.5 10.5 7a3 3 0 0 1 4.2 4.2l-2 2"/><path d="m13 9.5-3.5 3.5a3 3 0 0 1-4.2-4.2l2-2"/></svg>
             <span>{SHARE_OFFICE_LABEL}</span>
           </button> : <p className="workspace-share-notice">Ask an office admin to invite someone.</p>}
-          {inviteLinkFeedback?.officeId === activeOffice.id && <p className="workspace-share-notice" role="status">{inviteLinkFeedback.message}</p>}
         </section>}
         {activeLeftTab === "people" && <PeoplePanel {...personActionContext} {...personActionCallbacks} people={people}
           directoryEndpoint={endpoint} officeId={activeOffice.id} directoryRefreshKey={status} emptyMessage={emptyPeopleMessage} />}

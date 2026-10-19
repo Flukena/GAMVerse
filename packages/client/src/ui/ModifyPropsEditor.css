@@ -57,6 +57,14 @@
 .modify-props-action-help kbd { border: 1px solid rgba(2,48,71,.15); border-radius: 4px; padding: 1px 4px; color: #023047; background: rgba(255,255,255,.82); font: inherit; font-weight: 750; }
 .modify-props-selected-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-radius: 9px; padding: 8px 10px; background: rgba(142,202,230,.2); }
 .modify-props-selected-hint button { flex: 0 0 auto; min-height: 28px; border: 1px solid rgba(2,48,71,.16); border-radius: 7px; padding: 0 8px; color: #023047; background: #fff; font-size: 10px; font-weight: 700; cursor: pointer; }
+.modify-props-interaction { display: grid; gap: 10px; min-width: 0; margin: 0 0 12px; border: 1px solid rgba(2,48,71,.12); border-radius: 12px; padding: 12px; background: rgba(255,255,255,.72); }
+.modify-props-interaction legend { padding: 0 5px; color: #34515e; font-size: 12px; font-weight: 750; }
+.modify-props-interaction label { display: grid; min-width: 0; gap: 5px; color: #647d88; font-size: 10px; font-weight: 700; }
+.modify-props-interaction-kind { max-width: 180px; }
+.modify-props-interaction input, .modify-props-interaction select, .modify-props-interaction textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid rgba(2,48,71,.16); border-radius: 8px; padding: 8px 9px; color: #023047; background: #fff; font: inherit; font-weight: 500; }
+.modify-props-interaction textarea { min-height: 76px; resize: vertical; }
+.modify-props-interaction-fields { display: grid; gap: 9px; }
+.modify-props-interaction [role="alert"] { margin: 0; color: #a3362c; font-size: 10px; }
 .modify-props-type-badge { display: inline-block; max-width: 100%; margin: 2px 2px 1px; overflow: hidden; border-radius: 999px; padding: 3px 6px; color: #176178; background: rgba(142,202,230,.28); font-size: 8px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .modify-props-semantic { display: grid; gap: 3px; margin: 10px 0; border: 1px solid rgba(33,158,188,.16); border-radius: 10px; padding: 9px 10px; background: rgba(142,202,230,.12); }
 .modify-props-semantic strong { color: #176178; font-size: 10px; }

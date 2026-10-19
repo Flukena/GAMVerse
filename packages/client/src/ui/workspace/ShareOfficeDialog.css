@@ -5,6 +5,14 @@
 .share-office-dialog button, .share-office-dialog input { min-height: 40px; padding: 8px 12px; border: 1px solid var(--workspace-edge); border-radius: 8px; background: var(--workspace-subtle); color: var(--workspace-ink); font: inherit; }
 .share-office-dialog button { cursor: pointer; }
 .share-office-dialog button:disabled { opacity: .6; cursor: wait; }
+.share-office-field-label { display: block; margin: 18px 0 7px; color: var(--workspace-muted); font-size: 12px; font-weight: 650; }
+.share-office-type-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.share-office-type-picker button { display: grid; gap: 4px; text-align: left; }
+.share-office-type-picker button.is-selected { border-color: var(--workspace-primary); background: color-mix(in srgb, var(--workspace-primary) 10%, var(--workspace-subtle)); box-shadow: inset 0 0 0 1px var(--workspace-primary); }
+.share-office-type-picker strong { font-size: 13px; }
+.share-office-type-picker small { color: var(--workspace-muted); font-size: 10px; line-height: 1.35; }
+.share-office-type-description { margin: 10px 0; font-size: 12px; }
+.share-office-create { width: 100%; }
 .share-office-url { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
 .share-office-url label { flex-basis: 100%; }
 .share-office-url input { min-width: 0; flex: 1 1 160px; }
@@ -14,3 +22,4 @@
 .share-office-links li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--workspace-edge); }
 .share-office-links small { display: block; color: var(--workspace-muted); }
 .share-office-dialog footer { display: flex; justify-content: flex-end; margin-top: 24px; }
+@media (max-width: 520px) { .share-office-type-picker { grid-template-columns: 1fr; } }

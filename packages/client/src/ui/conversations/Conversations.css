@@ -26,4 +26,7 @@
 .public-conversation-header button { border: 1px solid var(--workspace-edge); border-radius: 7px; padding: 4px 10px; background: var(--workspace-subtle); color: var(--workspace-ink); font: inherit; font-size: 24px; cursor: pointer; }
 .public-conversation-dialog .conversation-cues { padding: 20px 0 0; }
 
-.conversation-invitation-alert { position: fixed; top: 80px; right: 20px; z-index: 32; max-width: calc(100vw - 40px); border: 1px solid var(--workspace-edge, #dce3e8); border-radius: 12px; padding: 12px 16px; color: var(--workspace-ink, #25364a); background: var(--workspace-surface, #fff); cursor: pointer; box-shadow: 0 5px 20px #182d3926; }
+.meet-request-popup { position: fixed; top: 82px; right: 20px; z-index: 34; box-sizing: border-box; width: min(360px, calc(100vw - 32px)); max-height: min(70vh, 520px); overflow-y: auto; padding: 16px; border: 1px solid var(--workspace-edge); border-radius: 14px; color: var(--workspace-ink); background: var(--workspace-surface); box-shadow: 0 12px 36px #182d3930; }
+.meet-request-popup h2 { margin: 0; font-size: 16px; }
+.meet-request-popup .meet-offer-card { background: var(--workspace-subtle); }
+.meet-request-feedback { position: fixed; top: 82px; right: 20px; z-index: 35; width: min(360px, calc(100vw - 32px)); box-sizing: border-box; padding: 12px 16px; border: 1px solid var(--workspace-warning); border-radius: 12px; color: var(--workspace-ink); background: var(--workspace-surface); box-shadow: 0 8px 28px #182d3925; font-size: 13px; }

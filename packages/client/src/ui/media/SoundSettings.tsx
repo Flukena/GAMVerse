@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FootstepSoundSetting } from "./FootstepSoundSetting";
+import { AmbientSoundSetting } from "./AmbientSoundSetting";
 import { DeviceSettingsMicrophoneMeter } from "./DeviceSettingsMicrophoneMeter";
 
 type AudioDevices = { inputs: MediaDeviceInfo[]; outputs: MediaDeviceInfo[] };
@@ -148,7 +148,7 @@ export function SoundSettings({
     </div>
     {deviceMessage && <p className="sound-device-note" role="status">{deviceMessage}</p>}
     {switchError && <p className="sound-device-error" role="alert">{switchError}</p>}
-    <FootstepSoundSetting />
+    <AmbientSoundSetting />
     <div className="permission-row settings-general-row sound-noise-row"><div><strong>Noise reduction</strong><small>Reduce background noise locally with RNNoise</small><small className={`noise-reduction-status ${noiseReductionStatus}`} role="status">{noiseReductionStatus === "checking" ? "Loading local noise filter…" : noiseReductionStatus === "enabled" ? "RNNoise noise reduction is active" : noiseReductionStatus === "fallback" ? `RNNoise unavailable: ${noiseReductionDetails || "browser noise reduction remains active"}` : noiseReductionStatus === "disabled" ? "Using browser noise reduction" : "Applies when you join voice"}</small></div><label className="settings-toggle-control"><span className="sr-only">Noise reduction</span><input type="checkbox" role="switch" checked={noiseReductionEnabled} onChange={(event) => onNoiseReductionChange(event.target.checked)} /><span aria-hidden="true" /></label></div>
   </section>;
 }

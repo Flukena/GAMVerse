@@ -4,14 +4,15 @@ export const SHARE_OFFICE_LABEL = "Share office";
 export type ShareOffice = { id: string; name: string; role: string };
 export type OfficeShareLink = { id: string; createdAt: string; expiresAt: string };
 export type OfficeShareSnapshot = Readonly<{
-  office: ShareOffice | null; links: readonly OfficeShareLink[]; url: string | null; freshId: string | null;
-  busy: "loading" | "creating" | "revoking" | null; error: string | null; copyMessage: string | null;
+  office: ShareOffice | null; links: readonly OfficeShareLink[]; url: string | null; oneTimeUrl: string | null; freshId: string | null;
+  busy: "loading" | "creating" | "creating-one-time" | "revoking" | null; error: string | null; copyMessage: string | null;
 }>;
 export type OfficeShareRequest = (url: string, init: RequestInit) => Promise<Response>;
 type ApiResult = { value: unknown; error: null } | { value: null; error: string };
-const CLOSED_SNAPSHOT: OfficeShareSnapshot = { office: null, links: [], url: null, freshId: null, busy: null, error: null, copyMessage: null };
+const CLOSED_SNAPSHOT: OfficeShareSnapshot = { office: null, links: [], url: null, oneTimeUrl: null, freshId: null, busy: null, error: null, copyMessage: null };
 const LOAD_ERROR_LABEL = "Could not load share links. Please try again.";
 const CREATE_ERROR_LABEL = "Could not create a share link. Please try again.";
+const CREATE_ONE_TIME_ERROR_LABEL = "Could not create a one-time invite. Please try again.";
 const REVOKE_ERROR_LABEL = "Could not revoke the share link. Please try again.";
 const COPY_MANUALLY_LABEL = "Clipboard unavailable. Select the link and copy it manually.";
 const COPIED_LABEL = "Link copied.";
@@ -87,6 +88,24 @@ export class OfficeShareLinks {
     const metadata: OfficeShareLink = { id: link.id, createdAt: link.createdAt, expiresAt: link.expiresAt };
     this.update({ ...this.state, links: [metadata, ...this.state.links], url, freshId: link.id, busy: null });
   }
+  async createOneTime(): Promise<void> {
+    const generation = this.begin("creating-one-time");
+    const office = this.state.office;
+    if (generation === null || !office) return;
+    const result = await Promise.resolve().then(() => this.request(`${this.endpoint}/offices/${encodeURIComponent(office.id)}/invites`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "user" }),
+    })).then(async response => {
+      if (!response.ok) return { value: null, error: CREATE_ONE_TIME_ERROR_LABEL };
+      return response.json().then(value => ({ value, error: null }), () => ({ value: null, error: CREATE_ONE_TIME_ERROR_LABEL }));
+    }, () => ({ value: null, error: CREATE_ONE_TIME_ERROR_LABEL }));
+    if (generation !== this.generation) return;
+    const invite = record(result.value) && record(result.value.invite) ? result.value.invite : null;
+    const token = invite?.token;
+    if (result.error || typeof token !== "string" || token.length < 30 || token.length > 100 || !/^[A-Za-z0-9_-]+$/.test(token)) {
+      this.update({ ...this.state, busy: null, error: result.error ?? CREATE_ONE_TIME_ERROR_LABEL }); return;
+    }
+    this.update({ ...this.state, oneTimeUrl: new URL(`/join/${token}`, this.origin).href, busy: null, error: null, copyMessage: null });
+  }
   async revoke(linkId: string): Promise<void> {
     if (!this.state.links.some(link => link.id === linkId)) return;
     const generation = this.begin("revoking");
@@ -105,5 +124,12 @@ export class OfficeShareLinks {
     const generation = this.generation;
     const copyMessage = await Promise.resolve().then(() => write(url)).then(() => COPIED_LABEL, () => COPY_MANUALLY_LABEL);
     if (generation === this.generation && url === this.state.url) this.update({ ...this.state, copyMessage });
+  }
+  async copyOneTime(write: (url: string) => Promise<void>): Promise<void> {
+    const { oneTimeUrl } = this.state;
+    if (!oneTimeUrl) return;
+    const generation = this.generation;
+    const copyMessage = await Promise.resolve().then(() => write(oneTimeUrl)).then(() => COPIED_LABEL, () => COPY_MANUALLY_LABEL);
+    if (generation === this.generation && oneTimeUrl === this.state.oneTimeUrl) this.update({ ...this.state, copyMessage });
   }
 }

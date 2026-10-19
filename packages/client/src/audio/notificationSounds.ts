@@ -18,7 +18,7 @@ export function unlockSocialNotificationAudio() {
 }
 
 /** Small synthesized notification cues; no audio files or network requests are needed. */
-export function playSocialNotificationSound(kind: "wave" | "follow" | "room-enter" | "room-exit") {
+export function playSocialNotificationSound(kind: "wave" | "follow" | "chat" | "meet" | "spotlight" | "room-enter" | "room-exit") {
   const now = performance.now();
   if (now - lastPlayedAt < 220) return;
   lastPlayedAt = now;
@@ -29,6 +29,9 @@ export function playSocialNotificationSound(kind: "wave" | "follow" | "room-ente
     if (context.state === "suspended") void context.resume().catch(() => undefined);
     const notes = kind === "wave" ? [660, 880]
       : kind === "follow" ? [523, 659, 784]
+        : kind === "chat" ? [880, 660]
+          : kind === "meet" ? [587, 740, 880]
+            : kind === "spotlight" ? [784, 988]
         : kind === "room-enter" ? [740, 988]
           : [587, 440];
     notes.forEach((frequency, index) => {

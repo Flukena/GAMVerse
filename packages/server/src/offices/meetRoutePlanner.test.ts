@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CAMPUS_WORLD, campusWorldFromConfig, generateCampusMap, isPositionWalkable, makeBlockerGrid, type RoomLayoutZone } from "@gammyverse/shared";
-import { isPublicMeetPoint, planMeetRoutes, planPublicConversationApproachRoute, type MeetGeometry, type MeetTravelParticipant } from "./meetRoutePlanner.js";
+import { isPublicMeetPoint, meetingZoneIsEmpty, planMeetRoomRoutes, planMeetRoutes, planPublicConversationApproachRoute, type MeetGeometry, type MeetTravelParticipant } from "./meetRoutePlanner.js";
 const FROM: MeetTravelParticipant = { username: "alice", displayName: "Alice", sessionId: "alice-session", x: -6, z: 0, status: "available", presence: "online", active: true, vehicleId: "" };
 const TO: MeetTravelParticipant = { ...FROM, username: "bob", displayName: "Bob", sessionId: "bob-session", x: 6 };
 function geometry(zones: RoomLayoutZone[] = []): MeetGeometry {
@@ -92,4 +92,14 @@ test("public route checks preserve blockers stored only in the source collision 
   map.world = { ...map.world, collisionGrid: makeBlockerGrid([barrier]) };
   assert.equal(isPublicMeetPoint({ x: barrier.x, z: barrier.z }, map), false);
   assert.equal(planMeetRoutes("meet", FROM, TO, map), null);
+});
+
+test("meeting request routes both participants into an empty meeting room and skips occupied rooms", () => {
+  const room: RoomLayoutZone = { ...PRIVATE, id: "meeting-room", kind: "meeting", x: 0, z: 8, width: 10, depth: 10 };
+  const map = geometry([room]);
+  assert.equal(meetingZoneIsEmpty(room, [FROM, TO]), true);
+  const plan = planMeetRoomRoutes(FROM, TO, map, room);
+  assert.ok(plan);
+  assert.ok(plan.routes.every(route => Math.abs(route.destination.x) <= room.width / 2 && Math.abs(route.destination.z - room.z) <= room.depth / 2));
+  assert.equal(meetingZoneIsEmpty(room, [{ ...TO, x: 0, z: 8 }]), false);
 });

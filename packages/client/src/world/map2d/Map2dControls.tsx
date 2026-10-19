@@ -58,9 +58,9 @@ export function Map2dControls({ scalePxPerM, following, disabled = false, hasDes
       {tools}
       <div className={`world-control-group${activeGroup === "zoom" ? " is-active" : ""}`}>
         {activeGroup === "zoom" && <div className="world-control-actions map2d-zoom-actions" id="map2d-zoom-actions" role="group" aria-label={ZOOM_LABEL}>
-          <button type="button" aria-label="Zoom in" title="Zoom in" disabled={disabled || scalePxPerM >= MAP2D_MAX_SCALE_PX_PER_M} onClick={() => onZoom(CAMERA_ZOOM_BUTTON_RATIO)}>+</button>
-          <output aria-label={ZOOM_LABEL}>{zoomPercent}%</output>
           <button type="button" aria-label="Zoom out" title="Zoom out" disabled={disabled || scalePxPerM <= MAP2D_MIN_SCALE_PX_PER_M} onClick={() => onZoom(1 / CAMERA_ZOOM_BUTTON_RATIO)}>−</button>
+          <output aria-label={ZOOM_LABEL}>{zoomPercent}%</output>
+          <button type="button" aria-label="Zoom in" title="Zoom in" disabled={disabled || scalePxPerM >= MAP2D_MAX_SCALE_PX_PER_M} onClick={() => onZoom(CAMERA_ZOOM_BUTTON_RATIO)}>+</button>
         </div>}
         <button className="world-control-trigger" type="button" title={ZOOM_LABEL} aria-label={ZOOM_LABEL} aria-expanded={activeGroup === "zoom"} aria-controls="map2d-zoom-actions" onClick={() => setActiveGroup(group => group === "zoom" ? null : "zoom")}>
           <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.5 4.5M8 10.8h5.6M10.8 8v5.6"/></svg>

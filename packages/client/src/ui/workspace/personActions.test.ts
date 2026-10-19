@@ -21,3 +21,11 @@ test("self/offline and pending meet states never offer an enabled invitation", (
   assert.equal(buildPersonActions([PERSON[0], { ...PERSON[1], presence: "offline" }], CONTEXT).find(action => action.id === "meet")?.disabled, true);
   assert.equal(buildPersonActions(PERSON, { ...CONTEXT, meetPending: true }).find(action => action.id === "meet")?.disabled, true);
 });
+test("spotlight action switches from request to cancel, then to stop once accepted", () => {
+  const requested = buildPersonActions(PERSON, { ...CONTEXT, canSpotlight: true, spotlightPendingUsernames: ["remote"] }).find(action => action.id === "spotlight");
+  assert.equal(requested?.label, "Cancel spotlight request");
+  assert.equal(requested?.pressed, true);
+  const active = buildPersonActions(PERSON, { ...CONTEXT, canSpotlight: true, spotlightUsernames: ["remote"] }).find(action => action.id === "spotlight");
+  assert.equal(active?.label, "Stop spotlight");
+  assert.equal(active?.pressed, true);
+});

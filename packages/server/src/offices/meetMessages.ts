@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 import { isMeetActionCommand, isMeetCreateCommand, isMeetSyncCommand, isValidStatusRequestId, type MeetActionCommand, type MeetCreateCommand, type MeetOffer, type MeetParty } from "@gammyverse/shared";
 import { getOfficeRole } from "./repository.js";
 import { MeetRequests } from "./meetRequests.js";
-import { isPublicMeetPoint, meetParticipantAvailable, planMeetRoutes, type MeetGeometry, type MeetRoutePlan, type MeetTravelParticipant } from "./meetRoutePlanner.js";
+import { isPublicMeetPoint, meetingZoneIsEmpty, meetParticipantAvailable, planMeetRoomRoutes, type MeetGeometry, type MeetRoutePlan, type MeetTravelParticipant } from "./meetRoutePlanner.js";
 
 export type MeetState = {
   participant(sessionId: string): MeetTravelParticipant | undefined;
+  participants(): readonly MeetTravelParticipant[];
   geometry(): MeetGeometry;
-  commit(plan: MeetRoutePlan): void;
+  commit(plan: MeetRoutePlan, zoneId?: string): void;
   send(sessionId: string, event: string, payload: unknown): void;
 };
 type MeetOptions = { role?: (username: string, officeId: string) => Promise<string | null>; nowMs?: () => number; id?: () => string };
@@ -146,9 +147,13 @@ export class MeetMessages {
       await this.authorized(snapshot);
       this.assertAcceptCurrent(offer, command, snapshot);
       const current = this.snapshot(offer.from.sessionId, offer.to.sessionId)!;
-      const plan = planMeetRoutes(offer.kind, current.from, current.to, this.state.geometry());
+      const geometry = this.state.geometry();
+      const zone = geometry.layout.zones.find(candidate => meetingZoneIsEmpty(candidate, this.state.participants())
+        && planMeetRoomRoutes(current.from, current.to, geometry, candidate));
+      if (!zone) throw new Error(UNAVAILABLE_LABEL);
+      const plan = planMeetRoomRoutes(current.from, current.to, geometry, zone);
       if (!plan) throw new Error(UNAVAILABLE_LABEL);
-      this.state.commit(plan);
+      this.state.commit(plan, zone.id);
       this.intentChanged(offer.from.sessionId); this.intentChanged(offer.to.sessionId);
       this.requests.finish(offer, "accepted");
     } catch (error) {

@@ -9,6 +9,9 @@ export function useOfficeShareLinks(endpoint: string, origin: string, sessionKey
   return {
     open: (office: ShareOffice) => { void shares.open(office); },
     dialog: state.office && <ShareOfficeDialog state={state} onClose={shares.close} onCreate={() => void shares.create()}
-      onCopy={() => void shares.copy(url => navigator.clipboard.writeText(url))} onRevoke={id => void shares.revoke(id)} onRefresh={() => void shares.refresh()} />,
+      onCreateOneTime={() => void shares.createOneTime()}
+      onCopy={() => void shares.copy(url => navigator.clipboard.writeText(url))}
+      onCopyOneTime={() => void shares.copyOneTime(url => navigator.clipboard.writeText(url))}
+      onRevoke={id => void shares.revoke(id)} onRefresh={() => void shares.refresh()} />,
   };
 }

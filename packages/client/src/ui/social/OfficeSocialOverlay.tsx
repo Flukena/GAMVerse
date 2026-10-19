@@ -52,10 +52,17 @@ export function OfficeSocialOverlay(props: OfficeSocialOverlayProps) {
           sessionKey={props.sessionKey}
           epoch={social.spotlight.epoch}
           usernames={social.spotlight.usernames}
+          incomingRequests={social.spotlightRequests.incoming}
+          outgoingRequests={social.spotlightRequests.outgoing}
+          commandError={social.spotlightCommandError}
           spotlighted={social.spotlight.usernames.includes(props.username)}
           doNotDisturb={props.doNotDisturb}
           zoneUsernames={props.zoneUsernames}
           paused={!props.room}
+          onAcceptRequest={requestId => props.room?.send("spotlight", { action: "respond", requestId, accept: true })}
+          onDeclineRequest={requestId => props.room?.send("spotlight", { action: "respond", requestId, accept: false })}
+          onCancelRequest={requestId => props.room?.send("spotlight", { action: "cancel", requestId })}
+          onLeave={() => props.room?.send("spotlight", { action: "stop", targetUsername: props.username })}
         />
       )}
     </>

@@ -15,7 +15,7 @@ export type ConversationActionState = {
   editingSessionId(): string | null;
   conversations: SpatialConversations;
   geometry(): MeetGeometry;
-  commit(plan: MeetRoutePlan): void;
+  commit(plan: MeetRoutePlan, zoneId?: string): void;
   send(sessionId: string, event: string, payload: unknown): void;
   broadcast(event: string, payload: unknown): void;
 };
@@ -28,7 +28,7 @@ export class ConversationActions {
   private lastRefreshAtMs = -PUBLIC_DISCOVERY_REFRESH_INTERVAL_MS;
   constructor(private readonly officeId: string, room: ActionRoom, private readonly state: ConversationActionState) {
     this.discovery = new PublicConversations(officeId,state.conversations.roomIncarnationId);
-    const navigation = {participant: (id: string) => this.participant(id), geometry: state.geometry, commit: state.commit,send: state.send};
+    const navigation = {participant: (id: string) => this.participant(id), participants: () => [...state.players.keys()].map(id => this.participant(id)).filter((person): person is MeetTravelParticipant => Boolean(person)), geometry: state.geometry, commit: state.commit,send: state.send};
     this.meet = new MeetMessages(officeId,state.conversations.roomIncarnationId,navigation,{
       role: async username => {const id=state.security.activeSession(username);return id && await this.authorize(id,username) ? "user" : null;},
     });

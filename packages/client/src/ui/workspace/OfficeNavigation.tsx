@@ -41,13 +41,14 @@ export function OfficeNavigation({ panel, open, unread, onSelect, mainMenu }: Na
 
 interface HeaderProps {
   username: string;
+  onlineCount: number;
   accountOpen: boolean;
   onAccount(): void;
 }
 
 export function OfficeHeader(props: HeaderProps) {
   return <header className="office-header">
-    <div className="office-header-brand" aria-label="GAMVerse">GAMVerse</div>
+    <div className="office-header-brand" aria-label={`GAMVerse, ${props.onlineCount} online`}><strong>GAMVerse</strong><span className="office-online-status"><i aria-hidden="true" />{props.onlineCount} online</span></div>
     <div className="office-header-actions">
       <button type="button" className="office-account-button" aria-label="Account and settings" title="Account and settings" aria-expanded={props.accountOpen} aria-controls={props.accountOpen ? "character-drawer" : undefined} onClick={props.onAccount}>{props.username.slice(0, 1).toUpperCase()}</button>
     </div>

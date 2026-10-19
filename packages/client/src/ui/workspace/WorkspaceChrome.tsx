@@ -10,6 +10,7 @@ type WorkspaceChromeProps = {
   officeId: string;
   offices: readonly { id: string; name: string }[];
   username: string;
+  onlineCount: number;
   people: readonly CommandCatalogPerson[];
   rooms: readonly CommandCatalogRoom[];
   panel: OfficePanel;
@@ -53,7 +54,7 @@ export function WorkspaceChrome(props: WorkspaceChromeProps) {
   return <>
     <OfficeNavigation panel={props.panel} open={props.panelOpen} unread={props.unread} onSelect={props.onSelectPanel}
       mainMenu={<OfficeMainMenu offices={props.offices} currentOfficeId={props.officeId} onSwitchOffice={props.onSwitchOffice} onOpenChange={setMenuOpen} />} />
-    <OfficeHeader username={props.username} accountOpen={props.accountOpen} onAccount={props.onAccount} />
+    <OfficeHeader username={props.username} onlineCount={props.onlineCount} accountOpen={props.accountOpen} onAccount={props.onAccount} />
     <CommandPalette commands={commands} open={palette.open} onClose={palette.closePalette} onExecute={command => executeWorkspaceCommand(command, props)} />
   </>;
 }

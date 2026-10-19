@@ -5,6 +5,11 @@ import { SPOTLIGHT_REVOKE_DEADLINE_MS } from "@gammyverse/shared";
 import { Spotlight } from "../offices/spotlight.js";
 import { mintSpotlightGrant, SpotlightAuthorizationError } from "./spotlightGrant.js";
 import { revokeSpotlightParticipant } from "./service.js";
+async function activate(spotlight: Spotlight, requester: string, target: string) {
+  await spotlight.command(requester, { action: "request", targetUsername: target });
+  const request = spotlight.requestSnapshot(target).incoming[0]!;
+  await spotlight.command(target, { action: "respond", requestId: request.id, accept: true });
+}
 function makeSpotlight() {
   return new Spotlight("office", {
     role: async () => "admin",
@@ -43,7 +48,7 @@ test("non-spotlight publish denied, subscribe permitted, membership checked afte
 });
 test("publisher removal during mint prevents stale publisher grant response", async () => {
   const spotlight = makeSpotlight();
-  await spotlight.command("admin", { targetUsername: "bob", on: true });
+  await activate(spotlight, "admin", "bob");
   await assert.rejects(
     mintSpotlightGrant(spotlight, "bob", "id", true, {
       role: async () => "user",
@@ -76,7 +81,7 @@ test("LiveKit service seam receives removeParticipant within deadline and epoch 
       revokeSpotlightParticipant(room, identity, service),
     changed: () => {},
   });
-  await spotlight.command("admin", { targetUsername: "bob", on: true });
+  await activate(spotlight, "admin", "bob");
   spotlight.track("bob", "bob-id");
   const oldRoom = spotlight.grant("bob", true)!.roomName;
   const offAt = Date.now();
@@ -89,7 +94,7 @@ test("LiveKit service seam receives removeParticipant within deadline and epoch 
 });
 test("spotlight-off while final membership read awaits denies cached publisher grant", async () => {
   const spotlight = makeSpotlight();
-  await spotlight.command("admin", { targetUsername: "bob", on: true });
+  await activate(spotlight, "admin", "bob");
   let reads = 0;
   await assert.rejects(
     mintSpotlightGrant(spotlight, "bob", "id", true, {
@@ -119,7 +124,7 @@ test(
       },
       changed: () => {},
     });
-    await spotlight.command("admin", { targetUsername: "bob", on: true });
+    await activate(spotlight, "admin", "bob");
     spotlight.track("bob", "id");
     await assert.rejects(spotlight.remove("bob"), /deadline exceeded/);
     assert.equal(attempts, 2);

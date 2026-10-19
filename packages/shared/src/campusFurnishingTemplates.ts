@@ -1,10 +1,11 @@
 import type { RoomLayoutZone } from "./roomLayout.js";
+import { campusPrivateRoomPlacements } from "./campusPrivateRoomTemplate.js";
+export { campusRestroomFixtures } from "./campusRestroomFixtures.js";
 
-export type StarterPlacement = { key: string; asset: string; xM: number; zM: number; rotationRad?: number; supported?: boolean };
+export type StarterPlacement = { key: string; asset: string; xM: number; zM: number; rotationRad?: number; supported?: boolean; collision?: boolean; elevationM?: number };
 const ASSETS = {
-  desk: "kit:desk", chair: "kit:chair", deskChair: "kit:chairdesk", monitor: "computerScreen",
-  storage: "kit:bookcaseopenlow", plant: "kit:pottedplant", table: "table", sofa: "kit:loungesofa",
-  toilet: "kit:toilet", sink: "kit:bathroomsink", stage: "office-townhall-stage", podium: "office-townhall-podium",
+  chair: "kit:chair", plant: "kit:pottedplant", table: "table", sofa: "kit:loungesofa",
+  stage: "office-townhall-stage", podium: "office-townhall-podium",
 } as const;
 const HALF_TURN_RAD = Math.PI;
 const ROOM_EDGE_INSET_M = 3;
@@ -13,23 +14,33 @@ const TABLE_SEAT_X_OFFSETS_M = [-0.8, 0.8];
 const TABLE_SEAT_Z_OFFSETS_M = [-1.8, 1.8];
 const TABLE_ROW_Z_OFFSETS_M = [-6, 6];
 const MEETING_TABLE_Z_M = -2;
+// A meeting room only fits a second table group once it is this wide.
+const MEETING_TWO_GROUP_MIN_WIDTH_M = 18;
+const MEETING_GROUP_MAX_OFFSET_M = 5;
 const TOWNHALL_SEAT_X_OFFSETS_M = [-5, -3, 3, 5];
 const TOWNHALL_SEAT_Z_OFFSETS_M = [-10, -6, -2, 2];
 const TOWNHALL_STAGE_INSET_M = 4;
 const TOWNHALL_PODIUM_X_M = 4.5;
 const LOUNGE_SOFA_Z_M = -3;
 const LOUNGE_TABLE_Z_M = 0;
-const RESTROOM_X_OFFSETS_M = [-4, 4];
-const PRIVATE_PLACEMENTS: readonly StarterPlacement[] = [
-  { key: "desk", asset: ASSETS.desk, xM: -1.9, zM: -1.6 },
-  { key: "monitor", asset: ASSETS.monitor, xM: -1.9, zM: -1.6, supported: true },
-  { key: "chair", asset: ASSETS.deskChair, xM: -1.9, zM: 0.2 },
-  { key: "storage", asset: ASSETS.storage, xM: 2.5, zM: -2.5 },
-  { key: "plant", asset: ASSETS.plant, xM: 2.5, zM: 2.5 },
-];
 
 function plants(zone: RoomLayoutZone): StarterPlacement[] {
-  return GROUP_X_OFFSETS_M.map((xM, index) => ({ key: `plant-${index}`, asset: ASSETS.plant, xM, zM: zone.depth / 2 - ROOM_EDGE_INSET_M }));
+  const xM = Math.min(GROUP_X_OFFSETS_M[1]!, zone.width / 2 - ROOM_EDGE_INSET_M);
+  return [-xM, xM].map((offset, index) => ({ key: `plant-${index}`, asset: ASSETS.plant, xM: offset, zM: zone.depth / 2 - ROOM_EDGE_INSET_M }));
+}
+
+/**
+ * Meeting rooms are sized for the group that uses them, so the table layout
+ * follows the room instead of assuming one large hall.
+ */
+function meetingRoom(zone: RoomLayoutZone): StarterPlacement[] {
+  const offsets = zone.width >= MEETING_TWO_GROUP_MIN_WIDTH_M
+    ? [-1, 1].map((side) => side * Math.min(MEETING_GROUP_MAX_OFFSET_M, zone.width / 4))
+    : [0];
+  return [
+    ...offsets.flatMap((xM, index) => tableGroup(`meeting-${index}`, xM, MEETING_TABLE_Z_M)),
+    ...plants(zone),
+  ];
 }
 
 function tableGroup(key: string, xM: number, zM: number): StarterPlacement[] {
@@ -68,18 +79,12 @@ function lounge(zone: RoomLayoutZone): StarterPlacement[] {
   ];
 }
 
-function restroom(zone: RoomLayoutZone): StarterPlacement[] {
-  return RESTROOM_X_OFFSETS_M.flatMap((xM, index) => [
-    { key: `toilet-${index}`, asset: ASSETS.toilet, xM, zM: -zone.depth / 2 + ROOM_EDGE_INSET_M },
-    { key: `sink-${index}`, asset: ASSETS.sink, xM, zM: zone.depth / 2 - ROOM_EDGE_INSET_M, rotationRad: HALF_TURN_RAD },
-  ]);
-}
-
 export function campusStarterPlacements(zone: RoomLayoutZone): readonly StarterPlacement[] {
-  if (zone.kind === "private") return PRIVATE_PLACEMENTS;
-  if (zone.kind === "restroom") return restroom(zone);
+  if (zone.kind === "private") return campusPrivateRoomPlacements(zone);
+  // Restroom fixtures are added directly by the campus map generator.
+  if (zone.kind === "restroom") return [];
   if (zone.id === "shared-townhall") return townHall(zone);
   if (zone.id === "shared-cafeteria") return cafeteria(zone);
   if (zone.id === "shared-lounge" || zone.id === "shared-lobby") return lounge(zone);
-  return [...GROUP_X_OFFSETS_M.flatMap((xM, index) => tableGroup(`meeting-${index}`, xM, MEETING_TABLE_Z_M)), ...plants(zone)];
+  return meetingRoom(zone);
 }

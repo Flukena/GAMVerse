@@ -122,6 +122,7 @@ const OFFICE_GEOMETRY_PROPS: RoomPropDefinition[] = [
   { asset: "office-townhall-stage", label: "Town Hall · Stage", width: 6, depth: 3, height: 0.45, collision: false, geometry: "townhall-stage", group: "Town Hall", preview: "/assets/office-props/townhall-stage.svg" },
   { asset: "office-townhall-podium", label: "Town Hall · Podium", width: 1.2, depth: 1, height: 1.2, collision: true, geometry: "townhall-podium", group: "Town Hall", preview: "/assets/office-props/townhall-podium.svg" },
   { asset: "office-restroom-partition", label: "Restroom · Privacy divider", width: 2, depth: 1, height: 2, collision: false, geometry: "restroom-partition", group: "Restroom", preview: "/assets/office-props/restroom-partition.svg" },
+  { asset: "office-restroom-wash-backboard", label: "Restroom · Wash island backboard", width: 10.8, depth: 0.16, height: 2.2, collision: true, collisionWidth: 10.8, collisionDepth: 0.16, geometry: "restroom-wash-backboard", group: "Restroom", preview: "/assets/office-props/restroom-partition.svg" },
   { asset: "office-wayfinding-sign", label: "Wayfinding · Blank sign", width: 1.2, depth: 1, height: 2, collision: false, geometry: "wayfinding-sign", group: "Roads · Signs", preview: "/assets/office-props/wayfinding-sign.svg" },
   { asset: "office-wall-picture", label: "Office · Framed wall art", width: 1.2, depth: 0.14, height: 0.9, collision: false, geometry: "wall-picture", wallMounted: true, group: "Wall décor", preview: "/assets/office-props/wall-picture.svg" },
   { asset: "office-wall-shelf", label: "Office · Floating bookshelf", width: 1.2, depth: 0.34, height: 0.62, collision: false, geometry: "wall-shelf", wallMounted: true, group: "Wall décor", preview: "/assets/office-props/wall-shelf.svg" },
@@ -181,7 +182,7 @@ const ROOM_PROP_CATALOG_BASE: ReadonlyArray<RoomPropDefinition> = [
   { asset: "quaternius-sushi-wall-shoji", label: "Sushi Kit · Shoji Wall", height: 2.6, width: 2, depth: 0.4, collision: false, modelUrl: "/assets/quaternius/sushi-restaurant-kit/Models/Wall_Shoji.gltf", format: "gltf", group: "Wall · Sushi Restaurant", preview: "/assets/quaternius/sushi-restaurant-kit/Preview.jpg", wallAxis: "x" },
   { asset: "quaternius-sushi-wall-shoji-interior", label: "Sushi Kit · Shoji Divider", height: 2.6, width: 2.35, depth: 0.38, collision: false, modelUrl: "/assets/quaternius/sushi-restaurant-kit/Models/Wall_Shoji_Interior.gltf", format: "gltf", group: "Wall · Sushi Restaurant", preview: "/assets/quaternius/sushi-restaurant-kit/Preview.jpg", wallAxis: "x" },
   { asset: "kit:bathroomcabinet", label: "Bathroom Cabinet", height: 1.0, width: 0.59, depth: 0.333, collision: true, model: "bathroomCabinet", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/bathroomCabinet_SE.png" },
-  { asset: "kit:bathroommirror", label: "Bathroom Mirror", height: 1.0, width: 0.693, depth: 0.332, collision: false, model: "bathroomMirror", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/bathroomMirror_SE.png" },
+  { asset: "kit:bathroommirror", label: "Bathroom Mirror", height: 1.0, width: 0.693, depth: 0.332, collision: false, wallMounted: true, model: "bathroomMirror", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/bathroomMirror_SE.png" },
   { asset: "kit:bathroomsink", label: "Bathroom Sink", height: 1.0, width: 0.607, depth: 0.518, collision: true, model: "bathroomSink", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/bathroomSink_SE.png" },
   { asset: "kit:bathtub", label: "Bathtub", height: 1.0, width: 2.833, depth: 1.333, collision: true, model: "bathtub", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/bathtub_SE.png" },
   { asset: "kit:bear", label: "Bear", height: 1.0, width: 0.866, depth: 0.55, collision: false, model: "bear", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/bear_SE.png" },
@@ -252,7 +253,7 @@ const ROOM_PROP_CATALOG_BASE: ReadonlyArray<RoomPropDefinition> = [
   { asset: "kit:plantsmall3", label: "Plant Small3", height: 1.1, width: 0.743, depth: 0.644, collision: true, model: "plantSmall3", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/plantSmall3_SE.png" },
   { asset: "kit:pottedplant", label: "Potted Plant", height: 1.1, width: 0.357, depth: 0.406, collision: true, model: "pottedPlant", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/pottedPlant_SE.png" },
   { asset: "kit:radio", label: "Radio", height: 0.24, width: 0.331, depth: 0.102, collision: false, model: "radio", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/radio_SE.png" },
-  { asset: "kit:shower", label: "Shower", height: 1.0, width: 0.514, depth: 0.532, collision: true, model: "shower", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/shower_SE.png" },
+  { asset: "kit:shower", label: "Shower", height: 2.0, width: 0.514, depth: 0.532, collision: true, model: "shower", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/shower_SE.png" },
   { asset: "kit:sidetable", label: "Side Table", height: 1.0, width: 1.39, depth: 0.572, collision: true, model: "sideTable", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/sideTable_SE.png" },
   { asset: "kit:sidetabledrawers", label: "Side Table Drawers", height: 1.0, width: 1.39, depth: 0.578, collision: true, model: "sideTableDrawers", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/sideTableDrawers_SE.png" },
   { asset: "kit:speaker", label: "Speaker", height: 0.5, width: 0.117, depth: 0.117, collision: false, model: "speaker", group: "Furniture", preview: "/assets/kenney/furniture-kit/Isometric/speaker_SE.png" },
@@ -813,7 +814,7 @@ function roomPropEditorRole(item: RoomPropDefinition): RoomPropEditorRole {
 // they are still surface props. Their footprint is promoted to the required
 // 1 × 1 m minimum below, so they can be placed on any surface with that much
 // usable top area (including a 1 × 1 m tabletop).
-const isSmallProp = (item: RoomPropDefinition) => /computer.?screen|monitor/i.test(`${item.asset} ${item.label}`) || (item.height <= 0.3 && Math.max(item.width, item.depth) <= 0.55);
+const isSmallProp = (item: RoomPropDefinition) => /computer.?screen|computer.?keyboard|monitor/i.test(`${item.asset} ${item.label}`) || (item.height <= 0.3 && Math.max(item.width, item.depth) <= 0.55);
 
 // A few environment packs use sub-meter source bounds for structures that
 // should read at human/world scale on our 1 m placement grid. Scale the whole

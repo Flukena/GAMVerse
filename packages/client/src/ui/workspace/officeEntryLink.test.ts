@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptOfficeEntryLink, getInviteRouteToken, getOfficeShareRouteToken } from "./officeEntryLink";
+import { acceptOfficeEntryLink, acceptPendingOfficeInvite, getInviteRouteToken, getOfficeShareRouteToken } from "./officeEntryLink";
 
 const TOKEN = "a".repeat(43);
 test("share links survive route parsing without becoming single-use invitations", () => {
@@ -28,4 +28,27 @@ test("malformed, revoked and unavailable share links never enter an office", asy
   await assert.rejects(acceptOfficeEntryLink("https://api.example", `/share/${TOKEN}`, request), /expired or revoked/i);
   assert.equal(await acceptOfficeEntryLink("https://api.example", "/", request), null);
   assert.equal(requests, 1);
+});
+
+test("a direct office link accepts a pending invitation for that office before entry", async () => {
+  const accepted = await acceptPendingOfficeInvite("https://api.example", "office-b", [
+    { id: "invite-a", officeId: "office-a" },
+    { id: "invite-b", officeId: "office-b" },
+  ], async (url, init) => {
+    assert.equal(url, "https://api.example/office-invites/accept");
+    assert.equal(init.method, "POST");
+    assert.equal(init.credentials, "include");
+    assert.deepEqual(JSON.parse(String(init.body)), { inviteId: "invite-b" });
+    return new Response(JSON.stringify({ officeId: "office-b" }));
+  });
+  assert.equal(accepted, true);
+});
+
+test("a direct office link does not accept an invitation for another office", async () => {
+  let requested = false;
+  const accepted = await acceptPendingOfficeInvite("https://api.example", "office-b", [
+    { id: "invite-a", officeId: "office-a" },
+  ], async () => { requested = true; return new Response("{}"); });
+  assert.equal(accepted, false);
+  assert.equal(requested, false);
 });

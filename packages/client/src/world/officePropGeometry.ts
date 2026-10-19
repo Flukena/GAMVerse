@@ -37,6 +37,9 @@ export function createOfficePropGeometry(kind: string): THREE.Group | null {
     box(0.08, 1.9, 0.92, materials.blue, -0.96, 0.95, 0);
     box(0.08, 1.9, 0.92, materials.blue, 0.96, 0.95, 0);
     box(2, 0.08, 0.08, materials.navy, 0, 0.12, -0.46);
+  } else if (kind === "restroom-wash-backboard") {
+    box(10.8, 2.2, 0.16, materials.pale, 0, 1.1, 0);
+    box(10.8, 0.12, 0.18, materials.mint, 0, 0.06, 0);
   } else if (kind === "wayfinding-sign") {
     box(0.1, 1.25, 0.1, materials.dark, 0, 0.63, 0);
     box(1.2, 0.58, 0.08, materials.navy, 0, 1.57, 0);

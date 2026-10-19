@@ -9,6 +9,7 @@ export type PersonActionContext = {
   localUsername?: string;
   followingSessionId: string | null;
   spotlightUsernames: readonly string[];
+  spotlightPendingUsernames?: readonly string[];
   canSpotlight: boolean;
   disabled: boolean;
   canMeet?: boolean;
@@ -31,12 +32,14 @@ const ACTION_LABELS: Record<PersonActionId, string> = {
 };
 const STOP_FOLLOWING_LABEL = "Stop following";
 const STOP_SPOTLIGHT_LABEL = "Stop spotlight";
+const CANCEL_SPOTLIGHT_REQUEST_LABEL = "Cancel spotlight request";
 
 export function buildPersonActions([sessionId, person]: DirectoryEntry, context: PersonActionContext): PersonAction[] {
   const isSelf = sessionId === context.localSessionId || person.username === context.localUsername;
   const disabled = context.disabled || person.presence !== "online";
   const following = context.followingSessionId === sessionId;
   const spotlighted = context.spotlightUsernames.includes(person.username);
+  const spotlightPending = context.spotlightPendingUsernames?.includes(person.username) === true;
   const actions: PersonAction[] = isSelf ? [] : [
     { id: "message", label: ACTION_LABELS.message, disabled: context.disabled },
     { id: "goTo", label: ACTION_LABELS.goTo, disabled },
@@ -45,7 +48,7 @@ export function buildPersonActions([sessionId, person]: DirectoryEntry, context:
     { id: "wave", label: ACTION_LABELS.wave, disabled },
   ];
   if (!isSelf && context.canMeet) actions.push(...buildMeetActions(person.status, context, disabled));
-  if (context.canSpotlight) actions.push({ id: "spotlight", label: spotlighted ? STOP_SPOTLIGHT_LABEL : ACTION_LABELS.spotlight, disabled, pressed: spotlighted });
+  if (context.canSpotlight) actions.push({ id: "spotlight", label: spotlightPending ? CANCEL_SPOTLIGHT_REQUEST_LABEL : spotlighted ? STOP_SPOTLIGHT_LABEL : ACTION_LABELS.spotlight, disabled, pressed: spotlighted || spotlightPending });
   return actions;
 }
 

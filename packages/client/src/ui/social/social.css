@@ -111,6 +111,9 @@
 .spotlight-live-indicator { width: 9px; height: 9px; flex: 0 0 9px; margin-top: 4px; border-radius: 50%; background: #22a06b; box-shadow: 0 0 0 4px rgba(34,160,107,.12); }
 .spotlight-invitation p,.spotlight-listener-note,.spotlight-sharing-status { margin: 0; color: var(--workspace-muted); font-size: 10px; line-height: 1.5; }
 .spotlight-invitation,.spotlight-publisher-controls { display: grid; gap: 8px; }
+.spotlight-request { display: grid; gap: 8px; padding: 11px; border: 1px solid var(--workspace-edge); border-radius: 11px; background: var(--workspace-subtle); }
+.spotlight-request > strong { font-size: 11px; }
+.spotlight-request > div { display: flex; gap: 8px; }
 .spotlight-primary-action,.spotlight-secondary-action,.spotlight-stop-action { min-height: 36px; padding: 0 11px; border: 1px solid var(--workspace-edge); border-radius: 9px; background: var(--workspace-subtle); color: var(--workspace-ink); font: 700 10px "DM Sans", sans-serif; cursor: pointer; }
 .spotlight-primary-action { border-color: var(--workspace-action); background: var(--workspace-action); color: var(--workspace-on-action); }
 .spotlight-primary-action:hover { opacity: .9; }
