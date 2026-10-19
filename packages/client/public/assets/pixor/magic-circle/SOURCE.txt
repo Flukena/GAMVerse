@@ -1,0 +1,6 @@
+Asset: Magic Circle (GLB)
+Source: https://pixor.art/es/library/crystals/magic-circle/
+License: CC0 1.0 Universal (public domain dedication; attribution is not required)
+License/source statement: the Pixor asset page identifies the library assets as CC0.
+
+The model is used as the animated world-space destination marker for automove.

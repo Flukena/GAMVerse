@@ -30,17 +30,17 @@ const tutorials: Record<TutorialPage, { title: string; steps: TutorialStep[] }> 
     { title: "Save password", body: "Save your new password, then return to sign in.", target: "reset-submit" },
   ] },
   lobby: { title: "Your workspace", steps: [
-    { title: "Create an office", body: "Create a new office and generate its map. You can also enter an office listed below.", target: "lobby-create-office" },
-    { title: "Your offices", body: "Open an office you belong to from this list.", target: "lobby-offices" },
-    { title: "Invitations", body: "Check invitations here when a teammate invites you.", target: "lobby-invitations" },
-    { title: "Move around", body: "Inside an office, W/S walk forward or backward. Hold A/D to turn left or right in 15° steps while the camera follows your character.", keyboard: "W / S  ·  Hold A / D" },
+    { title: "Welcome to your workspace", body: "Your lobby brings your offices, invitations, and (for maintainers) account tools together. Use the sections below to switch between them." },
+    { title: "Create an office", body: "Start a new shared space here. To manage an existing office, use its card in Your offices.", target: "lobby-create-office" },
+    { title: "Your offices", body: "Search the list, open an office you belong to, or move between pages when the list is long. Office management actions appear on cards when your role allows them.", target: "lobby-offices" },
+    { title: "Invitations", body: "Find pending invites, review who invited you and the role offered, then accept to add the office to Your offices. Search and pagination are available here too.", target: "lobby-invitations" },
   ] },
   office: { title: "Inside the office", steps: [
-    { title: "Your office, one click away", body: "Use the left rail to find people, open chat, or check office activity. Select a teammate to message, wave, or go to them.", target: "office-navigation" },
-    { title: "Focus your character", body: "Center the view and lock the camera behind your character again. Use the adjacent arrow button to travel to your desk when available.", target: "office-focus-character" },
-    { title: "Office toolbar", body: "These controls manage microphone, camera, screen sharing, audio, status, and leaving the office.", target: "office-toolbar" },
-    { title: "Move and turn", body: "With the camera locked behind you, W/S walk forward or backward. Hold A/D to turn in 15° steps. Right-drag to free the camera and use camera-relative movement; Focus character locks it again.", keyboard: "W / S  ·  Hold A / D  ·  Right-drag" },
-    { title: "Move faster or travel", body: "Hold Shift to move faster, press Space to jump in 3D, or double-click the ground to travel automatically in 3D. In 2D, click to walk and drag to pan.", keyboard: "Shift  ·  Space  ·  Double-click" },
+    { title: "Find people and conversations", body: "Use the left rail to open People, Chat, and Activity. Select a teammate to view their profile and available ways to connect.", target: "office-navigation" },
+    { title: "Keep your bearings", body: "The compass and minimap stay centered on you and show nearby teammates. They rotate with your view; the map itself is not an interactive control.", target: "office-minimap" },
+    { title: "Character tools", body: "Open this group to recenter the view or change camera follow. Go to your desk appears only when you have a desk and are not already there; it teleports you to it.", target: "office-focus-character" },
+    { title: "Click to travel, drag to look", body: "Click an open spot on the ground to start automatic travel. Up to 200 blocks it uses a vehicle; farther away it teleports. Locked rooms cannot be entered. Drag the map to pan the view; a drag does not trigger travel.", keyboard: "Click ground · Drag to pan" },
+    { title: "Office controls", body: "Use the bottom toolbar for microphone, camera, screen sharing, audio, status, and leaving the office. Voice connects when you enter a voice zone.", target: "office-toolbar" },
   ] },
   meeting: { title: "Join the meeting", steps: [
     { title: "Microphone", body: "Speak with people in this room. Your microphone connects when you enter a voice zone.", target: "office-microphone" },
@@ -64,6 +64,7 @@ export function PageTutorial({ page, username }: { page: TutorialPage; username?
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [cardHeight, setCardHeight] = useState(0);
   const content = tutorials[page];
   const step = content.steps[stepIndex];
 
@@ -82,6 +83,17 @@ export function PageTutorial({ page, username }: { page: TutorialPage; username?
     setDontShowAgain(false);
     setStepIndex(0);
   }, [key]);
+
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    if (!open || !card) return;
+    const updateHeight = () => setCardHeight(card.getBoundingClientRect().height);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(card);
+    window.addEventListener("resize", updateHeight);
+    return () => { observer.disconnect(); window.removeEventListener("resize", updateHeight); };
+  }, [open, stepIndex]);
 
   useLayoutEffect(() => {
     setTargetRect(null);
@@ -133,7 +145,11 @@ export function PageTutorial({ page, username }: { page: TutorialPage; username?
     ? Math.max(16, Math.min(window.innerWidth - tooltipWidth - 16, targetRect.left + targetRect.width / 2 - tooltipWidth / 2))
     : Math.max(16, (window.innerWidth - tooltipWidth) / 2);
   const tooltipTop = targetRect
-    ? targetRect.bottom + 18 + 190 < window.innerHeight ? targetRect.bottom + 18 : Math.max(16, targetRect.top - 208)
+    ? targetRect.bottom + 18 + Math.max(cardHeight, 190) < window.innerHeight
+      ? targetRect.bottom + 18
+      : targetRect.top - Math.max(cardHeight, 190) - 18 >= 16
+        ? targetRect.top - Math.max(cardHeight, 190) - 18
+        : Math.max(16, Math.min(window.innerHeight - Math.max(cardHeight, 190) - 16, targetRect.top + targetRect.height / 2 - Math.max(cardHeight, 190) / 2))
     : Math.max(16, (window.innerHeight - 300) / 2);
 
   return <>
@@ -142,7 +158,8 @@ export function PageTutorial({ page, username }: { page: TutorialPage; username?
       {step.target && targetRect ? <div className="page-tutorial-spotlight" aria-hidden="true" style={{ left: targetRect.left - 8, top: targetRect.top - 8, width: targetRect.width + 16, height: targetRect.height + 16 }} /> : <div className="page-tutorial-dim" aria-hidden="true" />}
       <section ref={cardRef} onKeyDown={event => handleTutorialKeyDown(event, close)} className={`page-tutorial-card${step.target && targetRect ? " is-focus" : " is-popup"}`} style={step.target && targetRect ? { left: tooltipLeft, top: tooltipTop } : undefined} role="dialog" aria-modal="true" aria-labelledby="page-tutorial-title" aria-describedby="page-tutorial-body">
         <button type="button" className="page-tutorial-close" aria-label="Close guide" onClick={close}>×</button>
-        <span className="page-tutorial-eyebrow">{step.keyboard ? "KEYBOARD GUIDE" : "QUICK GUIDE"} · {stepIndex + 1}/{content.steps.length}</span>
+        <span className="page-tutorial-eyebrow">{page === "lobby" ? "LOBBY GUIDE" : "OFFICE GUIDE"} · STEP {stepIndex + 1} OF {content.steps.length}</span>
+        <div className="page-tutorial-progress" role="progressbar" aria-label="Guide progress" aria-valuemin={1} aria-valuemax={content.steps.length} aria-valuenow={stepIndex + 1}><span style={{ width: `${((stepIndex + 1) / content.steps.length) * 100}%` }} /></div>
         <h2 id="page-tutorial-title">{step.title}</h2>
         <p id="page-tutorial-body">{step.body}</p>
         {step.keyboard && <kbd className="page-tutorial-keys">{step.keyboard}</kbd>}

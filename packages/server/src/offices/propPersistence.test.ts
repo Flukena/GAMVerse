@@ -169,3 +169,18 @@ test("map draft with stale empty props retains latest server interaction metadat
   );
   assert.equal(seam.released, true);
 });
+
+test("maintainers can save office map layouts", async () => {
+  const seam = new PersistenceSeam();
+  const dependencies = { ...seam.dependencies(), role: async () => "maintainer" };
+  const saved = await saveOfficeMapLayout(
+    USERNAME,
+    true,
+    OFFICE_ID,
+    { configVersion: INITIAL_VERSION, layout: { props: [], zones: [], walls: [], doors: [] } },
+    dependencies,
+  );
+  assert.equal(saved.configVersion, INITIAL_VERSION + 1);
+  assert.ok(seam.calls.some(sql => sql.includes("NOT $4::boolean OR $3::boolean")));
+  assert.equal(seam.released, true);
+});

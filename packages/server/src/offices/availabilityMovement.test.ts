@@ -35,7 +35,7 @@ test("Busy, meeting and explicit Away accept movement intent in the actual room 
   } finally { room.onDispose(); room.clock.stop(); mock.restoreAll(); }
 });
 
-test("returning to a desk at the current position arrives without creating a route", async () => {
+test("returning to a desk teleports to its center without creating a route", async () => {
   const room = new OfficeRoom();
   mock.method(room, "setMetadata", async () => {});
   mock.method(room, "setFixedTimestep", () => {});
@@ -47,14 +47,62 @@ test("returning to a desk at the current position arrives without creating a rou
       mapLayout: { zones: Array<{ id: string; kind: "private"; name: string; ownerUsername: string; x: number; z: number; width: number; depth: number; color: string }> };
       startDeskRoute(sessionId: string, player: PlayerState, zone: unknown): unknown;
       autoRoutes: Map<string, unknown>;
+      canEnterMediaZone(sessionId: string, zoneId: string): boolean;
     };
+    mock.method(internals, "canEnterMediaZone", () => false);
     const player = new PlayerState(); player.username = "alice"; player.x = 0; player.z = 0; player.vehicleId = "";
+    const zone = { id: "desk", kind: "private" as const, name: "Desk", ownerUsername: "alice", x: 0, z: 0, width: 4, depth: 4, color: "#ffffff" };
+    internals.mapLayout.zones = [zone];
+    room.state.players.set(SESSION_ID, player);
+    player.x = -20;
+    assert.equal(internals.startDeskRoute(SESSION_ID, player, zone), "arrived");
+    assert.equal(internals.autoRoutes.has(SESSION_ID), false);
+    assert.equal(player.x, 0); assert.equal(player.z, 0);
+  } finally { room.onDispose(); room.clock.stop(); mock.restoreAll(); }
+});
+
+test("returning to a desk teleports out of a vehicle even when a safe dismount is unavailable", async () => {
+  const room = new OfficeRoom();
+  mock.method(room, "setMetadata", async () => {});
+  mock.method(room, "setFixedTimestep", () => {});
+  mock.method(console, "info", () => {});
+  try {
+    mock.method(room, "onMessage", () => () => {});
+    await room.onCreate({ officeId: OFFICE_ID });
+    const internals = room as unknown as {
+      mapLayout: { zones: Array<{ id: string; kind: "private"; name: string; ownerUsername: string; x: number; z: number; width: number; depth: number; color: string }> };
+      startDeskRoute(sessionId: string, player: PlayerState, zone: unknown): unknown;
+      autoRoutes: Map<string, unknown>;
+      exitVehicle(sessionId: string, player: PlayerState): boolean;
+    };
+    mock.method(internals, "exitVehicle", () => false);
+    const player = new PlayerState();
+    player.username = "alice"; player.x = -20; player.z = 0; player.vehicleId = "auto-car"; player.vehicleMode = "auto";
     const zone = { id: "desk", kind: "private" as const, name: "Desk", ownerUsername: "alice", x: 0, z: 0, width: 4, depth: 4, color: "#ffffff" };
     internals.mapLayout.zones = [zone];
     room.state.players.set(SESSION_ID, player);
     assert.equal(internals.startDeskRoute(SESSION_ID, player, zone), "arrived");
     assert.equal(internals.autoRoutes.has(SESSION_ID), false);
     assert.equal(player.x, 0); assert.equal(player.z, 0);
+    assert.equal(player.vehicleId, "");
+  } finally { room.onDispose(); room.clock.stop(); mock.restoreAll(); }
+});
+
+test("office maintainers can acquire the map edit lock", async () => {
+  const room = new OfficeRoom();
+  const handlers = new Map<string, Handler>();
+  mock.method(room, "setMetadata", async () => {});
+  mock.method(room, "setFixedTimestep", () => {});
+  mock.method(console, "info", () => {});
+  try {
+    mock.method(room, "onMessage", (event: string, handler: Handler) => { handlers.set(event, handler); return () => {}; });
+    await room.onCreate({ officeId: OFFICE_ID });
+    const internals = room as unknown as { officeRolesBySessionId: Map<string, string>; usernamesBySessionId: Map<string, string> };
+    internals.officeRolesBySessionId.set(SESSION_ID, "maintainer");
+    internals.usernamesBySessionId.set(SESSION_ID, "alice");
+    const results: unknown[] = [];
+    handlers.get("map-edit-lock")!({ sessionId: SESSION_ID, send: (event, payload) => { if (event === "map-edit-lock-result") results.push(payload); } }, { active: true });
+    assert.deepEqual(results, [{ granted: true }]);
   } finally { room.onDispose(); room.clock.stop(); mock.restoreAll(); }
 });
 

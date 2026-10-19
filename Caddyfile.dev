@@ -18,7 +18,7 @@ https://{$DEV_HOST}:2567 {
 	handle @realtime {
 		reverse_proxy office-dev:2567
 	}
-	@api path /auth/* /offices* /office-invites/* /maintainer/* /health/*
+	@api path /auth/* /offices* /office-invites* /maintainer/* /health/*
 	handle @api {
 		reverse_proxy office-dev:2568
 	}

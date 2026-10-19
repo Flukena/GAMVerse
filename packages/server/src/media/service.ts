@@ -104,20 +104,6 @@ export async function revokeProximityParticipants(officeId: string, groupId: str
   ));
 }
 
-const SPOTLIGHT_TOKEN_TTL_SECONDS = 60;
-const TOKEN_TIMESTAMP_DIVISOR_MS = 1000;
-export async function createSpotlightToken(username: string, identity: string, roomName: string, publish: boolean) {
-  const { url, apiKey, apiSecret } = liveKitConfig();
-  const token = new AccessToken(apiKey, apiSecret, { identity, name: username, ttl: SPOTLIGHT_TOKEN_TTL_SECONDS });
-  token.addGrant({roomJoin:true, room:roomName, canPublish:publish, canPublishSources:publish ? [TrackSource.MICROPHONE,TrackSource.CAMERA] : [], canSubscribe:true, canPublishData:false});
-  return {url,roomName,token:await token.toJwt()};
-}
-export async function revokeSpotlightParticipant(roomName: string, identity: string, service: Pick<RoomServiceClient, "removeParticipant"> = getRoomService()) {
-  try { await service.removeParticipant(roomName, identity, {revokeTokenTs:BigInt(Math.floor(Date.now()/TOKEN_TIMESTAMP_DIVISOR_MS))}); }
-  catch (error) {
-    if (!(error instanceof ServerError) || error.code !== "not_found") throw error;
-  }
-}
 export function voiceRoomNameForModeration(officeId: string, kind: "meeting" | "private" | "proximity", id: string) {
   if (kind === "meeting") return meetingRoomName(officeId, id);
   if (kind === "private") return privateVoiceRoomName(officeId, id);
@@ -134,11 +120,25 @@ export async function muteVoiceParticipantTracks(roomName: string, identities: s
   const participants = (await service.listParticipants(roomName)).filter((participant) => identitySet.has(participant.identity));
   let mutedCount = 0;
   for (const participant of participants) {
-    const tracks = participant.tracks.filter((track) => track.source === sourceValue && !track.muted);
-    for (const track of tracks) {
+    for (const track of participant.tracks.filter((item) => item.source === sourceValue && !item.muted)) {
       await service.mutePublishedTrack(roomName, participant.identity, track.sid, true);
       mutedCount += 1;
     }
   }
   return mutedCount;
+}
+
+const SPOTLIGHT_TOKEN_TTL_SECONDS = 60;
+const TOKEN_TIMESTAMP_DIVISOR_MS = 1000;
+export async function createSpotlightToken(username: string, identity: string, roomName: string, publish: boolean) {
+  const { url, apiKey, apiSecret } = liveKitConfig();
+  const token = new AccessToken(apiKey, apiSecret, { identity, name: username, ttl: SPOTLIGHT_TOKEN_TTL_SECONDS });
+  token.addGrant({roomJoin:true, room:roomName, canPublish:publish, canPublishSources:publish ? [TrackSource.MICROPHONE,TrackSource.CAMERA] : [], canSubscribe:true, canPublishData:false});
+  return {url,roomName,token:await token.toJwt()};
+}
+export async function revokeSpotlightParticipant(roomName: string, identity: string, service: Pick<RoomServiceClient, "removeParticipant"> = getRoomService()) {
+  try { await service.removeParticipant(roomName, identity, {revokeTokenTs:BigInt(Math.floor(Date.now()/TOKEN_TIMESTAMP_DIVISOR_MS))}); }
+  catch (error) {
+    if (!(error instanceof ServerError) || error.code !== "not_found") throw error;
+  }
 }

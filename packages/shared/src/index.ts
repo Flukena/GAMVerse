@@ -22,7 +22,7 @@ export { roomBoundaryWalls, roomWallSolidSegments } from "./roomWallSegments.js"
 export { isRoomWallProp } from "./roomWallProps.js";
 export { CAMPUS_COUNTS, CAMPUS_LAYOUT, campusPropPlacements, legacyPortalToCampus } from "./campusLayout.js";
 export type { CampusPropPlacement, CampusRoom, CampusRoomKind } from "./campusLayout.js";
-export { ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, parseRoomPropSeatReference, readRoomLayout, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropPlacementSupport, roomPropSeatAnchors, roomPropSeatReference, type RoomLayoutRoadway, type RoomPropSeatAnchor } from "./roomLayout.js";
+export { ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_BLOCK_SIZE_M, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, parseRoomPropSeatReference, readRoomLayout, roomPropBlockFootprint, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropPlacementSupport, roomPropSeatAnchors, roomPropSeatReference, type RoomLayoutRoadway, type RoomPropEditorRole, type RoomPropSeatAnchor } from "./roomLayout.js";
 export { generateCampusMap, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, type CampusMapGeneratorInputs, type GeneratedCampusMap } from "./campusMapGenerator.js";
 export { createCampusOfficeDraft, type CampusInteriorPreset } from "./campusFurnishing.js";
 export { MAX_OFFICE_PROPS } from "./officePropLimits.js";
@@ -567,6 +567,5 @@ export { normalizeAccountUsername } from "./accountUsername.js";
 
 export * from "./desks.js";
 
-export * from "./meetingHands.js";
 
 export * from "./deskAssignmentFences.js";

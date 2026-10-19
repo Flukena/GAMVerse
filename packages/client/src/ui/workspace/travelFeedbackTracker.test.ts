@@ -5,16 +5,18 @@ import { TravelFeedbackTracker } from "./travelFeedbackTracker";
 const FIRST_DESTINATION = { x: 8, z: 12 };
 const SECOND_DESTINATION = { x: 16, z: 24 };
 
-test("an overlapping request cannot overwrite the first pending destination", () => {
+test("overlapping route clicks are accepted without claiming a destination marker", () => {
   const tracker = new TravelFeedbackTracker();
   assert.equal(tracker.expectDestination(FIRST_DESTINATION), true);
-  assert.equal(tracker.expectDestination(SECOND_DESTINATION), false);
-  assert.match(tracker.snapshot.requestNotice ?? "", /Waiting for route/);
+  assert.equal(tracker.expectDestination(SECOND_DESTINATION), true);
+  assert.equal(tracker.snapshot.requestNotice, "Updating route… destination marker unavailable");
+  assert.equal(tracker.snapshot.requesting, true);
+  assert.match(tracker.snapshot.requestNotice ?? "", /destination marker unavailable/);
   tracker.receiveStatus({ status: "unreachable" });
   assert.equal(tracker.snapshot.feedback?.destination, null);
   assert.equal(tracker.expectDestination(SECOND_DESTINATION), true);
   tracker.receiveStatus({ status: "started" });
-  assert.deepEqual(tracker.snapshot.feedback?.destination, SECOND_DESTINATION);
+  assert.equal(tracker.snapshot.feedback?.destination, null);
 });
 
 test("person travel and route replacement clear the previous marker while requesting", () => {

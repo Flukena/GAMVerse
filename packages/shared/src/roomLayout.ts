@@ -1,9 +1,10 @@
-import type { RoomLayoutProp, RoomPropDefinition } from "./roomPropTypes.js";
-import { readRoomLayoutProps } from "./roomLayoutProps.js";
+import type { RoomLayoutProp, RoomPropDefinition, RoomPropEditorRole } from "./roomPropTypes.js";
+import { readRoomLayoutProps, roomPropBlockFootprint } from "./roomLayoutProps.js";
 import { EXTERNAL_ROOM_PROP_CATALOG, EXTERNAL_WALL_ASSET_IDS } from "./externalRoomProps.js";
 import { NATURE_ROOM_PROP_CATALOG } from "./natureRoomProps.js";
 /** Office-owned shared props snapshot; configVersion is independent from the admin map version. */
-export type { RoomLayoutProp, RoomPropDefinition } from "./roomPropTypes.js";
+export type { RoomLayoutProp, RoomPropDefinition, RoomPropEditorRole } from "./roomPropTypes.js";
+export { ROOM_PROP_BLOCK_SIZE_M, roomPropBlockFootprint } from "./roomLayoutProps.js";
 export type OfficePropsSnapshot = { props: RoomLayoutProp[]; configVersion: number };
 
 export type RoomLayoutZone = { id: string; name: string; kind: "private" | "meeting" | "restroom"; ownerUsername?: string; x: number; z: number; width: number; depth: number; color: string };
@@ -792,6 +793,17 @@ const ROOM_PROP_CATALOG_BASE: ReadonlyArray<RoomPropDefinition> = [
 const isShelfProp = (item: RoomPropDefinition) => !item.wallMounted && !item.group?.startsWith("Wall ·") && /shelf|bookcase|bookshelf/i.test(`${item.asset} ${item.label}`);
 const isSeatProp = (item: RoomPropDefinition) => /chair|stool|bench|sofa|couch/i.test(`${item.asset} ${item.label}`);
 const isSurfaceProp = (item: RoomPropDefinition) => /desk|table|counter/i.test(`${item.asset} ${item.label}`);
+const FINISHED_BUILDING_PROP_ASSETS = new Set([
+  ..."abcdefghijklmnopqrst".split("").map((suffix) => `kit-city-kit-industrial-building-${suffix}`),
+  "external-cozy-home-interiors-cozy-home-interiors-home-connector-cases-1b43f818-starter-scene",
+  "external-cozy-home-interiors-cozy-home-interiors-two-storey-cutaway-home-4a617fd1",
+]);
+function roomPropEditorRole(item: RoomPropDefinition): RoomPropEditorRole {
+  if (FINISHED_BUILDING_PROP_ASSETS.has(item.asset)) return "building-prefab";
+  if (item.group === "Roads · Tiles" || item.group === "Roads · Paths") return "map-component";
+  if (item.pack === "building-kit" || item.group === "Building" || item.group === "Floor tiles" || item.group === "Wall" || item.group?.startsWith("Wall ·")) return "building-component";
+  return "object";
+}
 // Computer screens are intentionally taller than tabletop decorations, but
 // they are still surface props. Their footprint is promoted to the required
 // 1 × 1 m minimum below, so they can be placed on any surface with that much
@@ -829,19 +841,24 @@ export const ROOM_PROP_CATALOG: ReadonlyArray<RoomPropDefinition> = [...ROOM_PRO
   const seat = isSeatProp(sizedItem);
   const surface = isSurfaceProp(sizedItem);
   const small = isSmallProp(sizedItem);
+  const editorRole = roomPropEditorRole(sizedItem);
+  const blockFootprint = sizedItem.group === "Floor tiles"
+    ? { width: sizedItem.width, depth: sizedItem.depth }
+    : roomPropBlockFootprint(sizedItem.width, sizedItem.depth);
   return {
     ...sizedItem,
+    editorRole,
     // Keep catalog dimensions authoritative so preview, placement bounds,
     // collision, and legacy layouts all agree on the minimum footprint.
-    width: Math.max(MIN_ROOM_PROP_FOOTPRINT, sizedItem.width),
-    depth: Math.max(MIN_ROOM_PROP_FOOTPRINT, sizedItem.depth),
+    width: Math.max(MIN_ROOM_PROP_FOOTPRINT, blockFootprint.width),
+    depth: Math.max(MIN_ROOM_PROP_FOOTPRINT, blockFootprint.depth),
     placementClass: shelf ? "shelf" : seat ? "seat" : surface ? "surface" : small ? "small" : "floor",
     ...(shelf ? { supportsPlacement: "shelf-top" as const, stackable: true } : {}),
     ...(surface ? { supportsPlacement: "tabletop" as const } : {}),
     ...(seat ? {
       interaction: "sit" as const,
-      collisionWidth: sizedItem.width,
-      collisionDepth: sizedItem.depth,
+      collisionWidth: blockFootprint.width,
+      collisionDepth: blockFootprint.depth,
       collisionScale: 0.9,
       collisionClearanceRadius: 0.2,
       // Seat surfaces sit well below the top of a chair/sofa model. A fixed

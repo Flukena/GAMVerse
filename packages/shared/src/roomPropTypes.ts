@@ -13,11 +13,14 @@ export type RoomLayoutProp = {
   elevation?: number;
   interaction?: PropInteraction;
 };
+export type RoomPropEditorRole = "object" | "building-component" | "map-component" | "building-prefab";
 export type RoomPropDefinition = Pick<
   RoomLayoutProp,
   "asset" | "width" | "depth" | "collision"
 > & {
   label: string;
+  /** Which editor owns this item: props, modular building parts, road/map components, or map prefabs. */
+  editorRole?: RoomPropEditorRole;
   height: number;
   model?: string;
   modelUrl?: string;

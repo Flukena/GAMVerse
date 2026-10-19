@@ -1,23 +1,22 @@
 import { useEffect, useState } from "react";
-import { readWorkspaceTheme, resolveWorkspaceTheme, saveWorkspaceTheme, WORKSPACE_DARK_MEDIA_QUERY, WORKSPACE_THEME_STORAGE_KEY, type WorkspaceTheme } from "./workspaceTheme";
+import { readWorkspaceTheme, saveWorkspaceTheme, WORKSPACE_THEME_STORAGE_KEY, type WorkspaceTheme } from "./workspaceTheme";
 import "./WorkspaceShell.css";
 
 export function useWorkspaceTheme() {
   const [theme, setTheme] = useState<WorkspaceTheme>(readWorkspaceTheme);
+
   useEffect(() => {
-    const media = window.matchMedia(WORKSPACE_DARK_MEDIA_QUERY);
-    const apply = () => { document.documentElement.dataset.workspaceTheme = resolveWorkspaceTheme(theme, media.matches); };
-    apply();
+    document.documentElement.dataset.appTheme = theme;
     saveWorkspaceTheme(theme);
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
   }, [theme]);
+
   useEffect(() => {
-    const sync = (event: StorageEvent) => {
+    const syncTheme = (event: StorageEvent) => {
       if (event.key === WORKSPACE_THEME_STORAGE_KEY || event.key === null) setTheme(readWorkspaceTheme());
     };
-    window.addEventListener("storage", sync);
-    return () => window.removeEventListener("storage", sync);
+    window.addEventListener("storage", syncTheme);
+    return () => window.removeEventListener("storage", syncTheme);
   }, []);
+
   return { theme, setTheme };
 }

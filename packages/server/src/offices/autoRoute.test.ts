@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { isPositionWalkable, WORLD, type Position, type WorldConfig } from "@gammyverse/shared";
 import { findAutoRoute } from "./autoRoute.js";
+import { autoMoveTravelMode } from "./routeNavigation.js";
 
 const WORLD_SIZE_M = 20;
 const PLAYER_RADIUS_M = 0.2;
@@ -16,6 +17,12 @@ const BLOCKED_TARGET_OBSTACLE = { x: 0, z: 0, width: 0.2, depth: 0.2 };
 const BLOCKED_TARGET_LANDING = { x: -0.5, z: 0 };
 const OUT_OF_RANGE_TARGET = { x: WORLD_SIZE_M * 2, z: 0 };
 const WALL = { x: 0, z: 0, width: 0.2, depth: 4 };
+
+test("auto travel uses a vehicle through 200 blocks and teleports only beyond it", () => {
+  assert.equal(autoMoveTravelMode(0), "vehicle");
+  assert.equal(autoMoveTravelMode(200), "vehicle");
+  assert.equal(autoMoveTravelMode(200.01), "teleport");
+});
 
 function world(walls: WorldConfig["walls"] = []): WorldConfig {
   return { ...WORLD, width: WORLD_SIZE_M, depth: WORLD_SIZE_M, playerRadius: PLAYER_RADIUS_M, walls, obstacles: [], collisionGrid: undefined };
@@ -35,6 +42,12 @@ function assertWalkableRoute(start: Position, route: Position[], routeWorld: Wor
 
 test("an unobstructed route collapses to its destination", () => {
   assert.deepEqual(findAutoRoute(START, TARGET, world()), [TARGET]);
+});
+
+test("a long unobstructed campus route stays one segment instead of 0.5 m hops", () => {
+  const campusWorld = { ...WORLD, width: 260, depth: 280, playerRadius: PLAYER_RADIUS_M, walls: [], obstacles: [], collisionGrid: undefined };
+  const destination = { x: 100, z: 0 };
+  assert.deepEqual(findAutoRoute({ x: -100, z: 0 }, destination, campusWorld), [destination]);
 });
 
 test("positions rounding to the same grid cell need no route", () => {

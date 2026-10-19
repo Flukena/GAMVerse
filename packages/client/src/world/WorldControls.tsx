@@ -1,5 +1,4 @@
 import type { Map2dTravelFeedback } from "./map2d/map2dTravelFeedback";
-import type { Map2dPresentationPreference } from "./map2d/map2dPresentation";
 import { CAMERA, type RoomLayoutZone } from "@gammyverse/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { cameraZoomButtonEvent } from "./camera/cameraInput";
@@ -8,16 +7,14 @@ import { CAMERA_ZOOM_BUTTON_RATIO } from "./camera/constants";
 import { Map2dControls } from "./map2d/Map2dControls";
 
 interface WorldControlsProps {
-  mapPresentationPreference: Map2dPresentationPreference;
-  onMapPresentationChange: (preference: Map2dPresentationPreference) => void;
   cameraState: CameraState;
   campusOverview: boolean;
   firstPersonView: boolean;
   appPaused: boolean;
   personalDeskZone: RoomLayoutZone | null;
   currentPrivateZoneId: string | null;
-  activeFloatingGroup: "edit" | "view" | "zoom" | null;
-  setActiveFloatingGroup: Dispatch<SetStateAction<"edit" | "view" | "zoom" | null>>;
+  activeFloatingGroup: "character" | "edit" | "view" | "zoom" | null;
+  setActiveFloatingGroup: Dispatch<SetStateAction<"character" | "edit" | "view" | "zoom" | null>>;
   canEditMap: boolean;
   mapEditorUsername: string | null;
   mapEditLockPending: boolean;
@@ -26,7 +23,6 @@ interface WorldControlsProps {
   weaponInventoryOpen: boolean;
   onToggleWeaponInventory: () => void;
   toggleCameraView: () => void;
-  toggleMap2d: () => void;
   dispatchCamera: (event: CameraEvent) => void;
   onGoToDesk: () => void;
   tppZoomMaxDistanceM: number;
@@ -80,6 +76,28 @@ function DistanceControls({ cameraState, dispatchCamera, tppZoomMaxDistanceM }: 
   </div>;
 }
 
+function CharacterControls(props: WorldControlsProps) {
+  const { activeFloatingGroup, setActiveFloatingGroup, cameraState, dispatchCamera } = props;
+  const isOpen = activeFloatingGroup === "character";
+  const cameraLocked = cameraState.following && cameraState.followFacing;
+  return <div className={`world-control-group${isOpen ? " is-active" : ""}`}>
+    {isOpen && <div className="world-control-actions" id="map-character-actions" role="group" aria-label="Character actions">
+      <button type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" disabled={props.appPaused} onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "focus-character" }); }}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>
+      </button>
+      <button data-tutorial-target="office-camera-lock" type="button" className={`world-control-trigger${cameraLocked ? " is-active" : ""}`} aria-label={cameraLocked ? "Unlock camera angle" : "Lock camera behind character"} title={cameraLocked ? "Unlock camera angle" : "Lock camera behind character"} aria-pressed={cameraLocked} disabled={cameraState.mode === "fpp" || cameraState.editing} onClick={() => dispatchCamera({ type: "set-camera-lock", locked: !cameraLocked })}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{cameraLocked ? <><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0"/></> : <><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.2-2.4"/></>}</svg>
+      </button>
+      {props.personalDeskZone && props.currentPrivateZoneId !== props.personalDeskZone.id && <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={props.appPaused} onClick={() => { setActiveFloatingGroup(null); props.onGoToDesk(); }}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11h18M5 11v9m14-9v9M7 11V4h10v7M10 7h4"/></svg>
+      </button>}
+    </div>}
+    <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Character actions" title="Character actions" aria-expanded={isOpen} aria-controls="map-character-actions" onClick={() => setActiveFloatingGroup(group => group === "character" ? null : "character")}>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.3 3-5 7-5s6.4 1.7 7 5"/></svg>
+    </button>
+  </div>;
+}
+
 function ZoomControls(props: WorldControlsProps) {
   const { activeFloatingGroup, setActiveFloatingGroup, cameraState, dispatchCamera } = props;
   const distanceView = cameraState.mode === "tpp" || cameraState.mode === "free" && !cameraState.editing;
@@ -97,10 +115,8 @@ function ZoomControls(props: WorldControlsProps) {
 }
 
 export function WorldControls(props: WorldControlsProps) {
-  const { cameraState, appPaused, personalDeskZone, currentPrivateZoneId, setActiveFloatingGroup, toggleMap2d, dispatchCamera, onGoToDesk } = props;
+  const { cameraState, appPaused, personalDeskZone, currentPrivateZoneId, setActiveFloatingGroup, dispatchCamera, onGoToDesk } = props;
   if (cameraState.mode === "map2d") return <Map2dControls
-    preference={props.mapPresentationPreference}
-    onPreferenceChange={props.onMapPresentationChange}
     scalePxPerM={cameraState.map2dScalePxPerM}
     following={cameraState.following}
     disabled={appPaused}
@@ -108,28 +124,14 @@ export function WorldControls(props: WorldControlsProps) {
     atDesk={Boolean(personalDeskZone && currentPrivateZoneId === personalDeskZone.id)}
     onZoom={(factor) => { dispatchCamera({ type: "set-view", view: "2d" }); if (!cameraState.following) dispatchCamera({ type: "manual-drag" }); dispatchCamera({ type: "map2d-scale", pxPerM: cameraState.map2dScalePxPerM * factor }); }}
     onFocus={() => { dispatchCamera({ type: "set-view", view: "2d" }); dispatchCamera({ type: "focus-character" }); }}
+    onToggleFollow={() => dispatchCamera(cameraState.following ? { type: "manual-drag" } : { type: "focus-character" })}
     onGoToDesk={onGoToDesk}
-    onSwitchView={toggleMap2d}
     tools={<EditingControls {...props} />}
     travelFeedback={props.travelFeedback}
     onCancelTravel={props.onCancelTravel}
   />;
   return (      <div className="world-control-dock" aria-label="Map controls">
-        <button type="button" className="world-control-trigger" aria-label="Toggle 2D / 3D view (M)" title="2D / 3D · M" disabled={appPaused} onClick={toggleMap2d}>2D / 3D</button>
-        <div className="world-control-group" role="group" aria-label="Character actions">
-          <button data-tutorial-target="office-focus-character" type="button" className="world-control-trigger" aria-label="Focus character" title="Focus character" onClick={() => { setActiveFloatingGroup(null); dispatchCamera({ type: "focus-character" }); }}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.3"/></svg>
-          </button>
-          <button data-tutorial-target="office-camera-lock" type="button" className="world-control-trigger"
-            aria-label={cameraState.followFacing ? "Unlock camera angle" : "Lock camera behind character"}
-            aria-pressed={cameraState.following && cameraState.followFacing} disabled={cameraState.mode === "fpp" || cameraState.editing}
-            onClick={() => dispatchCamera({ type: "set-camera-lock", locked: !(cameraState.following && cameraState.followFacing) })}>
-            <span aria-hidden="true">{cameraState.following && cameraState.followFacing ? "🔒" : "🔓"}</span>
-          </button>
-          {personalDeskZone && currentPrivateZoneId !== personalDeskZone.id && <button type="button" className="world-control-trigger" aria-label="Go to your desk" title="Go to your desk" disabled={appPaused} onClick={() => { setActiveFloatingGroup(null); onGoToDesk(); }}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 20 4l-7.5 17-2.2-7.3L3 11.5Z"/><path d="m10.3 13.7 4.6-4.6"/></svg>
-          </button>}
-        </div>
+        <CharacterControls {...props} />
         <EditingControls {...props} />
         <CameraControls {...props} />
         <ZoomControls {...props} />

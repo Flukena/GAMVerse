@@ -5,6 +5,16 @@ const PROP_MAX_ELEVATION_M = 15;
 const PROP_MIN_PERSISTED_ELEVATION_M = 0.001;
 const FLOOR_TILE_MAX_SCALE_RATIO = 1.5;
 const FLOOR_TILE_GROUP = "Floor tiles";
+export const ROOM_PROP_BLOCK_SIZE_M = 1;
+
+/** Round a prop's placement footprint up to whole map blocks. */
+export function roomPropBlockFootprint(width: number, depth: number): { width: number; depth: number } {
+  const toBlocks = (dimension: number) => Math.max(
+    ROOM_PROP_BLOCK_SIZE_M,
+    Math.ceil(Math.max(0, dimension) / ROOM_PROP_BLOCK_SIZE_M - 1e-9) * ROOM_PROP_BLOCK_SIZE_M,
+  );
+  return { width: toBlocks(width), depth: toBlocks(depth) };
+}
 
 function floorDimension(
   value: unknown,
@@ -48,8 +58,8 @@ function readProp(
       rotation: Number.isFinite(p.rotation) ? Number(p.rotation) : 0,
       collision:
         typeof p.collision === "boolean" ? p.collision : definition.collision,
-      width: floorDimension(p.width, definition.width, scalable),
-      depth: floorDimension(p.depth, definition.depth, scalable),
+      width: scalable ? floorDimension(p.width, definition.width, true) : definition.width,
+      depth: scalable ? floorDimension(p.depth, definition.depth, true) : definition.depth,
       ...(elevation > PROP_MIN_PERSISTED_ELEVATION_M ? { elevation } : {}),
       ...(interaction ? { interaction } : {}),
     },

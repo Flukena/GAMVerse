@@ -32,7 +32,7 @@ export class DeskMessages {
       if (!request.valid || this.state.player(client.sessionId) !== player || this.state.username(client.sessionId) !== username) return;
       const status = this.state.start(client.sessionId, player, zone);
       if (!status) this.failed(client, DESK_ROUTE_UNAVAILABLE_LABEL);
-      else client.send(AUTO_MOVE_STATUS_EVENT_LABEL, { status, destination: { x: zone.x, z: zone.z } });
+      else client.send(AUTO_MOVE_STATUS_EVENT_LABEL, { status, destination: { x: zone.x, z: zone.z }, ...(status === "arrived" ? { teleported: true } : {}) });
     } catch (error) { if (request.valid) this.failed(client, error instanceof Error ? error.message : DESK_TRAVEL_UNAVAILABLE_LABEL); }
     finally { this.pending.delete(client.sessionId); }
   }
