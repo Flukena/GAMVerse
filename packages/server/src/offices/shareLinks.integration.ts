@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import { database, initializeDatabase, closeDatabase } from "../infra/db.js";
+import { OfficeShareLinks } from "./shareLinks.js";
+import { acceptOfficeInvite, createOfficeInvite } from "./repository.js";
+
+// Run only against a disposable PostgreSQL instance; the named database guard protects live data.
+const TEST_DATABASE_NAME = "gamverse_share_test";
+if (process.env.PGDATABASE !== TEST_DATABASE_NAME || !database) throw new Error("Use a disposable gamverse_share_test database.");
+await initializeDatabase();
+await database.query(`INSERT INTO app_users(username, password_hash, password_salt, is_maintainer)
+  VALUES ('owner', 'unused', 'unused', false), ('admin', 'unused', 'unused', false), ('alice', 'unused', 'unused', false),
+         ('bobby', 'unused', 'unused', false), ('carol', 'unused', 'unused', false), ('suspend', 'unused', 'unused', false), ('maintain', 'unused', 'unused', true)`);
+const result = await database.query<{ id: string }>("INSERT INTO app_offices(name,owner_username) VALUES ('Share test','owner') RETURNING id");
+const officeId = result.rows[0].id;
+await database.query("INSERT INTO app_office_memberships(office_id,username,role) VALUES ($1,'admin','admin'),($1,'alice','user')", [officeId]);
+await database.query("UPDATE app_users SET suspended_at = now() WHERE username = 'suspend'");
+const links = new OfficeShareLinks(database);
+const token = (await links.create("owner", officeId)).token;
+await Promise.all([links.accept("alice", { token }), links.accept("bobby", { token }), links.accept("carol", { token }), links.accept("admin", { token })]);
+assert.equal((await database.query("SELECT role FROM app_office_memberships WHERE office_id=$1 AND username='admin'", [officeId])).rows[0].role, "admin");
+assert.equal((await database.query("SELECT count(*)::integer AS count FROM app_office_memberships WHERE office_id=$1", [officeId])).rows[0].count, 4);
+assert.equal(await links.accept("owner", { token }), officeId);
+await assert.rejects(links.create("alice", officeId), /access denied/);
+await assert.rejects(links.list("alice", officeId), /access denied/);
+const created = await links.create("admin", officeId);
+await assert.rejects(links.revoke("alice", officeId, created.id), /access denied/);
+await assert.rejects(links.accept("suspend", { token }), /invalid or expired/);
+await assert.rejects(links.create("suspend", officeId), /access denied/);
+assert.ok(await links.create("maintain", officeId));
+await links.revoke("owner", officeId, created.id);
+await assert.rejects(links.accept("alice", { token: created.token }), /invalid or expired/);
+const expired = await links.create("owner", officeId);
+await database.query("UPDATE app_office_share_links SET expires_at = now() - interval '1 second' WHERE id = $1", [expired.id]);
+await assert.rejects(links.accept("alice", { token: expired.token }), /invalid or expired/);
+const listed = await links.list("owner", officeId);
+assert.ok(listed.every(link => !("token" in link) && link.id !== expired.id && link.id !== created.id));
+const invite = await createOfficeInvite("owner", false, officeId, undefined, "user");
+await acceptOfficeInvite("alice", invite.token);
+await assert.rejects(acceptOfficeInvite("bobby", invite.token), /invalid or expired/);
+const raced = await links.create("owner", officeId);
+const operations = await Promise.allSettled([links.accept("alice", { token: raced.token }), links.revoke("owner", officeId, raced.id)]);
+assert.equal(operations[1].status, "fulfilled");
+await assert.rejects(links.accept("alice", { token: raced.token }), /invalid or expired/);
+const creatorLink = await links.create("maintain", officeId);
+await database.query("DELETE FROM app_users WHERE username = 'maintain'");
+assert.equal((await database.query("SELECT id FROM app_office_share_links WHERE id = $1", [creatorLink.id])).rowCount, 0);
+await database.query("UPDATE app_offices SET archived_at = now() WHERE id = $1", [officeId]);
+await assert.rejects(links.accept("alice", { token }), /invalid or expired/);
+await assert.rejects(links.create("owner", officeId), /access denied/);
+console.log("PASS: reusable multi-user, owner/admin preservation, management denial, suspension, expiry, revocation, list token secrecy, single-use compatibility, concurrent accept/revoke and archive");
+await closeDatabase();

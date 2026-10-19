@@ -199,6 +199,12 @@ Implemented with focused surface, wall and prop modules; no map data or 3D chang
 
 Safari checks use the real 2D renderer in an isolated fixture: furnished rooms at 12 and 24 px/m, static detail suppression at 2 px/m, generated campus, portrait and unsupported-prop preview loading, interaction badge, and click-to-walk intent. Authenticated gameplay and two-session movement/media checks were not run because of the local HTTPS connection/certificate issue. Independent review findings about doorway shadows, wall-function complexity and plan/material consistency were corrected and re-reviewed.
 
+## Full-body 2D characters (2026-10-19)
+
+Single focused visual update requested by the owner: show the selected character walking in 2D and let it grow and shrink naturally with zoom. Reuse the existing selected model assets, idle snapshot queue, distance-driven motion state and server-owned yaw. Cache eight-direction atlases with eight walking poses plus idle/seated poses; use built-in clips or the existing procedural humanoid rig. Keep a full-body fallback during loading and bound atlas retention. Character drawing, indicators, label clearance and selection follow the same unclamped world projection; name text stays readable in screen pixels. Use a 1.6 m model in a 2.1 m frame, a 1.6 m full stride and at most 1.5 walking cycles per second; bound cached and pending atlas canvases to 32 MiB. No movement, collision, media or 3D changes.
+
+Validation: run zoom-scaling and paced-gait regressions RED against the previous fixed-size/fast-gait implementation, then run registered sprite selection, drawing, picking, label and cache-budget tests plus the workspace build/test gates. Record unavailable authenticated or multiplayer browser checks explicitly.
+
 ## Routing
 
 Plan by Claude (opus), reviewed by Codex `gpt-6.1-sol` `medium`. Implementation is Codex `medium`, one run per phase. Claude reviews each diff. Phases 2 and 4 also get an authorization-focused review. Every phase report lists the shared, client and server test commands it ran, the test-fails-on-revert evidence, and which multiplayer browser checks were and were not run.

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SHARE_OFFICE_LABEL } from "../workspace/officeShareLinks";
 import { MaintainerAccountSafety, type MaintainerAccount } from "../MaintainerAccountSafety";
 import { MaintainerAuditPanel } from "../MaintainerAuditPanel";
 import { LobbyCollectionFeedback, LobbyCollectionPagination, LobbyCollectionSearch } from "./LobbyCollectionControls";
@@ -15,12 +16,10 @@ type Props = {
   invitesRevision: unknown;
   busy: boolean;
   inviteToken: string | null;
-  inviteBusyOfficeId: string | null;
-  inviteFeedback: { officeId: string; message: string } | null;
   resetUrls: Record<string, string>;
   onEnter: (office: Office) => void;
   onManage: (office: Office) => void;
-  onInviteLink: (officeId: string) => void;
+  onShareOffice: (office: Office) => void;
   onAccept: (inviteId: string) => void;
   onResetLink: (username: string) => void | Promise<void>;
 };
@@ -34,8 +33,8 @@ function OfficesPanel({ props }: { props: Props }) {
     {!collection.loading && !collection.error && (collection.items.length === 0 ? <p className="empty-people">{collection.search ? "No offices match your search." : "No offices yet. Create one or accept an invite."}</p> : <div className="office-grid">{collection.items.map((office) => <article className="office-tile" key={office.id}>
       <div><span className="live-indicator" /><span className="office-role">{office.role}</span></div><h3>{office.name}</h3><p>Owner: {office.ownerUsername}</p>
       <div className="office-tile-actions"><button className="lobby-button primary" disabled={props.busy} onClick={() => props.onEnter(office)}>Enter office</button>
-        {["owner", "admin", "maintainer"].includes(office.role) ? <><button className="lobby-button" disabled={props.busy || props.inviteBusyOfficeId !== null} onClick={() => props.onInviteLink(office.id)}>{props.inviteBusyOfficeId === office.id ? "Creating invite…" : "Copy invite link"}</button><button className="lobby-button office-manage-button" disabled={props.busy} onClick={() => props.onManage(office)}>Manage office</button></> : <p className="invite-notice">Ask an office admin to invite someone.</p>}
-      </div>{props.inviteFeedback?.officeId === office.id && <p className="invite-notice" role="status">{props.inviteFeedback.message}</p>}
+        {["owner", "admin", "maintainer"].includes(office.role) ? <><button className="lobby-button" disabled={props.busy} onClick={() => props.onShareOffice(office)}>{SHARE_OFFICE_LABEL}</button><button className="lobby-button office-manage-button" disabled={props.busy} onClick={() => props.onManage(office)}>Manage office</button></> : <p className="invite-notice">Ask an office admin to invite someone.</p>}
+      </div>
     </article>)}</div>)}
     <LobbyCollectionPagination label="Offices" {...collection} />
   </section>;

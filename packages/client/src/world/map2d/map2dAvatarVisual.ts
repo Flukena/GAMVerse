@@ -22,7 +22,8 @@ export type Map2dAvatarStep = {
   deltaS: number; sittingPropId?: string;
 };
 const WALK_MIN_SPEED_M_PER_S = 0.03;
-const WALK_STRIDE_LENGTH_M = 0.8;
+const WALK_STRIDE_LENGTH_M = 1.6;
+const WALK_MAX_CYCLES_PER_S = 1.5;
 const FULL_CIRCLE_RAD = Math.PI * 2;
 
 export function createMap2dAvatarVisual(sittingPropId?: string): Map2dAvatarVisual {
@@ -34,7 +35,7 @@ export function advanceMap2dAvatarVisual(visual: Map2dAvatarVisual, step: Map2dA
   const walking = step.deltaS > 0 && distanceM / step.deltaS > WALK_MIN_SPEED_M_PER_S;
   const motion = step.sittingPropId ? "seated" : standingMotion(walking);
   const stridePhaseRad = motion === "walking"
-    ? (visual.stridePhaseRad + distanceM / WALK_STRIDE_LENGTH_M * FULL_CIRCLE_RAD) % FULL_CIRCLE_RAD : 0;
+    ? (visual.stridePhaseRad + Math.min(distanceM / WALK_STRIDE_LENGTH_M, step.deltaS * WALK_MAX_CYCLES_PER_S) * FULL_CIRCLE_RAD) % FULL_CIRCLE_RAD : 0;
   const changed = visual.motion !== motion || visual.stridePhaseRad !== stridePhaseRad;
   visual.motion = motion;
   visual.stridePhaseRad = stridePhaseRad;

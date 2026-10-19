@@ -1,53 +1,60 @@
-import { characterPortraitPreviewUrl } from "../../assets/characterPortraitPaths";
 import { getRealtimeEndpoint } from "../../realtimeEndpoint";
-import { portraitCropRect } from "./avatarPortraitGeometry";
-import { PORTRAIT_EDGE_PX, queueAvatarSnapshot } from "./avatarPortraitSnapshot";
+import { AVATAR_SPRITE_TILE_WIDTH_PX, AVATAR_SPRITE_TILE_HEIGHT_PX, AVATAR_SPRITE_POSE_COUNT, AVATAR_SPRITE_DIRECTION_COUNT } from "./avatarSpriteGeometry";
+import { queueAvatarSnapshot } from "./avatarPortraitSnapshot";
 
-const PORTRAIT_CACHE_MAX_ENTRIES = 128;
+const PORTRAIT_CACHE_BUDGET_BYTES = 32 * 1024 * 1024;
+const CANVAS_BYTES_PER_PIXEL = 4;
+const PORTRAIT_ATLAS_BYTES = AVATAR_SPRITE_TILE_WIDTH_PX * AVATAR_SPRITE_TILE_HEIGHT_PX * AVATAR_SPRITE_POSE_COUNT * AVATAR_SPRITE_DIRECTION_COUNT * CANVAS_BYTES_PER_PIXEL;
+const PORTRAIT_CACHE_MAX_ENTRIES = Math.floor(PORTRAIT_CACHE_BUDGET_BYTES / PORTRAIT_ATLAS_BYTES);
 const PORTRAIT_ATTEMPT_MAX_CHARACTER_IDS = 512;
 
+/** Full-body atlases share a 32 MiB RGBA canvas budget, including pending renders. */
 export class AvatarPortraits {
   private readonly portraits = new Map<string, HTMLCanvasElement>();
   private readonly attempted = new Set<string>();
+  private readonly pending = new Set<string>();
+  private readonly activeCharacters = new Set<string>();
   private disposed = false;
   private readyFrameId: number | null = null;
   revision = 0;
 
+  constructor(private readonly queueSnapshot = queueAvatarSnapshot) {}
+
+  setActiveCharacters(characterIds: Iterable<string | undefined>): void {
+    this.activeCharacters.clear();
+    for (const id of characterIds) if (id) this.activeCharacters.add(id);
+  }
+  private reserveSlot(): boolean {
+    if (this.portraits.size + this.pending.size < PORTRAIT_CACHE_MAX_ENTRIES) return true;
+    for (const id of this.portraits.keys()) {
+      if (this.activeCharacters.has(id)) continue;
+      this.portraits.delete(id);
+      this.attempted.delete(id);
+      return true;
+    }
+    return false;
+  }
   get(characterId: string | undefined): HTMLCanvasElement | null {
     if (!characterId || this.disposed) return null;
     const portrait = this.portraits.get(characterId);
     if (portrait) return portrait;
     if (this.attempted.has(characterId) || this.attempted.size >= PORTRAIT_ATTEMPT_MAX_CHARACTER_IDS) return null;
+    if (!this.reserveSlot()) return null;
     this.attempted.add(characterId);
-    const previewUrl = characterPortraitPreviewUrl(characterId);
-    if (previewUrl) this.loadPreview(characterId, previewUrl);
-    else queueAvatarSnapshot({
+    this.pending.add(characterId);
+    this.queueSnapshot({
       characterId,
       endpoint: getRealtimeEndpoint(),
       active: () => !this.disposed,
-      complete: (canvas) => { if (canvas) this.store(characterId, canvas); },
+      complete: (canvas) => {
+        this.pending.delete(characterId);
+        if (canvas) this.store(characterId, canvas);
+      },
     });
     return null;
   }
-  private loadPreview(characterId: string, url: string): void {
-    const image = new Image();
-    image.src = url;
-    void image.decode().then(() => {
-      if (this.disposed) return;
-      const canvas = document.createElement("canvas");
-      canvas.width = PORTRAIT_EDGE_PX;
-      canvas.height = PORTRAIT_EDGE_PX;
-      const crop = portraitCropRect(image.naturalWidth, image.naturalHeight);
-      canvas.getContext("2d")?.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, PORTRAIT_EDGE_PX, PORTRAIT_EDGE_PX);
-      this.store(characterId, canvas);
-    }, () => { /* A missing preview retains the initials fallback without retrying. */ });
-  }
   private store(characterId: string, portrait: HTMLCanvasElement): void {
     if (this.disposed) return;
-    if (this.portraits.size >= PORTRAIT_CACHE_MAX_ENTRIES) {
-      const oldestId = this.portraits.keys().next().value;
-      if (oldestId !== undefined) this.portraits.delete(oldestId);
-    }
     this.portraits.set(characterId, portrait);
     if (this.readyFrameId !== null) return;
     this.readyFrameId = requestAnimationFrame(() => {
@@ -61,5 +68,7 @@ export class AvatarPortraits {
     this.readyFrameId = null;
     this.portraits.clear();
     this.attempted.clear();
+    this.pending.clear();
+    this.activeCharacters.clear();
   }
 }

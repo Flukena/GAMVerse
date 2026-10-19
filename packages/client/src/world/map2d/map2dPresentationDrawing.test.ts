@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { avatarSpriteScale } from "./avatarSpriteGeometry";
 import { drawMap2dDynamic } from "./map2dDynamicLayer";
 import { drawMap2dRoomLabels } from "./map2dRoomLabels";
 import { drawMap2dSimplified } from "./map2dSimplifiedDrawing";
@@ -39,7 +40,7 @@ test("simplified people keep names, status and speaking rings while omitting fac
   assert.equal(simple.calls.some((call) => call.method === "lineTo"), false);
   assert.equal(immersive.calls.some((call) => call.method === "lineTo"), true);
   assert.ok(simple.calls.some((call) => call.method === "fillText" && call.args[0] === "Alice"));
-  assert.equal(simple.calls.filter((call) => call.method === "arc").length, 4);
+  assert.equal(simple.calls.filter((call) => call.method === "arc" && call.args[2] === 3 * avatarSpriteScale(projection.pxPerM)).length, 1);
   assert.equal(player.x, 10);
   assert.equal(player.z, 20);
 });

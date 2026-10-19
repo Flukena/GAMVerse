@@ -24,6 +24,10 @@ import { AvailabilityMenu } from "./workspace/AvailabilityMenu";
 import { AVAILABILITY_OPTIONS as userStatusOptions, customStatusFromFields } from "./workspace/AvailabilityPresentation";
 import { useAvailabilityStatus } from "./workspace/useAvailabilityStatus";
 import { useOfficeDesks } from "./workspace/useOfficeDesks";
+import { SHARE_OFFICE_LABEL } from "./workspace/officeShareLinks";
+import { useOfficeShareLinks } from "./workspace/useOfficeShareLinks";
+import { acceptOfficeEntryLink, getInviteRouteToken, getOfficeShareRouteToken } from "./workspace/officeEntryLink";
+import { useSignOutConfirmation } from "./workspace/useSignOutConfirmation";
 import { CreateOfficeDialog } from "./workspace/CreateOfficeDialog";
 import { DeskManagerDialog } from "./workspace/DeskManagerDialog";
 import { useDeskAssignmentNotice } from "./workspace/useDeskAssignmentNotice";
@@ -308,7 +312,6 @@ function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "
 const endpoint = getRealtimeEndpoint();
 const CAMERA_CAPTURE_720P30 = { resolution: { width: 1280, height: 720, frameRate: 30 }, frameRate: { ideal: 30, max: 30 } };
 const SCREEN_CAPTURE_1080P30 = { resolution: { width: 1920, height: 1080, frameRate: 30 }, contentHint: "detail" as const };
-const getInviteRouteToken = (path: string) => path.match(/^\/join\/([A-Za-z0-9_-]{30,100})\/?$/)?.[1] ?? null;
 const getResetRouteToken = (path: string) => path.match(/^\/reset\/([A-Za-z0-9_-]{30,100})\/?$/)?.[1] ?? null;
 const getMeetingRouteOfficeId = (path: string) => path.match(/^\/meeting\/([0-9a-f-]{36})\/?$/i)?.[1] ?? null;
 const getOfficeRouteId = (path = window.location.pathname) => path.match(/^\/office\/([0-9a-f-]{36})\/?$/i)?.[1] ?? null;
@@ -480,8 +483,6 @@ export function OfficeApp() {
   const [officeDeleteError, setOfficeDeleteError] = useState<string | null>(null);
   const [managedOfficeName, setManagedOfficeName] = useState("");
   const [officeMembers, setOfficeMembers] = useState<OfficeMember[]>([]);
-  const [inviteLinkBusyOfficeId, setInviteLinkBusyOfficeId] = useState<string | null>(null);
-  const [inviteLinkFeedback, setInviteLinkFeedback] = useState<{ officeId: string; message: string } | null>(null);
   const [meetingZoneActive, setMeetingZoneActive] = useState(false);
   const [meetingZoneId, setMeetingZoneId] = useState<string | null>(null);
   const [activeCameraRoomKey, setActiveCameraRoomKey] = useState("lobby");
@@ -1441,24 +1442,10 @@ export function OfficeApp() {
     conversationTarget?.conversationId, conversationTarget?.conversationGeneration, conversationTarget?.roomIncarnationId, conversationTarget?.mode,
     mediaSuppressed, listening.effectiveMode, conversationAdmitted, conversationKnown, conversation?.admissionLeaseId, voiceRealtimeSessionKey]);
 
-  const signOut = () => {
-    positionStorageEpochRef.current += 1;
-    clearLastOfficePositions();
-    voiceSessionRef.current?.dispose();
-    privateZoneIdRef.current = null; setPrivateZoneId(null);
-    proximityGroupIdRef.current = null;
-    setProximityGroupId(null);
-    void fetch(`${endpoint}/auth/logout`, { method: "POST", credentials: "include" });
-    setAuthUser(null);
-    clearSelectedOffice();
-    setOffices([]);
-    setOfficeListVerified(false);
-    setInvites([]);
-    setStatus("disconnected");
-    setError(null);
-  };
+  const officeShare = useOfficeShareLinks(endpoint, window.location.origin, authUser?.username ?? null);
+  const signOut = useSignOutConfirmation(endpoint, authUser?.username ?? null, () => returnToSignIn(null));
 
-  const returnToSignIn = () => {
+  const returnToSignIn = (reason: string | null = "Your sign-in session expired. Please sign in again.") => {
     positionStorageEpochRef.current += 1;
     clearLastOfficePositions();
     voiceSessionRef.current?.dispose();
@@ -1470,7 +1457,7 @@ export function OfficeApp() {
     setOffices([]);
     setInvites([]);
     setOfficeListVerified(false);
-    setAuthError("Your sign-in session expired. Please sign in again.");
+    setAuthError(reason);
     setStatus("disconnected");
     setError(null);
     setPeople([]);
@@ -1484,18 +1471,10 @@ export function OfficeApp() {
       setLobbyBusy(true);
       setInitialLobbyLoading(true);
       try {
-        let invitedOfficeId: string | null = null;
         const currentPath = routePathRef.current;
-        const currentInviteToken = getInviteRouteToken(currentPath);
-        if (currentInviteToken) {
-          const accepted = await fetch(`${endpoint}/office-invites/accept`, {
-            method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: currentInviteToken }),
-          });
-          const result = await accepted.json() as { officeId?: string; error?: string };
-          if (!accepted.ok) throw new Error(result.error ?? "Invite could not be accepted.");
-          if (!result.officeId) throw new Error("Invite was accepted, but its office could not be identified.");
-          invitedOfficeId = result.officeId;
+        const invitedOfficeId = await acceptOfficeEntryLink(endpoint, currentPath);
+        if (disposed) return;
+        if (invitedOfficeId) {
           window.history.replaceState(null, "", "/");
           setRoutePath("/");
         }
@@ -2201,25 +2180,6 @@ export function OfficeApp() {
     finally { setLobbyBusy(false); }
   };
 
-  const createAndCopyOfficeInviteLink = async (officeId: string) => {
-    setInviteLinkBusyOfficeId(officeId);
-    setInviteLinkFeedback(null);
-    try {
-      const response = await fetch(`${endpoint}/offices/${officeId}/invites`, {
-        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "user" }),
-      });
-      const result = await response.json() as { invite?: { token?: string }; error?: string };
-      if (!response.ok || !result.invite?.token) throw new Error(result.error ?? "Could not create an invite link.");
-      await navigator.clipboard.writeText(`${window.location.origin}/join/${result.invite.token}`);
-      setInviteLinkFeedback({ officeId, message: "Invite link copied · one use · expires in 7 days" });
-    } catch (cause) {
-      setInviteLinkFeedback({ officeId, message: cause instanceof Error ? cause.message : "Could not copy the invite link." });
-    } finally {
-      setInviteLinkBusyOfficeId(null);
-    }
-  };
-
   const saveOfficeName = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!managingOffice) return;
@@ -2746,7 +2706,7 @@ export function OfficeApp() {
           <span className="brand-mark">G</span>
           <span className="eyebrow">{maintainerPortal ? "PLATFORM OPERATIONS" : "YOUR WORKSPACE"}</span>
           <h1>{maintainerPortal ? "Maintainer sign in" : authMode === "login" ? "Welcome back" : "Create your account"}</h1>
-          <p>{inviteLinkToken ? "You’ve been invited to an office. Create an account or sign in to join." : maintainerPortal ? "Sign in to manage GAMVerse and its offices." : "Sign in with your office username and password."}</p>
+          <p>{(inviteLinkToken || getOfficeShareRouteToken(routePath)) ? "You’ve been invited to an office. Create an account or sign in to join." : maintainerPortal ? "Sign in to manage GAMVerse and its offices." : "Sign in with your office username and password."}</p>
           <label>Username<input data-tutorial-target="auth-username" autoComplete="username" required minLength={3} maxLength={24} value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} /></label>
           {authMode === "register" && <label>Email (optional)<input type="email" autoComplete="email" maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>}
           <label>Password<div className="auth-password-field"><input data-tutorial-target="auth-password" type={authPasswordVisible ? "text" : "password"} autoComplete={authMode === "login" ? "current-password" : "new-password"} required minLength={8} maxLength={128} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /><button className="password-visibility-toggle" type="button" aria-label={authPasswordVisible ? "Hide password" : "Show password"} aria-pressed={authPasswordVisible} onClick={() => setAuthPasswordVisible((visible) => !visible)}>{authPasswordVisible ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 5.2A10.8 10.8 0 0112 5c5 0 8.8 4.4 10 7-.4.9-1.2 2-2.3 3M6.2 6.3C3.9 7.7 2.5 10 2 12c1.2 0 2-.2 2.9-.5" /></svg>}</button></div></label>
@@ -2817,7 +2777,7 @@ export function OfficeApp() {
           <header className="character-drawer-header"><div><span className="eyebrow">YOUR ACCOUNT</span><h2>Account & settings</h2></div></header>
           <section className="character-account" aria-label="Your account"><span className="character-account-avatar">{(authUser?.username ?? "U").slice(0, 1).toUpperCase()}</span><div className="character-account-name"><strong>{playerName({ displayName: authUser.username, isMaintainer: authUser.role === "maintainer" })}</strong><span>{authUser.role}</span></div></section>
           <div className="user-settings-content"><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setCharacterPanelOpen(false); setProfileDialogOpen(true); }}><span><strong>Profile</strong><small>Edit your display name</small></span><span aria-hidden="true">›</span></button></section><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setAccountError(null); setChangePasswordOpen(true); }}><span><strong>Change password</strong><small>Update your sign-in password</small></span><span aria-hidden="true">›</span></button></section><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setSettingsSection("general"); setPermissionMessage(null); setCharacterPanelOpen(false); setSettingsOpen(true); void refreshBrowserPermissions(); }}><span><strong>Settings</strong><small>General, sound, camera, permissions, theme</small></span><span aria-hidden="true">›</span></button></section></div>
-          <footer className="character-drawer-footer"><button type="button" className="right-drawer-map-mode" aria-label={map2dViewActive ? "Switch to 3D view" : "Switch to 2D view"} onClick={() => map2dToggleRef.current()}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg><span>{map2dViewActive ? "Switch to 3D" : "Switch to 2D"}</span></button><button type="button" className="account-action signout" onClick={signOut}>Sign out</button></footer>
+          <footer className="character-drawer-footer"><button type="button" className="right-drawer-map-mode" aria-label={map2dViewActive ? "Switch to 3D view" : "Switch to 2D view"} onClick={() => map2dToggleRef.current()}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg><span>{map2dViewActive ? "Switch to 3D" : "Switch to 2D"}</span></button><button type="button" className="account-action signout" onClick={signOut.request}>Sign out</button></footer>
         </aside>}
         <section className="lobby-content">
           <div className="lobby-intro"><span className="eyebrow">YOUR WORKSPACE</span><div className="lobby-intro-heading"><h1>{authUser.role === "maintainer" ? "Manage offices" : "Choose an office"}</h1><button data-tutorial-target="lobby-create-office" className="lobby-button primary" type="button" onClick={() => { setLobbyError(null); setCreateOfficeDialogOpen(true); }}>＋ Create office</button></div><p>Enter an office you belong to, accept an invitation, or start a new office.</p></div>
@@ -2830,12 +2790,12 @@ export function OfficeApp() {
             onSubmit={(event) => void createOfficeAction(event)} onClose={() => setCreateOfficeDialogOpen(false)} />}
           <LobbyDirectory endpoint={endpoint} username={authUser.username} maintainer={authUser.role === "maintainer"}
             officesRevision={offices} invitesRevision={invites} busy={lobbyBusy} inviteToken={inviteLinkToken}
-            inviteBusyOfficeId={inviteLinkBusyOfficeId} inviteFeedback={inviteLinkFeedback} resetUrls={resetUrls}
+            resetUrls={resetUrls}
             onEnter={selectOffice} onManage={(office) => void openOfficeManager(office)}
-            onInviteLink={(officeId) => void createAndCopyOfficeInviteLink(officeId)}
+            onShareOffice={officeShare.open}
             onAccept={(inviteId) => void acceptInvite(inviteId)} onResetLink={issueResetLink} />
         </section>
-        {settingsDialog}
+        {settingsDialog}{signOut.dialog}{officeShare.dialog}
         {profileDialog}
         {changePasswordOpen && <div className="manager-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setChangePasswordOpen(false); }}><form className="manager-dialog password-dialog" onSubmit={(event) => void changePassword(event)}><button type="button" className="manager-close" aria-label="Close" onClick={() => setChangePasswordOpen(false)}>×</button><span className="eyebrow">ACCOUNT SECURITY</span><h2>Change password</h2><label>Current password<input type="password" autoComplete="current-password" required minLength={8} maxLength={128} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>{accountError && <p className="auth-error" role="alert">{accountError}</p>}<button className="lobby-button primary" disabled={lobbyBusy} type="submit">Update password</button></form></div>}
         {managingOffice && <div className="manager-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setManagingOffice(null); }}>
@@ -2994,11 +2954,10 @@ export function OfficeApp() {
           <h1>{activeOffice.name}</h1>
           <div className="room-meta"><span className="live-indicator" /> {activeOffice.role} <span className="meta-divider">·</span> Owner: {activeOffice.ownerUsername}</div>
           <div className="office-space-card" aria-label="Office space"><span>{mapDimensions.width} × {mapDimensions.depth} m</span><span>One shared space</span></div>
-          {(["owner", "admin", "maintainer"] as string[]).includes(activeOffice.role) ? <button type="button" className="workspace-share-button" aria-label="Create and copy office invite link" title="Create and copy invite link" disabled={inviteLinkBusyOfficeId !== null} onClick={() => void createAndCopyOfficeInviteLink(activeOffice.id)}>
+          {(["owner", "admin", "maintainer"] as string[]).includes(activeOffice.role) ? <button type="button" className="workspace-share-button" aria-label={SHARE_OFFICE_LABEL} title={SHARE_OFFICE_LABEL} onClick={() => officeShare.open(activeOffice)}>
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10.5 10.5 7a3 3 0 0 1 4.2 4.2l-2 2"/><path d="m13 9.5-3.5 3.5a3 3 0 0 1-4.2-4.2l2-2"/></svg>
-            <span>{inviteLinkBusyOfficeId === activeOffice.id ? "Creating…" : "Copy invite link"}</span>
+            <span>{SHARE_OFFICE_LABEL}</span>
           </button> : <p className="workspace-share-notice">Ask an office admin to invite someone.</p>}
-          {inviteLinkFeedback?.officeId === activeOffice.id && <p className="workspace-share-notice" role="status">{inviteLinkFeedback.message}</p>}
           <div className="office-workspace-guide">
             <h3>Make yourself at home</h3>
             <p><strong>Find a teammate.</strong> Open People, choose someone, then go to them, wave or send a message.</p>
@@ -3032,7 +2991,7 @@ export function OfficeApp() {
             <button type="button" className="settings-menu-row" id="user-settings-title" onClick={() => { setSettingsSection("general"); setPermissionMessage(null); setCharacterPanelOpen(false); setWorkspacePanelOpen(false); setSettingsOpen(true); void refreshBrowserPermissions(); }}><span><strong>Settings</strong><small>General, permissions, and security</small></span><span aria-hidden="true">›</span></button>
           </section>
         </div>
-        <footer className="character-drawer-footer"><button type="button" className="right-drawer-map-mode" aria-label={map2dViewActive ? "Switch to 3D view" : "Switch to 2D view"} onClick={() => map2dToggleRef.current()}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg><span>{map2dViewActive ? "Switch to 3D" : "Switch to 2D"}</span></button><button type="button" className="account-action signout" onClick={signOut}>Sign out</button></footer>
+        <footer className="character-drawer-footer"><button type="button" className="right-drawer-map-mode" aria-label={map2dViewActive ? "Switch to 3D view" : "Switch to 2D view"} onClick={() => map2dToggleRef.current()}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg><span>{map2dViewActive ? "Switch to 3D" : "Switch to 2D"}</span></button><button type="button" className="account-action signout" onClick={signOut.request}>Sign out</button></footer>
       </aside>}
 
       {characterDialogOpen && createPortal(<div className="profile-dialog-backdrop character-select-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCharacterDialogOpen(false); }}><section className="profile-dialog character-select-dialog" role="dialog" aria-modal="true" aria-labelledby="character-select-title">
@@ -3062,7 +3021,7 @@ export function OfficeApp() {
         <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" aria-busy={characterBusy} disabled={characterBusy || !characterDraft || (characterDraft === authUser.characterId && activePetId === characterDialogInitialPetId)} onClick={() => { if (characterDraft === authUser.characterId) setCharacterDialogOpen(false); else void saveCharacter(); }}>{characterBusy ? "Saving…" : "Save character"}</button></footer>
       </section></div>, document.body)}
 
-      {settingsDialog}
+      {settingsDialog}{signOut.dialog}{officeShare.dialog}
 
       {changePasswordOpen && <WorkspaceDialog labelledBy="change-password-title" onClose={() => setChangePasswordOpen(false)} className="password-settings-dialog"><form className="manager-dialog password-dialog" onSubmit={(event) => void changePassword(event)}><button type="button" className="manager-close" aria-label="Close" onClick={() => setChangePasswordOpen(false)}>×</button><span className="eyebrow">ACCOUNT SECURITY</span><h2 id="change-password-title">Change password</h2><label>Current password<input type="password" autoComplete="current-password" required minLength={8} maxLength={128} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>{accountError && <p className="auth-error" role="alert">{accountError}</p>}<button className="lobby-button primary" disabled={lobbyBusy} type="submit">Update password</button></form></WorkspaceDialog>}
 
