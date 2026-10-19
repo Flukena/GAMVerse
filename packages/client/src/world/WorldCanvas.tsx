@@ -1,3 +1,4 @@
+import { createWalkingFootsteps } from "../audio/walkingFootsteps";
 import { playerName } from "../identity/playerName";
 import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, JUMP_DURATION_MS, jumpHeightAt, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, parseRoomPropSeatReference, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone, type UserStatus } from "@gammyverse/shared";
 import type { MutableRefObject } from "react";
@@ -935,6 +936,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    const walkingFootsteps = createWalkingFootsteps();
     const dimensions = roomLayout?.dimensions ?? CAMPUS_LAYOUT.floors[0]!;
     const mapWorld = { ...CAMPUS_WORLD, ...dimensions };
     const activeFloor = { ...CAMPUS_LAYOUT.floors[0]!, ...dimensions };
@@ -2876,6 +2878,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       const localId = localSessionIdRef.current;
 
       const localPlayer = localId ? players.get(localId) : undefined;
+      walkingFootsteps.update(localPlayer, localId, now, appPaused || inboundAudioMutedRef.current);
       // Proximity based opening is client side, so doors animate without any
       // extra realtime messages. Keep them open while someone is in the doorway
       // and briefly after they pass through.
@@ -3641,6 +3644,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     animationFrame = requestAnimationFrame(render);
 
     return () => {
+      walkingFootsteps.dispose();
       if (draggingMapProp) endMapPropDrag(draggingMapProp);
       draggingMapProp = null;
       cameraPositionRef.current = camera.position.clone();

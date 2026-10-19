@@ -31,3 +31,13 @@
 .directory-presence.offline { background: #87939b; }
 .directory-avatar img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
 .directory-person-details > .directory-avatar { display: inline-grid; width: 34px; margin: 0 8px 8px 0; vertical-align: middle; }
+
+.directory-person-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.directory-person-name { min-width: 0; }
+.directory-person-name strong { display: block; overflow-wrap: anywhere; }
+.directory-person-name .directory-username { margin: 4px 0 0; }
+.directory-person-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; color: var(--workspace-muted); font-size: 11px; }
+.directory-status-badge { padding: 4px 8px; border-radius: 20px; background: var(--workspace-selected); color: var(--workspace-ink); }
+.directory-status-badge::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: 6px; border-radius: 50%; background: #39a771; }
+.directory-status-badge.offline::before { background: #87939b; }
+.directory-status-badge.away::before { background: #d79c42; }

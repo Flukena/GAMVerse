@@ -1,13 +1,37 @@
-import { useId } from "react";
+import { useEffect, useId, useLayoutEffect, useRef } from "react";
 import { PersonCard, type PersonCardProps } from "./PersonCard";
-import { WorkspaceDialog } from "./WorkspaceDialog";
 import type { PersonActionCallbacks } from "./personActions";
+import { handlePersonDetailEscape } from "./personDetailKeyboard";
+import { isWorkspaceInputBlocked } from "./workspaceInput";
+import "./MapPersonDialog.css";
 
+const TITLE_LABEL = "Person details";
+const CLOSE_LABEL = "Close person details";
+const MOVEMENT_HINT_LABEL = "Keep exploring while this profile is open.";
 type MapPersonDialogProps = PersonCardProps & { onClose(): void };
 
+/** Nonmodal profile: opening it never steals world focus or suspends movement. */
 export function MapPersonDialog(props: MapPersonDialogProps) {
   const titleId = useId();
-  const complete = (action: (target: string) => void, target: string) => { props.onClose(); action(target); };
+  const panelRef = useRef<HTMLElement>(null);
+  const closeRef = useRef(props.onClose);
+  closeRef.current = props.onClose;
+  useEffect(() => {
+    const dismiss = (event: KeyboardEvent) => handlePersonDetailEscape(event, isWorkspaceInputBlocked(null), () => closeRef.current());
+    window.addEventListener("keydown", dismiss);
+    return () => window.removeEventListener("keydown", dismiss);
+  }, []);
+  useLayoutEffect(() => {
+    const trigger = document.activeElement;
+    const panel = panelRef.current;
+    return () => {
+      if (panel?.contains(document.activeElement) && trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+    };
+  }, []);
+  const complete = (action: ((target: string) => void) | undefined, target: string) => {
+    if (!action) return;
+    props.onClose(); action(target);
+  };
   const callbacks: PersonActionCallbacks = {
     onMessage: target => complete(props.onMessage, target),
     onGoTo: target => complete(props.onGoTo, target),
@@ -15,10 +39,13 @@ export function MapPersonDialog(props: MapPersonDialogProps) {
     onFollow: target => complete(props.onFollow, target),
     onWave: target => complete(props.onWave, target),
     onSpotlight: target => complete(props.onSpotlight, target),
+    onMeet: target => complete(props.onMeet, target),
+    onInviteToJoin: target => complete(props.onInviteToJoin, target),
   };
-  return <WorkspaceDialog labelledBy={titleId} onClose={props.onClose}>
-    <header className="command-palette-header"><h2 id={titleId}>Person details</h2>
-      <button type="button" aria-label="Close person details" onClick={props.onClose}>×</button></header>
-    <PersonCard {...props} {...callbacks} />
-  </WorkspaceDialog>;
+  return <aside ref={panelRef} className="person-detail-panel" aria-labelledby={titleId}>
+    <header className="person-detail-panel-heading"><h2 id={titleId}>{TITLE_LABEL}</h2>
+      <button type="button" className="person-detail-close" aria-label={CLOSE_LABEL} onClick={props.onClose}>×</button></header>
+    <PersonCard {...props} {...callbacks} presentation="profile" />
+    <footer className="person-detail-panel-hint">{MOVEMENT_HINT_LABEL}</footer>
+  </aside>;
 }
