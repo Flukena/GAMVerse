@@ -1,8 +1,9 @@
+import { tokenHash } from "../infra/tokenHash.js";
 import { DeskRepository, projectOfficeDeskConfig, reconcileOfficeDesks, persistDeskProjection, assertDeskMembership } from "./deskRepository.js";
 import type { Pool } from "pg";
 import { database } from "../infra/db.js";
 import { recordAuditEvent } from "../infra/audit.js";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { MAX_OFFICE_PROPS } from "./limits.js";
 import { campusWorldFromConfig, isPositionWalkable, isValidPropInteraction, readRoomLayout, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type OfficePropsSnapshot, type RoomLayout, type RoomLayoutProp } from "@gammyverse/shared";
 
@@ -146,9 +147,7 @@ const officeActivityWriteAt = new Map<string, number>();
 const activityWriteIntervalMs = 60 * 60 * 1000;
 const inactiveOfficeLimitMs = 30 * 24 * 60 * 60 * 1000;
 
-function tokenHash(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
+
 
 export async function createOffice(username: string, nameValue: unknown): Promise<OfficeSummary> {
   if (!database) throw new Error("Office management requires PostgreSQL.");

@@ -1,3 +1,4 @@
+import { avatarSpriteScreenRect, avatarSpriteScale } from "./avatarSpriteGeometry";
 import { LOCATE_PULSE_MS, MAP2D_DRAG_THRESHOLD_PX, MAP2D_PICK_RADIUS_PX } from "./constants";
 import {
   worldToScreen,
@@ -11,11 +12,14 @@ export function pickMap2dPlayer(
   point: ScreenPoint,
 ): string | null {
   let nearest: string | null = null;
-  let distancePx = MAP2D_PICK_RADIUS_PX;
+  const pickRadiusPx = MAP2D_PICK_RADIUS_PX * avatarSpriteScale(projection.pxPerM);
+  let distancePx = pickRadiusPx;
   for (const [id, player] of players) {
     const screen = worldToScreen(projection, player);
     const candidatePx = Math.hypot(point.x - screen.x, point.y - screen.y);
-    if (candidatePx < distancePx) {
+    const body = avatarSpriteScreenRect(screen.x, screen.y, projection.pxPerM);
+    const hitsBody = point.x >= body.x && point.x <= body.x + body.width && point.y >= body.y && point.y <= body.y + body.height;
+    if ((hitsBody || candidatePx < pickRadiusPx) && (nearest === null || candidatePx < distancePx)) {
       nearest = id;
       distancePx = candidatePx;
     }

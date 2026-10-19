@@ -1,0 +1,18 @@
+.person-detail-panel { position: absolute; z-index: 32; right: 24px; top: 88px; box-sizing: border-box; width: min(340px, calc(100vw - 32px)); max-height: calc(100dvh - 176px); overflow: auto; border: 1px solid var(--workspace-glass-edge); border-radius: 20px; background: var(--workspace-surface); color: var(--workspace-ink); box-shadow: var(--workspace-glass-shadow); pointer-events: auto; }
+.person-detail-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--workspace-edge); }
+.person-detail-panel-heading h2 { margin: 0; color: var(--workspace-muted); font: 650 11px "DM Sans", sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.person-detail-close { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--workspace-edge); border-radius: 50%; background: var(--workspace-subtle); color: var(--workspace-ink); font-size: 22px; cursor: pointer; }
+.person-detail-panel .directory-person-profile { padding: 22px 20px 20px; }
+.person-detail-panel .directory-person-identity { align-items: center; gap: 16px; }
+.person-detail-panel .directory-avatar { flex-basis: 64px; width: 64px; height: 64px; border: 1px solid var(--workspace-edge); border-radius: 20px; font-size: 24px; }
+.person-detail-panel .directory-presence { width: 11px; height: 11px; border-width: 3px; }
+.person-detail-panel .directory-person-name strong { font-size: 20px; line-height: 1.2; }
+.person-detail-panel .directory-username { font-size: 12px; }
+.person-detail-panel .directory-person-badges { margin: 18px 0; }
+.person-detail-panel .directory-custom-status { margin: 0 0 18px; padding: 12px; border: 1px solid var(--workspace-edge); border-radius: 12px; background: var(--workspace-subtle); font-size: 13px; line-height: 1.5; }
+.person-detail-panel .directory-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.person-detail-panel .directory-actions button { min-height: 40px; padding: 10px 12px; border-radius: 10px; font-size: 12px; font-weight: 600; text-align: center; }
+.person-detail-panel .directory-actions button:first-child { border-color: var(--workspace-action); background: var(--workspace-action); color: var(--workspace-on-action); }
+.person-detail-panel-hint { padding: 12px 20px; border-top: 1px solid var(--workspace-edge); background: var(--workspace-subtle); color: var(--workspace-muted); font-size: 11px; line-height: 1.5; }
+.person-detail-panel :focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 3px; }
+@media (max-width: 640px) { .person-detail-panel { top: 72px; right: 16px; max-height: calc(100dvh - 160px); } }

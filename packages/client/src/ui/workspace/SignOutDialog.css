@@ -1,0 +1,8 @@
+.signout-dialog section { padding: 24px; }
+.signout-dialog h2 { margin: 0 0 12px; }
+.signout-dialog p { color: var(--workspace-muted); line-height: 1.5; }
+.signout-dialog p[role="alert"] { color: var(--workspace-danger); }
+.signout-dialog footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.signout-dialog button { min-height: 40px; padding: 8px 16px; border: 1px solid var(--workspace-edge); border-radius: 8px; background: var(--workspace-subtle); color: var(--workspace-ink); font: inherit; cursor: pointer; }
+.signout-dialog .signout-confirm { border-color: var(--workspace-action); background: var(--workspace-action); color: var(--workspace-on-action); }
+.signout-dialog button:disabled { opacity: .6; cursor: wait; }

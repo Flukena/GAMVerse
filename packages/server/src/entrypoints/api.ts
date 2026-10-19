@@ -1,3 +1,4 @@
+import { registerShareLinkEndpoints } from "../http/shareLinkEndpoints.js";
 import { registerDeskAssignmentEndpoints } from "../http/deskAssignmentEndpoints.js";
 import { lobbyPageEndpoint } from "../http/lobbyEndpoints.js";
 import { requestRealtimeControl } from "../infra/realtimeControl.js";
@@ -501,6 +502,7 @@ function configureApi() {
         try { response.json({ officeId: await acceptOfficeInvite(session.username, request.body?.token ?? request.body?.inviteId) }); }
         catch (error) { response.status(400).json({ error: errorMessage(error) }); }
       });
+  registerShareLinkEndpoints(app);
   app.get("/offices/:officeId/chat", chatHistoryEndpoint);
   app.get("/health/live", (_request: AuthRequest, response: AuthResponse) => response.json({ status: "ok", service: "api" }));
   app.get("/health/ready", async (_request: AuthRequest, response: AuthResponse) => {

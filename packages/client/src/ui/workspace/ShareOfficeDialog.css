@@ -1,0 +1,16 @@
+.share-office-dialog section { padding: 24px; }
+.share-office-dialog h2, .share-office-dialog h3 { margin: 0 0 12px; }
+.share-office-dialog p { color: var(--workspace-muted); line-height: 1.5; }
+.share-office-dialog p[role="alert"] { color: var(--workspace-danger); }
+.share-office-dialog button, .share-office-dialog input { min-height: 40px; padding: 8px 12px; border: 1px solid var(--workspace-edge); border-radius: 8px; background: var(--workspace-subtle); color: var(--workspace-ink); font: inherit; }
+.share-office-dialog button { cursor: pointer; }
+.share-office-dialog button:disabled { opacity: .6; cursor: wait; }
+.share-office-url { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.share-office-url label { flex-basis: 100%; }
+.share-office-url input { min-width: 0; flex: 1 1 160px; }
+.share-office-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 24px 0 12px; }
+.share-office-heading h3 { margin: 0; }
+.share-office-links { list-style: none; padding: 0; margin: 0; }
+.share-office-links li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--workspace-edge); }
+.share-office-links small { display: block; color: var(--workspace-muted); }
+.share-office-dialog footer { display: flex; justify-content: flex-end; margin-top: 24px; }

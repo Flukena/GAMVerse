@@ -59,6 +59,8 @@ export async function initializeDatabase() {
     { version: 25, file: "025_office_user_availability_compat.sql" },
     { version: 26, file: "026_office_desks_compat.sql" },
     { version: 27, file: "027_character_presets_compat.sql" },
+    { version: 28, file: "028_office_share_links.sql" },
+    { version: 29, file: "029_office_share_link_creator_cleanup.sql" },
   ];
   const client = await database.connect();
   try {

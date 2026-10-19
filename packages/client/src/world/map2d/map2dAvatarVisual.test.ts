@@ -29,3 +29,11 @@ test("settled idle stops invalidating and zero delta produces a finite resting p
   assert.equal(advanceMap2dAvatarVisual(visual, resting), false);
   assert.deepEqual(advance(1, 0), createMap2dAvatarVisual());
 });
+
+test("natural walking takes a 1.6 m full stride and fast travel cannot exceed 1.5 cycles per second", () => {
+  assert.ok(Math.abs(advance(0.4, 0.5).stridePhaseRad - Math.PI / 2) < 1e-12);
+  const fast = advance(3, 0.1);
+  assert.ok(Math.abs(fast.stridePhaseRad - Math.PI * 0.3) < 1e-12);
+  const slower = advance(3, 0.2);
+  assert.ok(Math.abs(slower.stridePhaseRad - fast.stridePhaseRad * 2) < 1e-12);
+});

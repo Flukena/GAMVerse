@@ -1,5 +1,6 @@
+import { tokenHash } from "../infra/tokenHash.js";
 import { normalizeAccountUsername as normalizeUsername } from "@gammyverse/shared";
-import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -7,6 +8,8 @@ import { database } from "../infra/db.js";
 import { recordAuditEvent } from "../infra/audit.js";
 import { DEFAULT_CHARACTER_ID, KENNEY_CHARACTER_IDS, type KenneyCharacterId } from "@gammyverse/shared";
 import { isCustomCharacterId, userOwnsCharacterModel } from "./characterModels.js";
+
+export { tokenHash } from "../infra/tokenHash.js";
 
 const scrypt = promisify(scryptCallback);
 const usersFile = process.env.AUTH_USERS_FILE ?? join(process.cwd(), "data", "auth-users.json");
@@ -55,9 +58,7 @@ function enqueueUserWrite<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
-export function tokenHash(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
+
 
 function normalizeCharacterId(characterId: string | null | undefined) {
   if (characterId == null) return null;
