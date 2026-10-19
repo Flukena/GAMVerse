@@ -1,3 +1,4 @@
+import { DeskRepository, projectOfficeDeskConfig, reconcileOfficeDesks, persistDeskProjection, assertDeskMembership } from "./deskRepository.js";
 import type { Pool } from "pg";
 import { database } from "../infra/db.js";
 import { recordAuditEvent } from "../infra/audit.js";
@@ -91,7 +92,7 @@ export async function saveOfficeProps(username: string, officeId: string, value:
     if (![x, z, rotation].every(Number.isFinite)) throw new Error("Office prop coordinates are invalid.");
     const rawElevation = "elevation" in original ? original.elevation : 0;
     if (typeof rawElevation !== "number" || !Number.isFinite(rawElevation) || rawElevation < 0 || rawElevation > 15) throw new Error("Office prop elevation is invalid.");
-    if (rawElevation > 0.001) {
+    if (catalog.placementClass === "small" || rawElevation > 0.001) {
       if (!catalog.wallMounted) {
         const support = roomPropPlacementSupport(props.filter((candidate) => candidate.id !== prop.id), prop.asset, x, z, rotation);
         if (!support || Math.abs(support.elevation - rawElevation) > 0.02) throw new Error("Place small props on a table or shelf, and stack shelves on another shelf.");
@@ -236,7 +237,7 @@ export async function getOfficeMapLayout(username: string, officeId: string, isM
     ? readRoomLayout({ layout: { props: props.rows[0].props } }).props
     : readRoomLayout(config).props;
   return {
-    config: mergeOfficeProps(config, effectiveProps),
+    config: await projectOfficeDeskConfig(database, officeId, mergeOfficeProps(config, effectiveProps)),
     configVersion: result.rows[0]?.config_version ?? 1,
   };
 }
@@ -246,7 +247,7 @@ export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, 
   if (!storage) throw new Error("Office maps require PostgreSQL.");
   const role = await dependencies.role(actor, officeId, isMaintainer);
   if (!role) throw new Error("Office not found or access denied.");
-  if (!["owner", "admin"].includes(role)) throw new Error("Only office owners and admins can edit the map.");
+  if (!["owner", "admin", "maintainer"].includes(role)) throw new Error("Only office owners, admins, and maintainers can edit the map.");
   if (typeof value !== "object" || value === null || !("layout" in value)) throw new Error("Map layout is invalid.");
   const expectedVersion = (value as { configVersion?: unknown }).configVersion;
   if (!Number.isInteger(expectedVersion) || Number(expectedVersion) < 1) throw new Error("Office map version is invalid.");
@@ -282,11 +283,6 @@ export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, 
     throw new Error("Map contains unsupported or malformed items.");
   }
   if (raw.spawnPoint !== undefined && !layout.spawnPoint) throw new Error("Spawn point is invalid.");
-  const deskOwners = layout.zones.filter((zone) => zone.kind === "private" && zone.ownerUsername).map((zone) => zone.ownerUsername!);
-  if (new Set(deskOwners).size !== deskOwners.length) throw new Error("Each user can own only one desk zone per office.");
-  for (const owner of deskOwners) {
-    if (!await dependencies.role(owner, officeId, isMaintainer)) throw new Error("Desk zones can only be assigned to office members.");
-  }
   const mapWidth = layout.dimensions?.width ?? 200;
   const mapDepth = layout.dimensions?.depth ?? 250;
   const inside = (x: number, z: number, width = 0, depth = 0) =>
@@ -345,7 +341,9 @@ export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, 
     const latestProps = savedProps.rows[0]
       ? readRoomLayout({ layout: { props: savedProps.rows[0].props } }).props
       : currentLayout.props;
-    const persistedConfig = { version: 1, layout: { ...layout, props: latestProps } };
+    await assertDeskMembership(client, officeId, actor, isMaintainer, true);
+    const canonicalLayout = await reconcileOfficeDesks(client, officeId, layout);
+    const persistedConfig = { version: 1, layout: { ...canonicalLayout, props: latestProps } };
     const result = await client.query<{ config: unknown; config_version: number }>(
       `UPDATE app_office_map_layouts
        SET config_version = config_version + 1, config = $2::jsonb, updated_at = now()
@@ -364,106 +362,11 @@ export async function saveOfficeMapLayout(actor: string, isMaintainer: boolean, 
 }
 
 export async function claimOfficeDeskZone(username: string, officeId: string, zoneId: string) {
-  if (!database) throw new Error("Office maps require PostgreSQL.");
-  const client = await database.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await client.query<{ config: unknown; config_version: number }>(
-      "SELECT config, config_version FROM app_office_map_layouts WHERE office_id = $1 FOR UPDATE",
-      [officeId],
-    );
-    if (!result.rows[0]) throw new Error("This desk is no longer available.");
-    const membership = await client.query(
-      `SELECT 1 FROM app_offices offices
-       LEFT JOIN app_office_memberships memberships ON memberships.office_id = offices.id AND memberships.username = $2
-       WHERE offices.id = $1 AND offices.archived_at IS NULL
-         AND (offices.owner_username = $2 OR memberships.username IS NOT NULL)`,
-      [officeId, username],
-    );
-    if (membership.rowCount === 0) throw new Error("Office not found or access denied.");
-    const config = result.rows[0].config;
-    const layout = readRoomLayout(config);
-    const zone = layout.zones.find((entry) => entry.id === zoneId && entry.kind === "private");
-    if (!zone) throw new Error("This desk no longer exists.");
-    if (zone.ownerUsername === username) {
-      await client.query("COMMIT");
-      return { config, configVersion: result.rows[0].config_version };
-    }
-    if (zone.ownerUsername) throw new Error("This desk has already been claimed.");
-    if (layout.zones.some((entry) => entry.kind === "private" && entry.ownerUsername === username)) {
-      throw new Error("You already own a desk in this office.");
-    }
-    const nextLayout = {
-      ...layout,
-      zones: layout.zones.map((entry) => entry.id === zoneId ? { ...entry, name: `${username}'s desk`, ownerUsername: username } : entry),
-    };
-    const nextConfig = { version: 1, layout: nextLayout };
-    const updated = await client.query<{ config: unknown; config_version: number }>(
-      `UPDATE app_office_map_layouts
-       SET config_version = config_version + 1, config = $2::jsonb, updated_at = now()
-       WHERE office_id = $1
-       RETURNING config, config_version`,
-      [officeId, JSON.stringify(nextConfig)],
-    );
-    await client.query("UPDATE app_offices SET last_activity_at = now() WHERE id = $1", [officeId]);
-    await client.query("COMMIT");
-    return { config: updated.rows[0]!.config, configVersion: updated.rows[0]!.config_version };
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
+  return new DeskRepository().change(username, officeId, { zoneId }, true);
 }
 
 export async function unclaimOfficeDeskZone(username: string, officeId: string, zoneId: string) {
-  if (!database) throw new Error("Office maps require PostgreSQL.");
-  const client = await database.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await client.query<{ config: unknown; config_version: number }>(
-      "SELECT config, config_version FROM app_office_map_layouts WHERE office_id = $1 FOR UPDATE",
-      [officeId],
-    );
-    if (!result.rows[0]) throw new Error("This desk no longer exists.");
-    const membership = await client.query(
-      `SELECT 1 FROM app_offices offices
-       LEFT JOIN app_office_memberships memberships ON memberships.office_id = offices.id AND memberships.username = $2
-       WHERE offices.id = $1 AND offices.archived_at IS NULL
-         AND (offices.owner_username = $2 OR memberships.username IS NOT NULL)`,
-      [officeId, username],
-    );
-    if (membership.rowCount === 0) throw new Error("Office not found or access denied.");
-    const config = result.rows[0].config;
-    const layout = readRoomLayout(config);
-    const zone = layout.zones.find((entry) => entry.id === zoneId && entry.kind === "private");
-    if (!zone) throw new Error("This desk no longer exists.");
-    if (zone.ownerUsername !== username) throw new Error("Only the desk owner can unclaim this desk.");
-    const nextLayout = {
-      ...layout,
-      zones: layout.zones.map((entry) => {
-        if (entry.id !== zoneId) return entry;
-        const { ownerUsername: _ownerUsername, ...availableDesk } = entry;
-        return { ...availableDesk, name: "Available desk" };
-      }),
-    };
-    const nextConfig = { version: 1, layout: nextLayout };
-    const updated = await client.query<{ config: unknown; config_version: number }>(
-      `UPDATE app_office_map_layouts
-       SET config_version = config_version + 1, config = $2::jsonb, updated_at = now()
-       WHERE office_id = $1
-       RETURNING config, config_version`,
-      [officeId, JSON.stringify(nextConfig)],
-    );
-    await client.query("UPDATE app_offices SET last_activity_at = now() WHERE id = $1", [officeId]);
-    await client.query("COMMIT");
-    return { config: updated.rows[0]!.config, configVersion: updated.rows[0]!.config_version };
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
+  return new DeskRepository().change(username, officeId, { zoneId }, false);
 }
 
 export async function getOfficeMembers(username: string, officeId: string, isMaintainer = false) {
@@ -643,20 +546,13 @@ export async function removeOfficeMember(actor: string, isMaintainer: boolean, o
   const client = await database.connect();
   try {
     await client.query("BEGIN");
-    await client.query("DELETE FROM app_office_memberships WHERE office_id = $1 AND username = $2", [officeId, target]);
     const map = await client.query<{ config: unknown }>("SELECT config FROM app_office_map_layouts WHERE office_id = $1 FOR UPDATE", [officeId]);
+    await assertDeskMembership(client, officeId, actor, isMaintainer);
+    await client.query("DELETE FROM app_office_memberships WHERE office_id = $1 AND username = $2", [officeId, target]);
+    await client.query("UPDATE app_office_desks SET owner_username = NULL, updated_at = now() WHERE office_id = $1 AND owner_username = $2 AND retired_at IS NULL", [officeId, target]);
     if (map.rows[0]) {
-      const layout = readRoomLayout(map.rows[0].config);
-      if (layout.zones.some((zone) => zone.ownerUsername === target)) {
-        const nextConfig = {
-          version: 1,
-          layout: { ...layout, zones: layout.zones.map(({ ownerUsername, ...zone }) => ownerUsername === target ? zone : { ...zone, ownerUsername }) },
-        };
-        await client.query(
-          "UPDATE app_office_map_layouts SET config_version = config_version + 1, config = $2::jsonb, updated_at = now() WHERE office_id = $1",
-          [officeId, JSON.stringify(nextConfig)],
-        );
-      }
+      await persistDeskProjection(client, officeId, map.rows[0].config);
+
     }
     await client.query("UPDATE app_offices SET last_activity_at = now() WHERE id = $1", [officeId]);
     await recordAuditEvent(client, {

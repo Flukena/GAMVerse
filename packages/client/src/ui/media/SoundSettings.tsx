@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { DeviceSettingsMicrophoneMeter } from "./DeviceSettingsMicrophoneMeter";
 
 type AudioDevices = { inputs: MediaDeviceInfo[]; outputs: MediaDeviceInfo[] };
 
@@ -25,6 +26,48 @@ export function SoundSettings({
   const [deviceMessage, setDeviceMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [switchError, setSwitchError] = useState("");
+  const [testBusy, setTestBusy] = useState(false);
+  const [testStream, setTestStream] = useState<MediaStream | null>(null);
+  const testStreamRef = useRef<MediaStream | null>(null);
+  const testGenerationRef = useRef(0);
+
+  const stopMicrophoneTest = () => {
+    testGenerationRef.current++;
+    testStreamRef.current?.getTracks().forEach((track) => track.stop());
+    testStreamRef.current = null;
+    setTestStream(null);
+    setTestBusy(false);
+  };
+
+  const startMicrophoneTest = async () => {
+    stopMicrophoneTest();
+    setSwitchError("");
+    const mediaDevices = navigator.mediaDevices;
+    if (!mediaDevices?.getUserMedia) {
+      setSwitchError("Microphone testing is not supported by this browser.");
+      return;
+    }
+    const generation = testGenerationRef.current;
+    setTestBusy(true);
+    try {
+      const stream = await mediaDevices.getUserMedia({
+        audio: inputDeviceId ? { deviceId: { exact: inputDeviceId } } : true,
+      });
+      if (generation !== testGenerationRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      testStreamRef.current = stream;
+      setTestStream(stream);
+      await refreshDevices();
+    } catch (cause) {
+      setSwitchError(cause instanceof Error && cause.name === "NotAllowedError"
+        ? "Microphone access was denied. Allow it in browser permissions, then try again."
+        : cause instanceof Error ? cause.message : "Could not start the microphone test.");
+    } finally {
+      if (generation === testGenerationRef.current) setTestBusy(false);
+    }
+  };
 
   const refreshDevices = async (requestAccess = false) => {
     const mediaDevices = navigator.mediaDevices;
@@ -56,7 +99,12 @@ export function SoundSettings({
     void refreshDevices();
     const onDeviceChange = () => void refreshDevices();
     navigator.mediaDevices?.addEventListener?.("devicechange", onDeviceChange);
-    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", onDeviceChange);
+    return () => {
+      navigator.mediaDevices?.removeEventListener?.("devicechange", onDeviceChange);
+      testGenerationRef.current++;
+      testStreamRef.current?.getTracks().forEach((track) => track.stop());
+      testStreamRef.current = null;
+    };
   }, []);
 
   const chooseInput = async (deviceId: string) => {
@@ -89,6 +137,13 @@ export function SoundSettings({
         try { const device = await selectAudioOutput.call(navigator.mediaDevices); setDevices((current) => ({ ...current, outputs: [...current.outputs.filter((item) => item.deviceId !== device.deviceId), device] })); await chooseOutput(device.deviceId); }
         catch (cause) { if (!(cause instanceof DOMException && cause.name === "NotAllowedError")) setSwitchError(cause instanceof Error ? cause.message : "Could not choose speaker."); }
       }}>Choose speaker…</button>}
+    </div>
+    <div className="sound-device-test">
+      <div><strong>Microphone test</strong><small>Test locally. Audio is not shared with the office.</small></div>
+      {testStream
+        ? <button type="button" className="lobby-button" onClick={stopMicrophoneTest}>Stop test</button>
+        : <button type="button" className="lobby-button" disabled={testBusy} onClick={() => void startMicrophoneTest()}>{testBusy ? "Starting test…" : "Test microphone"}</button>}
+      {testStream && <DeviceSettingsMicrophoneMeter stream={testStream} />}
     </div>
     {deviceMessage && <p className="sound-device-note" role="status">{deviceMessage}</p>}
     {switchError && <p className="sound-device-error" role="alert">{switchError}</p>}

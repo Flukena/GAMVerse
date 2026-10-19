@@ -1,27 +1,59 @@
 import { playerName } from "../identity/playerName";
 import { createOfficeMediaSession } from "./media/officeMediaSession";
 import { voiceParticipantUsername } from "./media/mediaIdentity";
-import { mediaTileKey } from "./social/socialState";
 import { type ChatTransport } from "./social/ChatPanel";
 import { useOfficeSocial } from "./social/useOfficeSocial";
 import { OfficeSocialOverlay } from "./social/OfficeSocialOverlay";
 import { ReactionPicker } from "./social/ReactionPicker";
+import { HandRaiseButton } from "./social/HandRaiseButton";
+import { OfficePanelHeader, type OfficePanel } from "./workspace/OfficeNavigation";
+import { PeoplePanel } from "./workspace/PeoplePanel";
+import { WorkspaceChrome } from "./workspace/WorkspaceChrome";
+import { OfficeGeneralSettings } from "./workspace/OfficeGeneralSettings";
+import { OfficeSettingsDialog } from "./workspace/OfficeSettingsDialog";
+import { OfficeThemeSettings } from "./workspace/OfficeThemeSettings";
+import { useWorkspaceTheme } from "./workspace/useWorkspaceTheme";
+import { WorkspaceDialog } from "./workspace/WorkspaceDialog";
+import { MapPersonDialog } from "./workspace/MapPersonDialog";
+import { isWorkspaceInputBlocked } from "./workspace/workspaceInput";
+import { clearLastOfficePositions, readLastOfficePosition, saveLastOfficePosition } from "./lastOfficePosition";
+import { useWorkspacePanelFocus } from "./workspace/useWorkspacePanelFocus";
+import { useTravelFeedback } from "./workspace/useTravelFeedback";
+import { AvailabilityDialog } from "./workspace/AvailabilityDialog";
+import { AvailabilityMenu } from "./workspace/AvailabilityMenu";
+import { AVAILABILITY_OPTIONS as userStatusOptions, customStatusFromFields } from "./workspace/AvailabilityPresentation";
+import { useAvailabilityStatus } from "./workspace/useAvailabilityStatus";
+import { useOfficeDesks } from "./workspace/useOfficeDesks";
+import { CreateOfficeDialog } from "./workspace/CreateOfficeDialog";
+import { DeskManagerDialog } from "./workspace/DeskManagerDialog";
+import { useDeskAssignmentNotice } from "./workspace/useDeskAssignmentNotice";
+import { createCampusOfficeDraft, type CampusInteriorPreset } from "@gammyverse/shared";
+import { availabilityPolicy, USER_STATUSES, type UserStatus, type CustomStatus } from "@gammyverse/shared";
+import type { PersonActionCallbacks, PersonActionContext } from "./workspace/personActions";
 import "./social/social.css";
 import { Client, type Room } from "@colyseus/sdk";
-import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomLayoutZoneAt, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, screenMovementToWorld, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
+import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomLayoutZoneAt, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { createVoiceRoom } from "./media/voiceRoomSdk";
+import { CameraSettings } from "./media/CameraSettings";
+import { applyCameraBackgroundMode, readCameraBackgroundMode, saveCameraBackgroundMode, type CameraBackgroundMode } from "./media/cameraBackground";
+import { persistMediaDevicePreferences, readMediaDevicePreferences } from "./media/mediaDevicePreferences";
 import { VoiceRoomSession, VOICE_MEDIA_STOPPED_LABEL, type VoiceSessionListener } from "./media/voiceRoomSession";
-import { publishedVideoTile } from "./media/videoTileState";
-import { resolveVoiceTarget, type VoiceTargetInputs } from "./media/voiceTarget";
 import { fetchVoiceToken } from "./media/voiceToken";
-import { VoiceParticipantRoster, type VoiceRosterActivity, type VoiceRosterMediaSource, type VoiceRosterPerson } from "./media/VoiceParticipantRoster";
+import { VoiceParticipantRoster, type VoiceRosterActivity, type VoiceRosterPerson } from "./media/VoiceParticipantRoster";
 import { SoundSettings } from "./media/SoundSettings";
 import { applyAudioInputPreference, readAudioDevicePreferences, saveAudioInputDevice, saveAudioOutputDevice, type AudioDevicePreferences } from "./media/audioDevicePreferences";
 import { readVoiceParticipantAudioLevels, saveVoiceParticipantAudioLevels } from "./media/voiceParticipantPreferences";
-import type { LocalAudioTrack, LocalTrackPublication, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room as LiveKitRoomInstance, RoomEvent } from "livekit-client";
+import type { VoiceTarget } from "./media/voiceTarget";
+import { useOfficeConversations } from "./conversations/useOfficeConversations";
+import { conversationAccessZones } from "./conversations/conversationAccessState";
+import { OfficeConversationHub } from "./conversations/OfficeConversationHub";
+import { privateActionEnabled } from "./conversations/conversationAccessState";
+import { OfficeContextOverlay } from "./workspace/OfficeContextOverlay";
+import { applyConversationMediaIntent, ConversationAdmissionIntent } from "./media/conversationMediaIntent";
+import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, Room as LiveKitRoomInstance, RoomEvent } from "livekit-client";
 import { CharacterPreview3D } from "../world/CharacterPreview3D";
 import { PetThumbnail } from "./PetThumbnail";
 import { gobkitPet, kaykitCharacter, petModelUrl, petPreviewUrl, polygonalMindCharacter, QUATERNIUS_CHARACTERS, quaterniusPet } from "../assets/characterAssets";
@@ -34,10 +66,10 @@ import type { LockedTurnState } from "../world/camera/lockedMovement";
 import { resolveHeldMovement } from "../world/camera/heldMovement";
 import { FullScreenLoading } from "./FullScreenLoading";
 import { ModifyPropsEditor } from "./ModifyPropsEditor";
+import { MapBuildingPicker } from "./MapBuildingPicker";
 import { PropModelPreview } from "./PropModelPreview";
 import { PageTutorial } from "./PageTutorial";
-import { MaintainerAuditPanel } from "./MaintainerAuditPanel";
-import { MaintainerAccountSafety, type MaintainerAccount } from "./MaintainerAccountSafety";
+import { LobbyDirectory } from "./lobby/LobbyDirectory";
 import { MaintainerSystemPanel } from "./MaintainerSystemPanel";
 import { playSocialNotificationSound, unlockSocialNotificationAudio } from "../audio/notificationSounds";
 import { setNoiseReduction, type NoiseReductionResult } from "../audio/noiseReduction";
@@ -54,12 +86,11 @@ const ROOM_WALL_OPTION_GROUPS = ROOM_WALL_OPTIONS.reduce<Array<{ label: string; 
 
 const VOICE_MICROPHONE_SOURCE = "microphone";
 const VOICE_AUDIO_KIND = "audio";
-const VOICE_VIDEO_KIND = "video";
 
 type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 type CharacterSelectionId = KenneyCharacterId | `custom-${string}`;
 type PersonalAvatarModel = { id: `custom-${string}`; label: string; modelUrl: string };
-type SettingsSection = "general" | "sound" | "permissions" | "security";
+type SettingsSection = "general" | "sound" | "camera" | "permissions" | "security" | "theme";
 type BrowserPermissionValue = "granted" | "denied" | "prompt" | "unknown";
 type OfficeActivityType = "office.join" | "office.leave" | "meeting.enter" | "meeting.leave" | "private.enter" | "private.leave" | "bubble.enter" | "bubble.leave" | "vehicle.enter" | "vehicle.leave";
 type OfficeActivity = { id: string; actorUsername: string; activityType: OfficeActivityType; locationName: string | null; occurredAt: string };
@@ -83,22 +114,7 @@ const officeActivityLocation = (activity: OfficeActivity) => {
     ? vehicleName.replaceAll("-", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
     : value;
 };
-type UserStatus = PlayerSnapshot["status"];
-const userStatusOptions: Array<{ value: UserStatus; label: string; icon: string; color: string }> = [
-  { value: "available", label: "Available", icon: "✓", color: "#2f9e62" },
-  { value: "do-not-disturb", label: "Do not disturb", icon: "⊖", color: "#dc3545" },
-  { value: "in-meeting", label: "In meeting", icon: "▣", color: "#7950c7" },
-  { value: "toilet", label: "Toilet", icon: "WC", color: "#168aad" },
-  { value: "lunch", label: "Lunch", icon: "♨", color: "#e08b22" },
-  { value: "coffee-break", label: "Coffee break", icon: "☕", color: "#8a5a35" },
-];
-type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; isMaintainer: boolean; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break"; presence: "online" | "away"; nearby: boolean; handRaised: boolean; microphoneEnabled: boolean; cameraEnabled: boolean; screenShareEnabled: boolean };
-function voiceRosterAreaKey(position: { x: number; z: number }, layout: RoomLayout, previousZoneId?: string | null): string {
-  const mediaZone = roomLayoutZoneAt(position, layout, previousZoneId);
-  if (mediaZone) return `zone:${mediaZone.id}`;
-  const restroom = layout.zones.find((zone) => zone.kind === "restroom" && Math.abs(position.x - zone.x) <= zone.width / 2 && Math.abs(position.z - zone.z) <= zone.depth / 2);
-  return restroom ? `restroom:${restroom.id}` : "lobby";
-}
+type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; isMaintainer: boolean; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: UserStatus; customStatusText: string; customStatusEmoji: string; customStatusExpiresAtMs: number; presence: "online" | "away"; nearby: boolean; handRaised: boolean; microphoneEnabled: boolean; cameraEnabled: boolean; screenShareEnabled: boolean };
 
 function readVoiceRosterActivity(participant: { name?: string; identity: string; trackPublications: Map<string, { source: unknown; track?: { source: unknown } | null; isMuted: boolean }> }): VoiceRosterActivity {
   const activity: VoiceRosterActivity = { microphone: false, camera: false, screenShare: false };
@@ -120,15 +136,13 @@ type Office = { id: string; name: string; ownerUsername: string; role: "owner" |
 type OfficeInvite = { id: string; officeId: string; officeName: string; inviter: string; role: "admin" | "user"; expiresAt: string };
 type OfficeMember = { username: string; role: "owner" | "admin" | "user"; joinedAt: string | null };
 type ProximityAudioTrack = { track: RemoteAudioTrack; username: string };
-type VideoTileItem = { key: string; track: LocalVideoTrack | RemoteVideoTrack; label: string; local: boolean; username: string; source: VoiceRosterMediaSource };
-type ManagedAccount = MaintainerAccount;
 
 const movementKeys = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"];
 const CAMERA_MAX_BITRATE_BPS = 1_500_000;
 const SCREEN_MAX_BITRATE_BPS = 4_000_000;
 const MEDIA_MAX_FRAMERATE_FPS = 30;
 const MEDIA_DEGRADATION_PREFERENCE = "maintain-resolution";
-const DISMISS_MEDIA_NOTICE_LABEL = "Dismiss";
+const RECONNECT_VOICE_LABEL = "Reconnect voice";
 
 function usePanelPresence(isOpen: boolean, exitDuration = 260) {
   const [isMounted, setIsMounted] = useState(isOpen);
@@ -265,21 +279,6 @@ function TouchMoveButton({
   );
 }
 
-function VideoTile({ track, label, local, focused, onFocus, compact = false }: { track: LocalVideoTrack | RemoteVideoTrack; label: string; local: boolean; focused: boolean; onFocus: () => void; compact?: boolean }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  useEffect(() => {
-    const element = videoRef.current;
-    if (!element) return;
-    track.attach(element);
-    return () => { track.detach(element); };
-  }, [track]);
-  return <article className={`video-tile${focused ? " focused" : ""}${compact ? " compact" : ""}`} onClick={onFocus}>
-    <video ref={videoRef} autoPlay playsInline muted={local} />
-    <span>{label}{local ? " · You" : ""}</span>
-    <button type="button" className="video-focus-button" aria-label={focused ? `Currently showing ${label}` : `Show ${label} full screen`} title={focused ? "Currently shown" : "Show full screen"} onClick={(event) => { event.stopPropagation(); onFocus(); }}><FeatherIcon name="maximize" /></button>
-  </article>;
-}
-
 function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "videoOff" | "screen" | "screenOff" | "headphones" | "headphonesOff" | "close" | "maximize" | "exit" | "car" | "lock" | "unlock" | "refresh" | "office" | "chat" | "people" | "clock"; size?: number }) {
   const shared = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const drawings = {
@@ -315,6 +314,7 @@ const getMeetingRouteOfficeId = (path: string) => path.match(/^\/meeting\/([0-9a
 const getOfficeRouteId = (path = window.location.pathname) => path.match(/^\/office\/([0-9a-f-]{36})\/?$/i)?.[1] ?? null;
 
 export function OfficeApp() {
+  const workspaceTheme = useWorkspaceTheme();
   const [routePath, setRoutePath] = useState(() => window.location.pathname);
   const [meetingEntry, setMeetingEntry] = useState(() => Boolean(getMeetingRouteOfficeId(window.location.pathname)));
   const routePathRef = useRef(routePath);
@@ -328,10 +328,10 @@ export function OfficeApp() {
   const [voiceRealtimeSessionKey, setVoiceRealtimeSessionKey] = useState<string | null>(null);
   const voiceTeardownRef = useRef<Promise<void>>(Promise.resolve());
   const voiceMutedIntentRef = useRef(true);
+  const conversationAdmissionIntentRef = useRef(new ConversationAdmissionIntent());
   const voiceSessionRef = useRef<VoiceRoomSession<LiveKitRoomInstance> | null>(null);
-  const voiceTargetInputsRef = useRef<VoiceTargetInputs>({ officeId: null, sessionKey: null, paused: true, meetingZoneId: null, privateZoneId: null, proximityGroupId: null });
+  const voiceTargetRef = useRef<VoiceTarget | null>(null);
   const [voiceRetryExhausted, setVoiceRetryExhausted] = useState(false);
-  const [voiceBusy, setVoiceBusy] = useState(false);
   const [voiceMediaNotice, setVoiceMediaNotice] = useState<string | null>(null);
   const liveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
   const privateLiveKitRoomRef = useRef<LiveKitRoomInstance | null>(null);
@@ -349,10 +349,14 @@ export function OfficeApp() {
   const audioOutputRef = useRef<HTMLDivElement>(null);
   const inboundAudioMutedRef = useRef(false);
   const appPausedRef = useRef(false);
+  const workspaceInputBlockedRef = useRef(false);
+  const [workspaceOverlayOpen, setWorkspaceOverlayOpen] = useState(false);
   const playersRef = useRef<Map<string, PlayerSnapshot>>(new Map());
   const blasterEventsRef = useRef<BlasterShotEvent[]>([]);
   const jumpStartedAtRef = useRef(new Map<string, number>());
   const localSessionIdRef = useRef<string | null>(null);
+  const lastPositionSavedAtRef = useRef(0);
+  const positionStorageEpochRef = useRef(0);
   const cameraYawRef = useRef(DEFAULT_CAMERA_YAW);
   const cameraBehindCharacterRef = useRef(true);
   const lockedMovementRef = useRef<LockedTurnState | null>(null);
@@ -361,7 +365,7 @@ export function OfficeApp() {
   const map2dViewRef = useRef(false);
   const map2dToggleRef = useRef<() => void>(() => {});
   const [map2dViewActive, setMap2dViewActive] = useState(false);
-  const autoMoveStatusRevisionRef = useRef(0);
+  const travel = useTravelFeedback();
   const locateRequestRef = useRef<Map2dLocateRequest | null>(null);
   const peopleSignatureRef = useRef("");
   const nearbySessionIdsRef = useRef(new Set<string>());
@@ -391,15 +395,24 @@ export function OfficeApp() {
     const next = inputSendGateRef.current.take(input, performance.now());
     if (next) room.send("input", next);
   };
+  const setWorkspaceInputBlocked = useCallback((blocked: boolean) => {
+    workspaceInputBlockedRef.current = blocked;
+    setWorkspaceOverlayOpen(blocked);
+    if (blocked) { heldKeysRef.current.clear(); lockedMovementRef.current = null; sendHeldMovementRef.current(); }
+  }, []);
   const [blasterHitNotice, setBlasterHitNotice] = useState<number | null>(null);
   const blasterHitSequenceRef = useRef(0);
   const [officeName, setOfficeName] = useState("");
   const [createOfficeDialogOpen, setCreateOfficeDialogOpen] = useState(false);
+  const [createOfficeInteriors, setCreateOfficeInteriors] = useState<CampusInteriorPreset>("furnished");
+  const [deskManagerOpen, setDeskManagerOpen] = useState(false);
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [lobbyBusy, setLobbyBusy] = useState(false);
   const [initialLobbyLoading, setInitialLobbyLoading] = useState(false);
   const [managingOffice, setManagingOffice] = useState<Office | null>(null);
   const [mapEditMode, setMapEditMode] = useState(false);
+  const [mapBuildingPickerOpen, setMapBuildingPickerOpen] = useState(false);
+  const [selectedMapBuildingAsset, setSelectedMapBuildingAsset] = useState<RoomLayoutProp["asset"] | null>(null);
   const [spawnPlacementMode, setSpawnPlacementMode] = useState(false);
   const [mapSpawnSaving, setMapSpawnSaving] = useState(false);
   const mapEditModeRef = useRef(mapEditMode);
@@ -411,7 +424,17 @@ export function OfficeApp() {
   officeMapLayoutRef.current = officeMapLayout;
   const [mapEditBaseline, setMapEditBaseline] = useState<RoomLayout | null>(null);
   const mapDimensions = officeMapLayout?.dimensions ?? { width: CAMPUS_WORLD.width, depth: CAMPUS_WORLD.depth };
-  const [mapConfigVersion, setMapConfigVersion] = useState(1);
+  const [mapConfigVersion, setMapConfigVersionState] = useState(1);
+  const [mapServerVersion, setMapServerVersion] = useState(mapConfigVersion);
+  const mapConfigVersionRef = useRef(mapConfigVersion);
+  const recordMapServerVersion = useCallback((version: number) => {
+    mapConfigVersionRef.current = version;
+    setMapServerVersion(version);
+  }, []);
+  const setMapConfigVersion = useCallback((version: number) => {
+    recordMapServerVersion(version);
+    setMapConfigVersionState(version);
+  }, [recordMapServerVersion]);
   const [mapPropsConfigVersion, setMapPropsConfigVersion] = useState(1);
   const [mapSaving, setMapSaving] = useState(false);
   const [mapConflictLatest, setMapConflictLatest] = useState<{ layout: RoomLayout; configVersion: number; message: string } | null>(null);
@@ -457,10 +480,6 @@ export function OfficeApp() {
   const [officeDeleteError, setOfficeDeleteError] = useState<string | null>(null);
   const [managedOfficeName, setManagedOfficeName] = useState("");
   const [officeMembers, setOfficeMembers] = useState<OfficeMember[]>([]);
-  const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
-  const [accountsLoading, setAccountsLoading] = useState(false);
-  const [accountsLoadError, setAccountsLoadError] = useState<string | null>(null);
-  const [accountReloadToken, setAccountReloadToken] = useState(0);
   const [inviteLinkBusyOfficeId, setInviteLinkBusyOfficeId] = useState<string | null>(null);
   const [inviteLinkFeedback, setInviteLinkFeedback] = useState<{ officeId: string; message: string } | null>(null);
   const [meetingZoneActive, setMeetingZoneActive] = useState(false);
@@ -470,10 +489,6 @@ export function OfficeApp() {
   const [privateZoneName, setPrivateZoneName] = useState<string | null>(null);
   const [selectedDeskZoneId, setSelectedDeskZoneId] = useState<string | null>(null);
   const [mediaZoneName, setMediaZoneName] = useState<string | null>(null);
-  const [deskClaimBusy, setDeskClaimBusy] = useState(false);
-  const [deskClaimingZoneId, setDeskClaimingZoneId] = useState<string | null>(null);
-  const [deskClaimError, setDeskClaimError] = useState<string | null>(null);
-  useEffect(() => { setDeskClaimBusy(false); setDeskClaimError(null); }, [selectedDeskZoneId]);
   const [lockedZoneIds, setLockedZoneIds] = useState<string[]>([]);
   const [voiceConnected, setVoiceConnected] = useState(false);
   const [voiceMuted, setVoiceMuted] = useState(true);
@@ -486,12 +501,7 @@ export function OfficeApp() {
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [screenShareEnabled, setScreenShareEnabled] = useState(false);
   const [participantAudioLevels, setParticipantAudioLevels] = useState<Map<string, number>>(readVoiceParticipantAudioLevels);
-  const [videoTiles, setVideoTiles] = useState<VideoTileItem[]>([]);
-  const [focusedVideoKey, setFocusedVideoKey] = useState<string | null>(null);
-  const [videoPopupOpen, setVideoPopupOpen] = useState(false);
-  const addRemoteVideoTile = (tile: VideoTileItem) => {
-    setVideoTiles((current) => [...current.filter((item) => item.key !== tile.key), tile]);
-  };
+  const [conversationsOpen, setConversationsOpen] = useState(false);
   const [resetUrls, setResetUrls] = useState<Record<string, string>>({});
   const [accountError, setAccountError] = useState<string | null>(null);
   const [characterPanelOpen, setCharacterPanelOpen] = useState(false);
@@ -502,7 +512,7 @@ export function OfficeApp() {
   const [characterDialogInitialPetId, setCharacterDialogInitialPetId] = useState<KenneyPetId | "">("");
   const [autoMoveNotice, setAutoMoveNotice] = useState<string | null>(null);
   const [followingSessionId, setFollowingSessionId] = useState<string | null>(null);
-  const [mapPlayerAction, setMapPlayerAction] = useState<{ sessionId: string; displayName: string; x: number; y: number } | null>(null);
+  const [mapPlayerAction, setMapPlayerAction] = useState<{ sessionId: string } | null>(null);
   useEffect(() => {
     if (!mapPlayerAction) return;
     const dismissOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setMapPlayerAction(null); };
@@ -537,6 +547,10 @@ export function OfficeApp() {
   const [audioDevicePreferences, setAudioDevicePreferences] = useState<AudioDevicePreferences>(() => readAudioDevicePreferences());
   const audioDevicePreferencesRef = useRef(audioDevicePreferences);
   audioDevicePreferencesRef.current = audioDevicePreferences;
+  const [cameraDeviceId, setCameraDeviceId] = useState(() => readMediaDevicePreferences().videoinput);
+  const [cameraBackgroundMode, setCameraBackgroundMode] = useState<CameraBackgroundMode>(() => readCameraBackgroundMode());
+  const cameraBackgroundModeRef = useRef(cameraBackgroundMode);
+  cameraBackgroundModeRef.current = cameraBackgroundMode;
   const updateNoiseReductionPreference = (enabled: boolean) => {
     noiseReductionEnabledRef.current = enabled;
     setNoiseReductionEnabled(enabled);
@@ -585,25 +599,47 @@ export function OfficeApp() {
   useEffect(() => {
     if (mapPlayerAction && !people.some(([id, player]) => id === mapPlayerAction.sessionId && player.presence === "online")) setMapPlayerAction(null);
   }, [people, mapPlayerAction]);
-  const [peopleSearch, setPeopleSearch] = useState("");
   const [userStatus, setUserStatus] = useState<UserStatus>("available");
   const userStatusRef = useRef<UserStatus>("available");
   userStatusRef.current = userStatus;
   const toiletReturnPositionRef = useRef<{ x: number; z: number } | null>(null);
-  const [statusMenuOverlayOpen, setStatusMenuOverlayOpen] = useState(false);
+  const [availabilityEditorOpen, setAvailabilityEditorOpen] = useState(false);
+  const availability = useAvailabilityStatus(status === "connected" ? roomRef.current : null);
+  const officeDesks = useOfficeDesks({ endpoint, officeId: activeOffice?.id ?? null, username: authUser?.username ?? null, sessionKey: status === "connected" ? roomRef.current?.sessionId ?? null : null, configVersion: mapServerVersion });
+  const deskAssignmentNotice = useDeskAssignmentNotice({ room: status === "connected" ? roomRef.current : null,
+    officeId: activeOffice?.id ?? null, sessionKey: status === "connected" ? roomRef.current?.sessionId ?? null : null,
+    username: authUser?.username ?? null, desks: officeDesks.desks, configVersion: officeDesks.configVersion, onRefresh: officeDesks.refresh });
+  useEffect(() => { setDeskManagerOpen(false); }, [activeOffice?.id]);
+  const deskClaimBusy = officeDesks.pendingDeskId !== null || officeDesks.loading;
+  const deskClaimingZoneId = officeDesks.desks.find((desk) => desk.id === officeDesks.pendingDeskId)?.zoneId ?? null;
+  const deskClaimError = officeDesks.error;
+  const refreshDesksRef = useRef(officeDesks.refresh);
+  refreshDesksRef.current = officeDesks.refresh;
+  useEffect(() => { if (status !== "connected") travel.reset(); }, [status, travel.reset]);
   const [statusTravelError, setStatusTravelError] = useState<string | null>(null);
-  const appPaused = userStatus === "do-not-disturb" || userStatus === "in-meeting";
-  const social = useOfficeSocial({ officeId: activeOffice?.id ?? null, room: status === "connected" ? roomRef.current as unknown as ChatTransport : null, playersRef, localSessionId: localSessionIdRef.current, layout: officeMapLayout, heldKeys: heldKeysRef.current, paused: appPaused || mapEditMode || modifyPropsOpen });
-  appPausedRef.current = appPaused || Boolean(social.interaction);
+  const mediaSuppressed = availabilityPolicy(userStatus).suppressAutomaticMedia;
+  const accessZones = useMemo(() => conversationAccessZones(officeMapLayout), [officeMapLayout]);
+  const zonePrivacyTargetId = selectedDeskZoneId ?? meetingZoneId ?? privateZoneId;
+  const officeConversations = useOfficeConversations({ room: status === "connected" ? roomRef.current : null,
+    officeId: activeOffice?.id ?? null, sessionKey: voiceRealtimeSessionKey, status: userStatus,
+    accessZoneId: zonePrivacyTargetId, accessZones });
+  const { conversation, listening, publicConversations, meetOffers,
+    conversationTarget, canPublishConversation, publishingDisabledReason } = officeConversations;
+  const conversationAdmitted = Boolean(conversation?.conversation);
+  const conversationKnown = conversation !== null;
+  voiceTargetRef.current = conversationTarget;
+  const social = useOfficeSocial({ officeId: activeOffice?.id ?? null, room: status === "connected" ? roomRef.current as unknown as ChatTransport : null, playersRef, localSessionId: localSessionIdRef.current, layout: officeMapLayout, heldKeys: heldKeysRef.current, paused: mapEditMode || modifyPropsOpen });
+  appPausedRef.current = Boolean(social.interaction) || conversationsOpen || deskManagerOpen;
   const [userStatusMenuOpen, setUserStatusMenuOpen] = useState(false);
   const [workspacePanelOpen, setWorkspacePanelOpen] = useState(false);
-  const [activeLobbyTab, setActiveLobbyTab] = useState<"offices" | "invitations" | "accounts" | "audit">("offices");
   const workspacePanelMounted = usePanelPresence(workspacePanelOpen);
   const characterPanelMounted = usePanelPresence(characterPanelOpen);
   const [chatContainer, setChatContainer] = useState<HTMLDivElement | null>(null);
   const [chatTarget, setChatTarget] = useState<string | null>(null);
+  const [chatTargetRevision, setChatTargetRevision] = useState(0);
   const [chatUnread, setChatUnread] = useState(0);
-  const [activeLeftTab, setActiveLeftTab] = useState<"workspace" | "people" | "activity" | "chat">("workspace");
+  const [activeLeftTab, setActiveLeftTab] = useState<OfficePanel>("workspace");
+  const onWorkspacePanelKeyDown = useWorkspacePanelFocus({ open: workspacePanelOpen, panel: activeLeftTab, close: () => setWorkspacePanelOpen(false) });
   const [officeActivities, setOfficeActivities] = useState<OfficeActivity[]>([]);
   const [activityBusy, setActivityBusy] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
@@ -614,16 +650,10 @@ export function OfficeApp() {
     inboundAudioMutedRef.current = muted;
     audioOutputRef.current?.querySelectorAll("audio").forEach((element) => { element.muted = muted; });
   };
-  const selectUserStatus = (nextStatus: UserStatus) => {
+  const selectUserStatus = async (nextStatus: UserStatus, customStatus?: CustomStatus | null) => {
     const previousStatus = userStatus;
-    const shouldPause = nextStatus === "do-not-disturb" || nextStatus === "in-meeting";
-    appPausedRef.current = shouldPause;
-    setUserStatus(nextStatus);
-    userStatusRef.current = nextStatus;
+    if (!await availability.save(nextStatus, customStatus)) return false;
     setUserStatusMenuOpen(false);
-    setStatusMenuOverlayOpen(false);
-    setInboundAudioMuted(shouldPause);
-    roomRef.current?.send("user-status", { status: nextStatus });
     if (nextStatus === "toilet" && previousStatus !== "toilet") {
       setStatusTravelError(null);
       const localSessionId = localSessionIdRef.current;
@@ -633,6 +663,7 @@ export function OfficeApp() {
         .filter((zone) => zone.kind === "restroom")
         .sort((a, b) => Math.hypot(a.x - (localPlayer?.x ?? 0), a.z - (localPlayer?.z ?? 0)) - Math.hypot(b.x - (localPlayer?.x ?? 0), b.z - (localPlayer?.z ?? 0)))[0];
       if (restroom) {
+        if (!travel.expectDestination(restroom)) return true;
         heldKeysRef.current.clear();
         roomRef.current?.send("auto-move", { x: restroom.x, z: restroom.z, randomVehicle: true });
       } else {
@@ -643,14 +674,16 @@ export function OfficeApp() {
       const returnPosition = toiletReturnPositionRef.current;
       toiletReturnPositionRef.current = null;
       if (returnPosition) {
+        if (!travel.expectDestination(returnPosition)) return true;
         heldKeysRef.current.clear();
-        roomRef.current?.send("auto-move", { ...returnPosition, randomVehicle: false });
+        roomRef.current?.send("auto-move", { ...returnPosition, randomVehicle: true });
       }
     }
+    return true;
   };
   const toggleHeadphones = () => {
-    const mutedByStatus = userStatus === "do-not-disturb" || userStatus === "in-meeting";
-    selectUserStatus(mutedByStatus ? "available" : "do-not-disturb");
+    const mutedByStatus = availabilityPolicy(userStatus).suppressAutomaticMedia;
+    void selectUserStatus(mutedByStatus ? "available" : "do-not-disturb");
   };
   const attachRemoteAudio = (track: RemoteAudioTrack) => {
     if (window.AudioContext) {
@@ -769,6 +802,8 @@ export function OfficeApp() {
       });
       const result = await response.json() as { user?: AuthUser; error?: string };
       if (!response.ok || !result.user) throw new Error(result.error ?? "Could not sign in.");
+      positionStorageEpochRef.current += 1;
+      clearLastOfficePositions();
       setInitialLobbyLoading(true);
       setAuthUser(result.user);
       setAuthPassword("");
@@ -831,7 +866,7 @@ export function OfficeApp() {
     } finally { setNicknameSaving(false); }
   };
   const nicknameEditor = <form className="nickname-settings" onSubmit={(event) => { event.preventDefault(); void saveNickname(); }}><label htmlFor="nickname-setting">Nickname <span>(optional)</span></label><div><input id="nickname-setting" type="text" maxLength={32} autoComplete="nickname" value={nicknameDraft} onChange={(event) => { setNicknameDraft(event.target.value); setNicknameSaved(false); setNicknameError(null); }} placeholder={authUser?.username ?? "Choose a nickname"} /><button type="submit" className="lobby-button" disabled={nicknameSaving || nicknameDraft === (authUser?.nickname ?? "")}>{nicknameSaving ? "Saving…" : "Save"}</button></div><small>Others will see this name. Leave it blank to show your username.</small>{nicknameError && <small className="auth-error" role="alert">{nicknameError}</small>}{nicknameSaved && <small className="nickname-saved" role="status">Nickname updated.</small>}</form>;
-  const profileDialog = profileDialogOpen && <div className="profile-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileDialogOpen(false); }}><section className="profile-dialog profile-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title"><header className="profile-dialog-header"><div><span className="eyebrow">YOUR ACCOUNT</span><h2 id="profile-dialog-title">Profile</h2></div><button type="button" className="icon-button" aria-label="Close profile" onClick={() => setProfileDialogOpen(false)}><FeatherIcon name="close" size={17} /></button></header><div className="profile-dialog-content"><div className="profile-edit-identity"><span className="character-account-avatar">{(authUser?.username ?? "U").slice(0, 1).toUpperCase()}</span><div><strong>{authUser?.username}</strong><small>{authUser?.role}</small></div></div>{nicknameEditor}</div></section></div>;
+  const profileDialog = profileDialogOpen && createPortal(<div className="profile-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileDialogOpen(false); }}><section className="profile-dialog profile-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title"><header className="profile-dialog-header"><div><span className="eyebrow">YOUR ACCOUNT</span><h2 id="profile-dialog-title">Profile</h2></div><button type="button" className="icon-button" aria-label="Close profile" onClick={() => setProfileDialogOpen(false)}><FeatherIcon name="close" size={17} /></button></header><div className="profile-dialog-content"><div className="profile-edit-identity"><span className="character-account-avatar">{(authUser?.username ?? "U").slice(0, 1).toUpperCase()}</span><div><strong>{authUser?.username}</strong><small>{authUser?.role}</small></div></div>{nicknameEditor}</div></section></div>, document.body);
 
   const uploadPersonalAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
@@ -1069,35 +1104,44 @@ export function OfficeApp() {
     }
   };
 
-  const syncLocalVideoTiles = (room: LiveKitRoomInstance, publication?: LocalTrackPublication) => {
-    const activePublications = [...room.localParticipant.videoTrackPublications.values()].filter((publication) => publication.track && !publication.isMuted);
-    const localTiles: VideoTileItem[] = activePublications.map((publication) => {
-        const track = publication.track as LocalVideoTrack;
-        const source = String(publication.source ?? track.source).toLowerCase();
-        const screen = source.includes("screen");
-        return { key: mediaTileKey(room.name, "local", String(publication.source ?? track.source)), track, label: screen ? "Screen share" : "Camera", local: true, username: authUser?.username.toLocaleLowerCase() ?? "", source: screen ? "screen" : "camera" };
-      });
-    setVideoTiles((tiles) => [...tiles.filter((tile) => !tile.local), ...localTiles]);
-    const publishedTile = publishedVideoTile(localTiles, publication?.videoTrack);
-    if (publishedTile) {
-      setFocusedVideoKey(publishedTile.key);
-      setVideoPopupOpen(true);
+  const switchCameraDevice = async (deviceId: string) => {
+    const previousPreferences = readMediaDevicePreferences();
+    const nextDeviceId = deviceId || "default";
+    const rooms = [liveKitRoomRef.current, privateLiveKitRoomRef.current, proximityLiveKitRoomRef.current]
+      .filter((room): room is LiveKitRoomInstance => Boolean(room));
+    try {
+      await Promise.all(rooms.map((room) => room.switchActiveDevice("videoinput", nextDeviceId, nextDeviceId !== "default")));
+      persistMediaDevicePreferences({ ...previousPreferences, videoinput: nextDeviceId });
+      setCameraDeviceId(nextDeviceId);
+    } catch (cause) {
+      await Promise.allSettled(rooms.map((room) => room.switchActiveDevice("videoinput", previousPreferences.videoinput, previousPreferences.videoinput !== "default")));
+      throw cause;
     }
-    setCameraEnabled(activePublications.some((publication) => String(publication.source ?? publication.track?.source).toLowerCase().includes("camera")));
-    setScreenShareEnabled(activePublications.some((publication) => String(publication.source ?? publication.track?.source).toLowerCase().includes("screen")));
   };
 
-  useEffect(() => {
-    if (videoTiles.length === 0) setVideoPopupOpen(false);
-  }, [videoTiles.length]);
+  const changeCameraBackgroundMode = async (mode: CameraBackgroundMode) => {
+    const previousMode = cameraBackgroundModeRef.current;
+    const { Track } = await import("livekit-client");
+    const rooms = [liveKitRoomRef.current, privateLiveKitRoomRef.current, proximityLiveKitRoomRef.current]
+      .filter((room): room is LiveKitRoomInstance => Boolean(room));
+    const tracks = rooms.map((room) => room.localParticipant.getTrackPublication(Track.Source.Camera)?.track)
+      .filter((track): track is LocalVideoTrack => Boolean(track && track.kind === Track.Kind.Video));
+    try {
+      await Promise.all(tracks.map((track) => applyCameraBackgroundMode(track, mode)));
+      saveCameraBackgroundMode(mode);
+      cameraBackgroundModeRef.current = mode;
+      setCameraBackgroundMode(mode);
+    } catch (cause) {
+      await Promise.allSettled(tracks.map((track) => applyCameraBackgroundMode(track, previousMode)));
+      throw cause;
+    }
+  };
 
-  useEffect(() => {
-    if (!videoPopupOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setVideoPopupOpen(false); };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [videoPopupOpen]);
-
+  const syncLocalMediaControls = (room: LiveKitRoomInstance) => {
+    const publications = [...room.localParticipant.videoTrackPublications.values()].filter((publication) => publication.track && !publication.isMuted);
+    setCameraEnabled(publications.some((publication) => String(publication.source ?? publication.track?.source).toLowerCase().includes("camera")));
+    setScreenShareEnabled(publications.some((publication) => String(publication.source ?? publication.track?.source).toLowerCase().includes("screen")));
+  };
   const getProximityAudioFade = (username: string) => {
     const local = localSessionIdRef.current ? playersRef.current.get(localSessionIdRef.current) : undefined;
     const onlinePlayers = [...playersRef.current.values()].filter((player) => player.presence === "online");
@@ -1157,6 +1201,7 @@ export function OfficeApp() {
       window.history.pushState({ officeId: office.id }, "", `/office/${office.id}`);
     }
     setRoutePath(window.location.pathname);
+    travel.reset();
     setActiveOffice((current) => current?.id === office.id ? current : office);
   };
 
@@ -1170,6 +1215,9 @@ export function OfficeApp() {
     setMapZoneDrawing(false);
     setMapZoneArea(null);
     setSelectedMapZoneId(null);
+    setMapBuildingPickerOpen(false);
+    setSelectedMapBuildingAsset(null);
+    setSelectedModifyPropId(null);
     setModifyPropsOpen(false);
   };
 
@@ -1250,10 +1298,13 @@ export function OfficeApp() {
     if (!authUser || !activeOffice) { setOfficeMapLayout(null); setMapEditBaseline(null); return; }
     let cancelled = false;
     setOfficeMapLayout(null);
+    setMapConfigVersion(1);
     void fetch(`${endpoint}/offices/${activeOffice.id}/map`, { credentials: "include" })
       .then(async (response) => {
-        const result = await response.json() as { config?: unknown };
-        if (response.ok && !cancelled && result.config) setOfficeMapLayout(readRoomLayout(result.config));
+        const result = await response.json() as { config?: unknown; configVersion?: number };
+        if (!response.ok || cancelled || !result.config || !Number.isInteger(result.configVersion) || result.configVersion! < mapConfigVersionRef.current) return;
+        setMapConfigVersion(result.configVersion!);
+        setOfficeMapLayout(readRoomLayout(result.config));
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
@@ -1261,10 +1312,21 @@ export function OfficeApp() {
 
   const toggleMicrophone = () => voiceSessionRef.current?.setMuted(!selectedMicMuted);
   const toggleCamera = () => voiceSessionRef.current?.control(async (room) => {
-    await room.localParticipant.setCameraEnabled(!cameraEnabled, CAMERA_CAPTURE_720P30, {
+    const enable = !cameraEnabled;
+    await room.localParticipant.setCameraEnabled(enable, CAMERA_CAPTURE_720P30, {
       videoEncoding: { maxBitrate: CAMERA_MAX_BITRATE_BPS, maxFramerate: MEDIA_MAX_FRAMERATE_FPS },
       degradationPreference: MEDIA_DEGRADATION_PREFERENCE,
     });
+    if (enable && cameraBackgroundModeRef.current !== "off") {
+      const { Track } = await import("livekit-client");
+      const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+      if (track && track.kind === Track.Kind.Video) {
+        try { await applyCameraBackgroundMode(track as LocalVideoTrack, cameraBackgroundModeRef.current); }
+        catch (cause) {
+          setVoiceMediaNotice(cause instanceof Error ? cause.message : "Could not apply the camera background effect.");
+        }
+      }
+    }
   });
   const toggleScreenShare = () => voiceSessionRef.current?.control(async (room) => {
     await room.localParticipant.setScreenShareEnabled(!screenShareEnabled, SCREEN_CAPTURE_1080P30, {
@@ -1281,7 +1343,6 @@ export function OfficeApp() {
       setProximityVoiceConnected(state.connected && state.target?.kind === "proximity");
       setVoiceMuted(state.muted); setPrivateVoiceMuted(state.muted); setProximityVoiceMuted(state.muted);
       setVoiceError(state.error?.message ?? null);
-      setVoiceBusy(state.busy);
       setVoiceRetryExhausted(state.retryExhausted);
     },
     roomChanged: (room, target) => {
@@ -1304,7 +1365,6 @@ export function OfficeApp() {
           void room.switchActiveDevice("audiooutput", audioDevicePreferencesRef.current.outputDeviceId).catch((cause) => console.warn("Could not apply the saved speaker.", cause));
         }
       }
-      setVideoTiles([]); setCameraEnabled(false); setScreenShareEnabled(false);
       if (room) {
         const refresh = () => reportVoiceActivity(room);
         const events = ["participantConnected", "participantDisconnected", "trackPublished", "trackUnpublished", "trackMuted", "trackUnmuted", "localTrackPublished", "localTrackUnpublished"] as RoomEvent[];
@@ -1312,14 +1372,15 @@ export function OfficeApp() {
         voiceActivityRoomCleanupRef.current = () => { for (const event of events) room.off(event, refresh); };
         refresh();
       } else reportVoiceActivity(null);
+      setCameraEnabled(false); setScreenShareEnabled(false);
     },
     speakersChanged: updateVoiceRoomSpeakers,
     localTracksChanged: (room, publication) => {
-      syncLocalVideoTiles(room, publication);
+      syncLocalMediaControls(room);
       reportVoiceActivity(room);
       if (publication?.source === VOICE_MICROPHONE_SOURCE && publication.audioTrack) void configureNoiseReductionForTrack(room, publication.audioTrack);
     },
-    trackSubscribed: (voiceRoom, track, _publication, participant, target) => {
+    trackSubscribed: (_voiceRoom, track, _publication, participant, target) => {
       const username = voiceParticipantUsername(participant);
       if (track.kind === VOICE_AUDIO_KIND) {
         const audioTrack = track as RemoteAudioTrack;
@@ -1330,9 +1391,6 @@ export function OfficeApp() {
           updateProximityAudioVolumes();
         } else audioTrack.setVolume(participantAudioLevelsRef.current.get(username) ?? 1);
         attachRemoteAudio(audioTrack);
-      } else if (track.kind === VOICE_VIDEO_KIND) {
-        const screen = String(track.source).toLowerCase().includes("screen");
-        addRemoteVideoTile({ key: mediaTileKey(voiceRoom.name, participant.identity, String(track.source)), track: track as RemoteVideoTrack, label: screen ? `${username} · Screen` : username, local: false, username, source: screen ? "screen" : "camera" });
       }
     },
     trackUnsubscribed: (_room, track, participant) => {
@@ -1340,7 +1398,6 @@ export function OfficeApp() {
       if (proximityAudioTracksRef.current.get(participant.identity)?.track === track) proximityAudioTracksRef.current.delete(participant.identity);
       if (remoteAudioTracksRef.current.get(participant.identity)?.track === track) remoteAudioTracksRef.current.delete(participant.identity);
       track.detach().forEach(element => element.remove());
-      setVideoTiles(tiles => tiles.filter(tile => tile.track !== track));
     },
     mediaStopped: () => setVoiceMediaNotice(VOICE_MEDIA_STOPPED_LABEL),
   };
@@ -1348,7 +1405,7 @@ export function OfficeApp() {
   useEffect(() => {
     if (!activeOffice || !authUser) return;
     const session = createOfficeMediaSession({
-      initialMuted: voiceMutedIntentRef.current, previousTeardown: voiceTeardownRef.current,
+      initialMuted: availabilityPolicy(userStatusRef.current).suppressAutomaticMedia || voiceMutedIntentRef.current, previousTeardown: voiceTeardownRef.current,
       createRoom: createVoiceRoom,
       fetchToken: (target, signal) => fetchVoiceToken(endpoint, target, signal),
     }, voiceListener);
@@ -1356,7 +1413,7 @@ export function OfficeApp() {
     const suspend = () => session.suspend("browser");
     const resume = () => {
       roomRef.current?.send("request-spatial-state");
-      session.resume(resolveVoiceTarget(voiceTargetInputsRef.current), "browser");
+      session.resume(voiceTargetRef.current, "browser");
     };
     document.addEventListener("freeze", suspend);
     document.addEventListener("resume", resume);
@@ -1373,25 +1430,20 @@ export function OfficeApp() {
   }, [activeOffice?.id, authUser?.username, voiceRealtimeSessionKey]);
 
   useEffect(() => {
-    voiceTargetInputsRef.current = {
-      officeId: activeOffice?.id ?? null, sessionKey: voiceRealtimeSessionKey,
-      paused: appPaused || status !== "connected", meetingZoneId: meetingZoneActive ? meetingZoneId : null,
-      privateZoneId, proximityGroupId,
-    };
-    voiceSessionRef.current?.setTarget(resolveVoiceTarget(voiceTargetInputsRef.current));
-  }, [activeOffice?.id, authUser?.username, voiceRealtimeSessionKey, status, appPaused, meetingZoneActive, meetingZoneId, privateZoneId, proximityGroupId]);
-
-  useEffect(() => {
-    if (!appPaused) return;
-    heldKeysRef.current.clear();
-    sendMovementInput({ x: 0, z: 0, sprint: false });
-    roomRef.current?.send("auto-move-cancel", {});
-    roomRef.current?.send("follow-stop", {});
-    setVideoPopupOpen(false);
-    voiceSessionRef.current?.leave();
-  }, [appPaused]);
+    if (mediaSuppressed) {
+      voiceMutedIntentRef.current = true;
+      setWaveAlerts([]);
+      setFollowAlerts([]);
+    }
+    const admission = conversationAdmissionIntentRef.current.receive(conversation, voiceRealtimeSessionKey);
+    applyConversationMediaIntent(voiceSessionRef.current, conversationTarget, listening.effectiveMode, admission, mediaSuppressed);
+  }, [conversationTarget?.officeId, conversationTarget?.sessionKey, conversationTarget?.kind, conversationTarget?.id,
+    conversationTarget?.conversationId, conversationTarget?.conversationGeneration, conversationTarget?.roomIncarnationId, conversationTarget?.mode,
+    mediaSuppressed, listening.effectiveMode, conversationAdmitted, conversationKnown, conversation?.admissionLeaseId, voiceRealtimeSessionKey]);
 
   const signOut = () => {
+    positionStorageEpochRef.current += 1;
+    clearLastOfficePositions();
     voiceSessionRef.current?.dispose();
     privateZoneIdRef.current = null; setPrivateZoneId(null);
     proximityGroupIdRef.current = null;
@@ -1407,6 +1459,8 @@ export function OfficeApp() {
   };
 
   const returnToSignIn = () => {
+    positionStorageEpochRef.current += 1;
+    clearLastOfficePositions();
     voiceSessionRef.current?.dispose();
     privateZoneIdRef.current = null; setPrivateZoneId(null);
     proximityGroupIdRef.current = null;
@@ -1489,19 +1543,6 @@ export function OfficeApp() {
     return () => { disposed = true; };
   }, [authReady, connectionUsername]);
 
-  useEffect(() => {
-    if (!authUser || authUser.role !== "maintainer") return;
-    setAccountsLoading(true);
-    setAccountsLoadError(null);
-    void fetch(`${endpoint}/maintainer/users`, { credentials: "include" })
-      .then(async (response) => {
-        const result = await response.json() as { users?: ManagedAccount[]; error?: string };
-        if (!response.ok) throw new Error(result.error ?? "Could not load accounts.");
-        setAccounts(result.users ?? []);
-      })
-      .catch((cause) => setAccountsLoadError(cause instanceof Error ? cause.message : "Could not load accounts."))
-      .finally(() => setAccountsLoading(false));
-  }, [authUser, accountReloadToken]);
 
   const changePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setLobbyBusy(true); setAccountError(null);
@@ -1540,7 +1581,7 @@ export function OfficeApp() {
     let createdOffice: Office | null = null;
     let generatedLayout: RoomLayout;
     try {
-      generatedLayout = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: createOfficePeoplePerTeam, teamCount: generatorTeamCount, seed: Math.floor(Math.random() * 0x1_0000_0000) }).layout;
+      generatedLayout = createCampusOfficeDraft({ totalPeople: generatorTotalPeople, peoplePerTeam: createOfficePeoplePerTeam, teamCount: generatorTeamCount, seed: Math.floor(Math.random() * 0x1_0000_0000) }, createOfficeInteriors).layout;
     } catch (cause) {
       setLobbyError(cause instanceof Error ? cause.message : "Check the team and people counts.");
       return;
@@ -1737,16 +1778,44 @@ export function OfficeApp() {
   const placeOfficeProp = (asset: RoomLayoutProp["asset"], position: { x: number; z: number; elevation?: number }) => {
     const definition = ROOM_PROP_CATALOG.find((item) => item.asset === asset);
     if (!definition) return;
-    const prop: RoomLayoutProp = { id: `prop-${crypto.randomUUID()}`, asset, x: Math.max(-mapDimensions.width / 2 + definition.width / 2, Math.min(mapDimensions.width / 2 - definition.width / 2, position.x)), z: Math.max(-mapDimensions.depth / 2 + definition.depth / 2, Math.min(mapDimensions.depth / 2 - definition.depth / 2, position.z)), rotation: 0, collision: definition.collision, width: definition.width, depth: definition.depth, ...(position.elevation && position.elevation > 0 ? { elevation: position.elevation } : {}) };
-    setModifyPropsDraft((current) => [...current, prop]);
-    setSelectedModifyPropId(prop.id);
+    const id = `prop-${crypto.randomUUID()}`;
+    const x = Math.max(-mapDimensions.width / 2 + definition.width / 2, Math.min(mapDimensions.width / 2 - definition.width / 2, position.x));
+    const z = Math.max(-mapDimensions.depth / 2 + definition.depth / 2, Math.min(mapDimensions.depth / 2 - definition.depth / 2, position.z));
+    setModifyPropsDraft((current) => {
+      // Resolve height against the final clamped point and latest draft. This
+      // keeps stacked shelf/tabletop placement from saving a stale preview Y.
+      const support = roomPropPlacementSupport(current, asset, x, z);
+      if (definition.placementClass === "small" && !support) return current;
+      const elevation = support?.elevation ?? 0;
+      const prop: RoomLayoutProp = { id, asset, x, z, rotation: 0, collision: definition.collision, width: definition.width, depth: definition.depth, ...(elevation > 0 ? { elevation } : {}) };
+      return [...current, prop];
+    });
+    setSelectedModifyPropId(id);
+  };
+
+  const placeMapBuilding = (asset: RoomLayoutProp["asset"], position: { x: number; z: number; elevation?: number }) => {
+    const definition = ROOM_PROP_CATALOG.find((item) => item.asset === asset && (item.editorRole === "building-prefab" || item.editorRole === "map-component"));
+    if (!definition) return;
+    const id = `map-building-${crypto.randomUUID()}`;
+    const x = Math.max(-mapDimensions.width / 2 + definition.width / 2, Math.min(mapDimensions.width / 2 - definition.width / 2, position.x));
+    const z = Math.max(-mapDimensions.depth / 2 + definition.depth / 2, Math.min(mapDimensions.depth / 2 - definition.depth / 2, position.z));
+    setOfficeMapLayout((layout) => {
+      if (!layout) return layout;
+      const support = roomPropPlacementSupport(layout.props, asset, x, z);
+      const elevation = support?.elevation ?? 0;
+      const prop: RoomLayoutProp = { id, asset, x, z, rotation: 0, collision: definition.collision, width: definition.width, depth: definition.depth, ...(elevation > 0 ? { elevation } : {}) };
+      return { ...layout, props: [...layout.props, prop] };
+    });
+    setSelectedModifyPropId(id);
   };
 
   const moveOfficeProp = (id: string, position: { x: number; z: number; elevation?: number }) => {
     setModifyPropsDraft((current) => current.map((prop) => {
       if (prop.id !== id) return prop;
       const support = roomPropPlacementSupport(current.filter((item) => item.id !== id), prop.asset, position.x, position.z, prop.rotation);
-      const elevation = position.elevation ?? support?.elevation ?? 0;
+      const definition = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
+      if (definition?.placementClass === "small" && !support) return prop;
+      const elevation = support?.elevation ?? 0;
       return { ...prop, x: position.x, z: position.z, ...(elevation > 0 ? { elevation } : { elevation: undefined }) };
     }));
   };
@@ -1763,13 +1832,64 @@ export function OfficeApp() {
       const maxCell = Math.max(0, Math.floor(boundary - footprint));
       return Math.min(maxCell, Math.max(0, Math.round(center - half))) + half;
     };
+    const x = snapCenter(prop.x + mapDimensions.width / 2, footprintWidth, mapDimensions.width) - mapDimensions.width / 2;
+    const z = snapCenter(prop.z + mapDimensions.depth / 2, footprintDepth, mapDimensions.depth) - mapDimensions.depth / 2;
+    const wasElevated = (prop.elevation ?? 0) > 0.001;
+    const support = roomPropPlacementSupport(current.filter((item) => item.id !== id), prop.asset, x, z, rotation);
+    // Keep supported props on their table/shelf after rotation. If the rotated
+    // footprint no longer fits, leave the prop unchanged instead of saving an
+    // invalid overhang or silently dropping it to the floor.
+    if (wasElevated && !support) return prop;
+    const elevation = support?.elevation ?? 0;
     return {
       ...prop,
       rotation,
-      x: snapCenter(prop.x + mapDimensions.width / 2, footprintWidth, mapDimensions.width) - mapDimensions.width / 2,
-      z: snapCenter(prop.z + mapDimensions.depth / 2, footprintDepth, mapDimensions.depth) - mapDimensions.depth / 2,
+      x,
+      z,
+      ...(elevation > 0 ? { elevation } : { elevation: undefined }),
     };
   }));
+
+  const moveMapBuilding = (id: string, position: { x: number; z: number; elevation?: number }) => setOfficeMapLayout((layout) => {
+    if (!layout) return layout;
+    return { ...layout, props: layout.props.map((prop) => {
+      if (prop.id !== id) return prop;
+      const support = roomPropPlacementSupport(layout.props.filter((item) => item.id !== id), prop.asset, position.x, position.z, prop.rotation);
+      const definition = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
+      if (definition?.placementClass === "small" && !support) return prop;
+      const elevation = support?.elevation ?? 0;
+      return { ...prop, x: position.x, z: position.z, ...(elevation > 0 ? { elevation } : { elevation: undefined }) };
+    }) };
+  });
+
+  const rotateMapBuilding = (id: string) => setOfficeMapLayout((layout) => {
+    if (!layout) return layout;
+    return { ...layout, props: layout.props.map((prop) => {
+      if (prop.id !== id) return prop;
+      const rotation = (prop.rotation + Math.PI / 2) % (Math.PI * 2);
+      const cos = Math.abs(Math.cos(rotation));
+      const sin = Math.abs(Math.sin(rotation));
+      const footprintWidth = prop.width * cos + prop.depth * sin;
+      const footprintDepth = prop.depth * cos + prop.width * sin;
+      const snapCenter = (center: number, footprint: number, boundary: number) => {
+        const half = footprint / 2;
+        const maxCell = Math.max(0, Math.floor(boundary - footprint));
+        return Math.min(maxCell, Math.max(0, Math.round(center - half))) + half;
+      };
+      const x = snapCenter(prop.x + mapDimensions.width / 2, footprintWidth, mapDimensions.width) - mapDimensions.width / 2;
+      const z = snapCenter(prop.z + mapDimensions.depth / 2, footprintDepth, mapDimensions.depth) - mapDimensions.depth / 2;
+      const wasElevated = (prop.elevation ?? 0) > 0.001;
+      const support = roomPropPlacementSupport(layout.props.filter((item) => item.id !== id), prop.asset, x, z, rotation);
+      if (wasElevated && !support) return prop;
+      const elevation = support?.elevation ?? 0;
+      return { ...prop, rotation, x, z, ...(elevation > 0 ? { elevation } : { elevation: undefined }) };
+    }) };
+  });
+
+  const deleteMapBuilding = (id: string) => {
+    setOfficeMapLayout((layout) => layout ? { ...layout, props: layout.props.filter((prop) => prop.id !== id) } : layout);
+    setSelectedModifyPropId((current) => current === id ? null : current);
+  };
   const deleteOfficeProp = (id: string) => {
     setModifyPropsDraft((current) => current.filter((prop) => prop.id !== id));
     setSelectedModifyPropId((current) => current === id ? null : current);
@@ -2037,37 +2157,25 @@ export function OfficeApp() {
     setSelectedMapZoneId(null);
   };
 
-  const claimDeskZone = async (zoneId: string) => {
-    if (!activeOffice || deskClaimBusy) return;
-    setDeskClaimBusy(true);
-    setDeskClaimingZoneId(zoneId);
-    setDeskClaimError(null);
-    try {
-      const response = await fetch(`${endpoint}/offices/${activeOffice.id}/desk-zones/${encodeURIComponent(zoneId)}/claim`, { method: "POST", credentials: "include" });
-      const result = await response.json().catch(() => null) as { config?: unknown; error?: string } | null;
-      if (!result) throw new Error("Desk claiming is temporarily unavailable. Please try again shortly.");
-      if (!response.ok || !result.config) throw new Error(result.error ?? "Could not claim this desk.");
+  const changeDeskOwnership = async (zoneId: string, action: "claim" | "unclaim") => {
+    const desk = officeDesks.deskForZone(zoneId);
+    if (!desk || deskClaimBusy) { void officeDesks.refresh(); return; }
+    const result = await officeDesks[action](desk.id);
+    if (!result || result.configVersion < mapConfigVersionRef.current) return;
+    recordMapServerVersion(result.configVersion);
+    if (!mapEditModeRef.current || !mapDraftDirtyRef.current && !mapCommitInFlightRef.current) {
+      setMapConfigVersion(result.configVersion);
       setOfficeMapLayout(readRoomLayout(result.config));
-      setSelectedDeskZoneId(zoneId);
-    } catch (cause) { setDeskClaimError(cause instanceof Error ? cause.message : "Could not claim this desk."); }
-    finally { setDeskClaimBusy(false); setDeskClaimingZoneId(null); }
+    }
+    setSelectedDeskZoneId(action === "claim" ? zoneId : null);
   };
-
-  const unclaimDeskZone = async (zoneId: string) => {
-    if (!activeOffice || deskClaimBusy) return;
-    setDeskClaimBusy(true);
-    setDeskClaimingZoneId(zoneId);
-    setDeskClaimError(null);
-    try {
-      const response = await fetch(`${endpoint}/offices/${activeOffice.id}/desk-zones/${encodeURIComponent(zoneId)}/unclaim`, { method: "POST", credentials: "include" });
-      const result = await response.json().catch(() => null) as { config?: unknown; error?: string } | null;
-      if (!result) throw new Error("Desk management is temporarily unavailable. Please try again shortly.");
-      if (!response.ok || !result.config) throw new Error(result.error ?? "Could not unclaim this desk.");
-      setOfficeMapLayout(readRoomLayout(result.config));
-      setSelectedDeskZoneId(null);
-      roomRef.current?.send("zone-lock", { zoneId, locked: false });
-    } catch (cause) { setDeskClaimError(cause instanceof Error ? cause.message : "Could not unclaim this desk."); }
-    finally { setDeskClaimBusy(false); setDeskClaimingZoneId(null); }
+  const claimDeskZone = (zoneId: string) => changeDeskOwnership(zoneId, "claim");
+  const unclaimDeskZone = (zoneId: string) => changeDeskOwnership(zoneId, "unclaim");
+  const returnToDesk = () => {
+    if (!officeDesks.ownDesk || status !== "connected" || appPausedRef.current || !travel.expectDestination(null)) return;
+    heldKeysRef.current.clear();
+    lockedMovementRef.current = null;
+    roomRef.current?.send("return-to-desk", { deskId: officeDesks.ownDesk.id });
   };
 
   const sendOfficeInvite = async (event: FormEvent<HTMLFormElement>) => {
@@ -2162,10 +2270,11 @@ export function OfficeApp() {
     let inputTimer: number | undefined;
     let rejoinTimer: number | undefined;
     let disposeReconnection: (() => void) | undefined;
+    const positionStorageEpoch = positionStorageEpochRef.current;
     const sendHeldMovement = () => {
       const room = roomRef.current;
       if (!room) return;
-      if (appPausedRef.current || mapEditModeRef.current || modifyPropsOpenRef.current) { lockedMovementRef.current = null; sendMovementInput({ x: 0, z: 0, sprint: false }); return; }
+      if (workspaceInputBlockedRef.current || isWorkspaceInputBlocked(null) || appPausedRef.current || mapEditModeRef.current || modifyPropsOpenRef.current) { lockedMovementRef.current = null; sendMovementInput({ x: 0, z: 0, sprint: false }); return; }
       const localSessionId = localSessionIdRef.current;
       const localPlayer = localSessionId ? playersRef.current.get(localSessionId) : undefined;
       const movement = resolveHeldMovement({
@@ -2177,10 +2286,15 @@ export function OfficeApp() {
       lockedMovementRef.current = movement.lockedTurn;
       sendMovementInput(movement.input);
     };
+    const persistCurrentOfficePosition = () => {
+      if (positionStorageEpoch !== positionStorageEpochRef.current) return;
+      const localPlayer = localSessionIdRef.current ? playersRef.current.get(localSessionIdRef.current) : undefined;
+      if (localPlayer) saveLastOfficePosition(connectionUsername, connectionOfficeId, { x: localPlayer.x, z: localPlayer.z });
+    };
+    window.addEventListener("pagehide", persistCurrentOfficePosition);
     sendHeldMovementRef.current = sendHeldMovement;
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target;
-      if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      if (isWorkspaceInputBlocked(event.target)) { heldKeysRef.current.clear(); lockedMovementRef.current = null; sendHeldMovement(); return; }
       if (event.code === "KeyZ" && !event.repeat && !appPausedRef.current && !mapEditModeRef.current && !modifyPropsOpenRef.current) {
         event.preventDefault();
         roomRef.current?.send("dance", { toggle: true });
@@ -2210,7 +2324,11 @@ export function OfficeApp() {
     const connect = async () => {
       try {
         intentionalLeaveRef.current = false;
-        const room = await client.joinOrCreate<OfficeStateType>("office", { officeId: connectionOfficeId }, OfficeState);
+        const lastPosition = readLastOfficePosition(connectionUsername, connectionOfficeId);
+        const room = await client.joinOrCreate<OfficeStateType>("office", {
+          officeId: connectionOfficeId,
+          ...(lastPosition ? { lastPosition } : {}),
+        }, OfficeState);
         if (disposed) {
           await room.leave();
           return;
@@ -2270,7 +2388,8 @@ export function OfficeApp() {
               sittingPropId: entry.sittingPropId || "",
               dancing: Boolean(entry.dancing),
               handRaised: Boolean(entry.handRaised),
-              status: entry.status === "do-not-disturb" || entry.status === "in-meeting" || entry.status === "toilet" || entry.status === "lunch" || entry.status === "coffee-break" ? entry.status : "available",
+              status: USER_STATUSES.includes(entry.status as UserStatus) ? entry.status as UserStatus : "available",
+              customStatusText: entry.customStatusText, customStatusEmoji: entry.customStatusEmoji, customStatusExpiresAtMs: entry.customStatusExpiresAtMs,
               presence: entry.presence === "away" ? "away" : "online",
               nearby: Boolean(localPlayer && sessionId !== localSessionIdRef.current && entry.presence === "online" && nearbySessionIdsRef.current.has(sessionId)),
               microphoneEnabled: Boolean(entry.microphoneEnabled),
@@ -2280,8 +2399,14 @@ export function OfficeApp() {
           }
           playersRef.current = snapshot;
           const localSnapshot = localSessionIdRef.current ? snapshot.get(localSessionIdRef.current) : undefined;
-          setInboundAudioMuted(localSnapshot?.status === "do-not-disturb" || localSnapshot?.status === "in-meeting");
-          setUserStatus(localSnapshot?.status ?? "available");
+          const now = performance.now();
+          if (localSnapshot && now - lastPositionSavedAtRef.current >= 1000 && positionStorageEpoch === positionStorageEpochRef.current) {
+            saveLastOfficePosition(connectionUsername, connectionOfficeId, { x: localSnapshot.x, z: localSnapshot.z });
+            lastPositionSavedAtRef.current = now;
+          }
+          setInboundAudioMuted(availabilityPolicy(localSnapshot?.status ?? "available").suppressAutomaticMedia);
+          userStatusRef.current = localSnapshot?.status ?? "available";
+          setUserStatus(userStatusRef.current);
           const storedPet = window.localStorage.getItem(`gammyverse.pet.${connectionUsername}`) ?? "";
           const snapshotPet = localSnapshot?.petId ?? "";
           const localPet = KENNEY_PET_IDS.includes(snapshotPet as KenneyPetId)
@@ -2290,15 +2415,8 @@ export function OfficeApp() {
           localPetIdRef.current = localPet;
           setActivePetId(localPet);
           updateProximityAudioVolumes();
-          const rosterLocal = localSessionIdRef.current ? snapshot.get(localSessionIdRef.current) : undefined;
-          const inRosterProximity = new Set<string>();
-          if (rosterLocal) {
-            for (const [sessionId, player] of snapshot) {
-              if (sessionId !== localSessionIdRef.current && player.presence === "online" && Math.hypot(rosterLocal.x - player.x, rosterLocal.z - player.z) <= CAMPUS_WORLD.proximityRadius) inRosterProximity.add(sessionId);
-            }
-          }
           const signature = [...snapshot]
-            .map(([id, player]) => `${id}:${player.presence}:${player.nearby}:${inRosterProximity.has(id)}:${officeMapLayoutRef.current ? voiceRosterAreaKey(player, officeMapLayoutRef.current, id === localSessionIdRef.current ? voiceTargetInputsRef.current.meetingZoneId ?? privateZoneIdRef.current : null) : "lobby"}:${player.displayName}:${player.isMaintainer}:${player.characterId}:${player.petId}:${player.weaponId}:${player.vehicleId}:${player.vehicleMode}:${player.vehiclePropId}:${player.vehiclePropX}:${player.vehiclePropZ}:${player.vehiclePropRotation}:${player.status}:${player.handRaised}:${player.microphoneEnabled}:${player.cameraEnabled}:${player.screenShareEnabled}`)
+            .map(([id, player]) => `${id}:${player.presence}:${player.nearby}:${player.isMaintainer}:${player.microphoneEnabled}:${player.cameraEnabled}:${player.screenShareEnabled}:${player.displayName}:${player.characterId}:${player.petId}:${player.weaponId}:${player.vehicleId}:${player.vehicleMode}:${player.vehiclePropId}:${player.vehiclePropX}:${player.vehiclePropZ}:${player.vehiclePropRotation}:${player.sittingPropId}:${player.status}:${player.customStatusText}:${player.customStatusEmoji}:${player.customStatusExpiresAtMs}:${player.handRaised}`)
             .sort()
             .join("|");
           if (signature !== peopleSignatureRef.current) {
@@ -2339,6 +2457,7 @@ export function OfficeApp() {
           }
         });
         room.onMessage("follow-alert", (payload: unknown) => {
+          if (availabilityPolicy(userStatusRef.current).suppressInterruptions) return;
           if (typeof payload !== "object" || payload === null || !("followerSessionId" in payload) || typeof payload.followerSessionId !== "string" || !("followerName" in payload) || typeof payload.followerName !== "string") return;
           if (!inboundAudioMutedRef.current) playSocialNotificationSound("follow");
           setFollowAlerts((current) => [...current.filter((alert) => alert.followerSessionId !== payload.followerSessionId), { followerSessionId: payload.followerSessionId as string, followerName: payload.followerName as string }].slice(-3));
@@ -2348,6 +2467,7 @@ export function OfficeApp() {
           setFollowAlerts((current) => current.filter((alert) => alert.followerSessionId !== payload.followerSessionId));
         });
         room.onMessage("wave-notification", (payload: unknown) => {
+          if (availabilityPolicy(userStatusRef.current).suppressInterruptions) return;
           if (typeof payload !== "object" || payload === null || !("senderSessionId" in payload) || typeof payload.senderSessionId !== "string" || !("senderName" in payload) || typeof payload.senderName !== "string") return;
           if (!inboundAudioMutedRef.current) playSocialNotificationSound("wave");
           setWaveAlerts((current) => [...current.filter((alert) => alert.senderSessionId !== payload.senderSessionId), { senderSessionId: payload.senderSessionId as string, senderName: payload.senderName as string }].slice(-3));
@@ -2372,34 +2492,18 @@ export function OfficeApp() {
           }
         });
         room.onMessage("office-map", (payload: unknown) => {
-          if (typeof payload === "object" && payload !== null && "config" in payload) {
-            // Preserve edits in this editor's private draft. A successful save
-            // is applied from the HTTP response after the server validates it.
-            if (!mapEditModeRef.current || !mapDraftDirtyRef.current && !mapCommitInFlightRef.current) {
-              const incomingLayout = readRoomLayout(payload.config);
-              setOfficeMapLayout(incomingLayout);
-              if (mapEditModeRef.current) setMapEditBaseline(incomingLayout);
-            }
+          if (typeof payload !== "object" || payload === null || !("config" in payload) || !("configVersion" in payload)
+            || typeof payload.configVersion !== "number" || !Number.isInteger(payload.configVersion)
+            || payload.configVersion < mapConfigVersionRef.current) return;
+          // Preserve the editor's private draft while tracking the current server revision.
+          recordMapServerVersion(payload.configVersion);
+          if (!mapEditModeRef.current || !mapDraftDirtyRef.current && !mapCommitInFlightRef.current) {
+            setMapConfigVersion(payload.configVersion);
+            const incomingLayout = readRoomLayout(payload.config);
+            setOfficeMapLayout(incomingLayout);
+            if (mapEditModeRef.current) setMapEditBaseline(incomingLayout);
           }
-        });
-        room.onMessage("desk-zone-updated", (payload: unknown) => {
-          if (typeof payload !== "object" || payload === null || !("zoneId" in payload) || typeof payload.zoneId !== "string"
-            || !("name" in payload) || typeof payload.name !== "string"
-            || !("ownerUsername" in payload) || (payload.ownerUsername !== null && typeof payload.ownerUsername !== "string")) return;
-          if (mapEditModeRef.current && (mapDraftDirtyRef.current || mapCommitInFlightRef.current)) return;
-          const { zoneId, name, ownerUsername } = payload as { zoneId: string; name: string; ownerUsername: string | null };
-          const applyZoneUpdate = (layout: RoomLayout | null) => layout ? {
-            ...layout,
-            zones: layout.zones.map((zone) => {
-              if (zone.id !== zoneId || zone.kind !== "private") return zone;
-              const updated = { ...zone, name };
-              if (ownerUsername) updated.ownerUsername = ownerUsername;
-              else delete updated.ownerUsername;
-              return updated;
-            }),
-          } : layout;
-          setOfficeMapLayout(applyZoneUpdate);
-          if (mapEditModeRef.current) setMapEditBaseline(applyZoneUpdate);
+          void refreshDesksRef.current();
         });
         room.onMessage("map-edit-lock", (payload: unknown) => {
           if (typeof payload !== "object" || payload === null || !("editorUsername" in payload)) return;
@@ -2485,14 +2589,14 @@ export function OfficeApp() {
           autoMoveNoticeTimerRef.current = window.setTimeout(() => setAutoMoveNotice(null), 1800);
         });
         room.onMessage("auto-move-status", (payload: unknown) => {
-          autoMoveStatusRevisionRef.current += 1;
+          travel.receiveStatus(payload);
           if (typeof payload !== "object" || payload === null || !("status" in payload) || typeof payload.status !== "string") return;
           if (userStatusRef.current === "toilet" && (payload.status === "unreachable" || payload.status === "blocked")) setStatusTravelError("Could not reach the restroom. Check that its entrance is open and the route is walkable.");
           if (payload.status === "cancelled") { setAutoMoveNotice(null); return; }
           if (payload.status === "arrived" && connectionUsername) {
             window.localStorage.removeItem(`gammyverse.vehicle.${connectionUsername}`);
           }
-          let message = payload.status === "started" ? "Moving automatically" : payload.status === "arrived" ? ("teleported" in payload && payload.teleported === true ? "Warped past an obstruction" : "Arrived") : "Can't reach that spot";
+          let message = payload.status === "started" ? "Moving automatically" : payload.status === "arrived" ? ("teleported" in payload && payload.teleported === true ? "Teleported" : "Arrived") : "Can't reach that spot";
           if (payload.status === "started" && "randomVehicle" in payload && payload.randomVehicle === true && "vehicleId" in payload && typeof payload.vehicleId === "string" && KENNEY_VEHICLE_IDS.includes(payload.vehicleId as KenneyVehicleId)) {
             message = `Driving ${vehicleLabel(payload.vehicleId as KenneyVehicleId)}`;
           }
@@ -2514,7 +2618,7 @@ export function OfficeApp() {
           meetingZoneActiveRef.current = false;
           privateZoneIdRef.current = null;
           setPrivateZoneId(null);
-          voiceTargetInputsRef.current = { ...voiceTargetInputsRef.current, paused: true };
+          voiceTargetRef.current = null;
           voiceSessionRef.current?.suspend("realtime");
           setMeetingZoneActive(false);
           proximityGroupIdRef.current = null;
@@ -2616,6 +2720,8 @@ export function OfficeApp() {
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pagehide", persistCurrentOfficePosition);
+      persistCurrentOfficePosition();
       const room = roomRef.current;
       roomRef.current = null;
       if (room?.connection.isOpen) void room.leave();
@@ -2676,6 +2782,24 @@ export function OfficeApp() {
     </main>{characterBusy && <FullScreenLoading label="Saving your character…" />}</>;
   }
 
+  const settingsDialog = settingsOpen && <OfficeSettingsDialog onClose={() => setSettingsOpen(false)}>
+        <div className="settings-dialog-body"><nav className="settings-section-nav" aria-label="Settings topics"><button type="button" className={settingsSection === "general" ? "active" : ""} aria-current={settingsSection === "general" ? "page" : undefined} onClick={() => setSettingsSection("general")}>General</button><button type="button" className={settingsSection === "sound" ? "active" : ""} aria-current={settingsSection === "sound" ? "page" : undefined} onClick={() => setSettingsSection("sound")}>Sound</button><button type="button" className={settingsSection === "camera" ? "active" : ""} aria-current={settingsSection === "camera" ? "page" : undefined} onClick={() => setSettingsSection("camera")}>Camera</button><button type="button" className={settingsSection === "permissions" ? "active" : ""} aria-current={settingsSection === "permissions" ? "page" : undefined} onClick={() => setSettingsSection("permissions")}>Permission</button><button type="button" className={settingsSection === "security" ? "active" : ""} aria-current={settingsSection === "security" ? "page" : undefined} onClick={() => setSettingsSection("security")}>Security</button><button type="button" className={settingsSection === "theme" ? "active" : ""} aria-current={settingsSection === "theme" ? "page" : undefined} onClick={() => setSettingsSection("theme")}>Theme</button></nav>
+          <div className="settings-section-content">
+            {settingsSection === "general" && <OfficeGeneralSettings idleAnimationsEnabled={idleAnimationsEnabled} onIdleAnimationsChange={updateIdleAnimationsEnabled} />}
+            {settingsSection === "sound" && <SoundSettings inputDeviceId={audioDevicePreferences.inputDeviceId} outputDeviceId={audioDevicePreferences.outputDeviceId} onInputDeviceChange={switchMicrophoneDevice} onOutputDeviceChange={switchSpeakerDevice} noiseReductionEnabled={noiseReductionEnabled} noiseReductionStatus={noiseReductionStatus} noiseReductionDetails={noiseReductionDetails} onNoiseReductionChange={updateNoiseReductionPreference} />}
+            {settingsSection === "camera" && <CameraSettings deviceId={cameraDeviceId} backgroundMode={cameraBackgroundMode} onDeviceChange={switchCameraDevice} onBackgroundModeChange={changeCameraBackgroundMode} />}
+            {settingsSection === "permissions" && <section aria-labelledby="permissions-title"><span className="eyebrow">DEVICE ACCESS</span><h3 id="permissions-title">Permissions</h3><p className="settings-intro">Allow GAMVerse to use your microphone, camera, or screen when you choose those controls.</p>
+            {(["microphone", "camera"] as const).map((kind) => <div className="permission-row" key={kind}><div><strong>{kind === "microphone" ? "Microphone" : "Camera"}</strong><small className={`permission-state ${browserPermissions[kind]}`}>{browserPermissions[kind] === "unknown" ? "Status unavailable" : browserPermissions[kind]}</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission(kind)}>{permissionBusy === kind ? "Checking…" : browserPermissions[kind] === "denied" ? "Check again" : "Allow access"}</button></div>)}
+            <div className="permission-row"><div><strong>Screen sharing</strong><small>Browser asks each time you share</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission("screen")}>{permissionBusy === "screen" ? "Checking…" : "Check sharing"}</button></div>
+            {permissionMessage && <p className="permission-message" role="status">{permissionMessage}</p>}{screenPermissionResult && <p className="permission-message" role="status">{screenPermissionResult}</p>}
+            {(browserPermissions.microphone === "denied" || browserPermissions.camera === "denied") && <p className="permission-help">If access is blocked, open this site’s permissions from the browser address bar, allow the device, then select Check again.</p>}
+          </section>}
+            {settingsSection === "security" && <section aria-labelledby="security-title"><span className="eyebrow">ACCOUNT SECURITY</span><h3 id="security-title">Security</h3><p className="settings-intro">Update the password you use to sign in to GAMVerse.</p><button type="button" className="settings-menu-row security-password-action" onClick={() => { setAccountError(null); setChangePasswordOpen(true); }}><span><strong>Change password</strong><small>Choose a new sign-in password</small></span><span aria-hidden="true">›</span></button></section>}
+            {settingsSection === "theme" && <OfficeThemeSettings theme={workspaceTheme.theme} onThemeChange={workspaceTheme.setTheme} />}
+          </div>
+        </div>
+      </OfficeSettingsDialog>;
+
   if (!activeOffice) {
     return (
       <>
@@ -2692,7 +2816,7 @@ export function OfficeApp() {
         {characterPanelMounted && <aside id="character-drawer" className={`character-drawer sidebar-transition${characterPanelOpen ? " is-open" : ""}`} aria-label="User account" aria-hidden={!characterPanelOpen} inert={!characterPanelOpen}>
           <header className="character-drawer-header"><div><span className="eyebrow">YOUR ACCOUNT</span><h2>Account & settings</h2></div></header>
           <section className="character-account" aria-label="Your account"><span className="character-account-avatar">{(authUser?.username ?? "U").slice(0, 1).toUpperCase()}</span><div className="character-account-name"><strong>{playerName({ displayName: authUser.username, isMaintainer: authUser.role === "maintainer" })}</strong><span>{authUser.role}</span></div></section>
-          <div className="user-settings-content"><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setCharacterPanelOpen(false); setProfileDialogOpen(true); }}><span><strong>Profile</strong><small>Edit your display name</small></span><span aria-hidden="true">›</span></button></section><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setAccountError(null); setChangePasswordOpen(true); }}><span><strong>Change password</strong><small>Update your sign-in password</small></span><span aria-hidden="true">›</span></button></section></div>
+          <div className="user-settings-content"><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setCharacterPanelOpen(false); setProfileDialogOpen(true); }}><span><strong>Profile</strong><small>Edit your display name</small></span><span aria-hidden="true">›</span></button></section><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setAccountError(null); setChangePasswordOpen(true); }}><span><strong>Change password</strong><small>Update your sign-in password</small></span><span aria-hidden="true">›</span></button></section><section className="user-settings-section"><button type="button" className="settings-menu-row" onClick={() => { setSettingsSection("general"); setPermissionMessage(null); setCharacterPanelOpen(false); setSettingsOpen(true); void refreshBrowserPermissions(); }}><span><strong>Settings</strong><small>General, sound, camera, permissions, theme</small></span><span aria-hidden="true">›</span></button></section></div>
           <footer className="character-drawer-footer"><button type="button" className="right-drawer-map-mode" aria-label={map2dViewActive ? "Switch to 3D view" : "Switch to 2D view"} onClick={() => map2dToggleRef.current()}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg><span>{map2dViewActive ? "Switch to 3D" : "Switch to 2D"}</span></button><button type="button" className="account-action signout" onClick={signOut}>Sign out</button></footer>
         </aside>}
         <section className="lobby-content">
@@ -2700,54 +2824,18 @@ export function OfficeApp() {
           {authUser.role === "maintainer" && <MaintainerSystemPanel endpoint={endpoint} />}
           {lobbyError && <p className="auth-error" role="alert">{lobbyError}</p>}
           {accountError && <p className="auth-error" role="alert">{accountError}</p>}
-          {createOfficeDialogOpen && <div className="manager-backdrop create-office-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !lobbyBusy) setCreateOfficeDialogOpen(false); }}><form className="manager-dialog create-office-dialog" role="dialog" aria-modal="true" aria-labelledby="create-office-title" onSubmit={(event) => void createOfficeAction(event)}>
-            <button type="button" className="manager-close" aria-label="Close" disabled={lobbyBusy} onClick={() => setCreateOfficeDialogOpen(false)}>×</button>
-            <span className="eyebrow">NEW WORKSPACE</span><h2 id="create-office-title">Create office</h2><p className="manager-owner">Set a name and team size. We’ll generate a campus map to fit.</p>
-            <label>Office name<input autoFocus required minLength={2} maxLength={64} value={officeName} onChange={(event) => setOfficeName(event.target.value)} placeholder="Office name" /></label>
-            <div className="create-office-generator-fields" aria-label="Campus size inputs">
-              <label>Total people<input type="number" min="1" max="4000" step="1" value={generatorTotalPeople} onChange={(event) => setGeneratorTotalPeople(Number(event.target.value))} /></label>
-              <label>Teams<input type="number" min="1" max="250" step="1" value={generatorTeamCount} onChange={(event) => setGeneratorTeamCount(Number(event.target.value))} /></label>
-            </div>
-            {createOfficeInputsValid ? <p className="map-zone-help create-office-derived-size">{createOfficePeoplePerTeam} people per team · {generatorTotalPeople} ÷ {generatorTeamCount}</p> : <p className="auth-error" role="alert">Total people must divide evenly across teams, with 1–16 people per team.</p>}
-            {lobbyError && <p className="auth-error" role="alert">{lobbyError}</p>}
-            <footer className="create-office-dialog-actions"><button className="lobby-button" type="button" disabled={lobbyBusy} onClick={() => setCreateOfficeDialogOpen(false)}>Cancel</button><button className="lobby-button primary" type="submit" disabled={lobbyBusy || !createOfficeInputsValid}>{lobbyBusy ? "Creating…" : "Create office & map"}</button></footer>
-          </form></div>}
-          <nav className="lobby-section-tabs" role="tablist" aria-label="Workspace sections">
-            <button data-tutorial-target="lobby-offices" type="button" role="tab" id="offices-tab" aria-selected={activeLobbyTab === "offices"} aria-controls="offices-panel" className={activeLobbyTab === "offices" ? "active" : ""} onClick={() => setActiveLobbyTab("offices")}>Offices <span>{offices.length}</span></button>
-            <button data-tutorial-target="lobby-invitations" type="button" role="tab" id="invitations-tab" aria-selected={activeLobbyTab === "invitations"} aria-controls="invitations-panel" className={activeLobbyTab === "invitations" ? "active" : ""} onClick={() => setActiveLobbyTab("invitations")}>Invitations <span>{invites.length}</span></button>
-            {authUser.role === "maintainer" && <>
-              <button type="button" role="tab" id="accounts-tab" aria-selected={activeLobbyTab === "accounts"} aria-controls="accounts-panel" className={activeLobbyTab === "accounts" ? "active" : ""} onClick={() => setActiveLobbyTab("accounts")}>Accounts <span>{accounts.length}</span></button>
-              <button type="button" role="tab" id="audit-tab" aria-selected={activeLobbyTab === "audit"} aria-controls="audit-panel" className={activeLobbyTab === "audit" ? "active" : ""} onClick={() => setActiveLobbyTab("audit")}>Audit</button>
-            </>}
-          </nav>
-          <div className="lobby-tab-content">
-            {activeLobbyTab === "offices" && <section id="offices-panel" role="tabpanel" aria-labelledby="offices-tab" className="lobby-panel"><div className="card-heading"><div><span className="eyebrow">OFFICES</span><h2>Your offices</h2></div><span className="count-chip">{offices.length}</span></div>
-              {offices.length === 0 ? <p className="empty-people">No offices yet. Create one or accept an invite.</p> : <div className="office-grid">{offices.map((office) => <article className="office-tile" key={office.id}>
-                <div><span className="live-indicator" /><span className="office-role">{office.role}</span></div><h3>{office.name}</h3><p>Owner: {office.ownerUsername}</p>
-                <button className="lobby-button primary" disabled={lobbyBusy} onClick={() => selectOffice(office)}>Enter office</button>
-                {(["owner", "admin", "maintainer"] as string[]).includes(office.role) ? <button className="lobby-button" disabled={lobbyBusy || inviteLinkBusyOfficeId !== null} onClick={() => void createAndCopyOfficeInviteLink(office.id)}>{inviteLinkBusyOfficeId === office.id ? "Creating invite…" : "Copy invite link"}</button> : <p className="invite-notice">Ask an office admin to invite someone.</p>}
-                {inviteLinkFeedback?.officeId === office.id && <p className="invite-notice" role="status">{inviteLinkFeedback.message}</p>}
-                {["owner", "admin", "maintainer"].includes(office.role) && <button className="lobby-button office-manage-button" disabled={lobbyBusy} onClick={() => void openOfficeManager(office)}>Manage office</button>}
-              </article>)}</div>}
-            </section>}
-            {activeLobbyTab === "invitations" && <section id="invitations-panel" role="tabpanel" aria-labelledby="invitations-tab" className="lobby-panel"><div className="card-heading"><div><span className="eyebrow">INVITATIONS</span><h2>Invited to join</h2></div><span className="count-chip">{invites.length}</span></div>
-              {invites.length === 0 ? <p className="empty-people">No pending invitations.</p> : <ul className="invite-list">{invites.map((invite) => <li key={invite.id}><div><strong>{invite.officeName}</strong><small>Invited by {invite.inviter} as {invite.role}</small></div><button className="lobby-button primary" disabled={lobbyBusy} onClick={() => void acceptInvite(invite.id)}>Accept</button></li>)}</ul>}
-              {inviteLinkToken && <p className="invite-notice">Processing your one-time office invite…</p>}
-            </section>}
-            {authUser.role === "maintainer" && activeLobbyTab === "accounts" && <section id="accounts-panel" role="tabpanel" aria-labelledby="accounts-tab"><MaintainerAccountSafety
-              accounts={accounts}
-              loading={accountsLoading}
-              loadError={accountsLoadError}
-              onRetry={() => setAccountReloadToken((current) => current + 1)}
-              endpoint={endpoint}
-              currentUsername={authUser.username}
-              resetUrls={resetUrls}
-              onGenerateResetLink={issueResetLink}
-              onAccountUpdated={(updated) => setAccounts((current) => current.map((account) => account.username === updated.username ? updated : account))}
-            /></section>}
-            {authUser.role === "maintainer" && activeLobbyTab === "audit" && <section id="audit-panel" role="tabpanel" aria-labelledby="audit-tab"><MaintainerAuditPanel endpoint={endpoint} /></section>}
-          </div>
+          {createOfficeDialogOpen && <CreateOfficeDialog name={officeName} totalPeople={generatorTotalPeople} teamCount={generatorTeamCount}
+            peoplePerTeam={createOfficePeoplePerTeam} inputsValid={createOfficeInputsValid} interiors={createOfficeInteriors} busy={lobbyBusy} error={lobbyError}
+            onNameChange={setOfficeName} onTotalPeopleChange={setGeneratorTotalPeople} onTeamCountChange={setGeneratorTeamCount} onInteriorsChange={setCreateOfficeInteriors}
+            onSubmit={(event) => void createOfficeAction(event)} onClose={() => setCreateOfficeDialogOpen(false)} />}
+          <LobbyDirectory endpoint={endpoint} username={authUser.username} maintainer={authUser.role === "maintainer"}
+            officesRevision={offices} invitesRevision={invites} busy={lobbyBusy} inviteToken={inviteLinkToken}
+            inviteBusyOfficeId={inviteLinkBusyOfficeId} inviteFeedback={inviteLinkFeedback} resetUrls={resetUrls}
+            onEnter={selectOffice} onManage={(office) => void openOfficeManager(office)}
+            onInviteLink={(officeId) => void createAndCopyOfficeInviteLink(officeId)}
+            onAccept={(inviteId) => void acceptInvite(inviteId)} onResetLink={issueResetLink} />
         </section>
+        {settingsDialog}
         {profileDialog}
         {changePasswordOpen && <div className="manager-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setChangePasswordOpen(false); }}><form className="manager-dialog password-dialog" onSubmit={(event) => void changePassword(event)}><button type="button" className="manager-close" aria-label="Close" onClick={() => setChangePasswordOpen(false)}>×</button><span className="eyebrow">ACCOUNT SECURITY</span><h2>Change password</h2><label>Current password<input type="password" autoComplete="current-password" required minLength={8} maxLength={128} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>{accountError && <p className="auth-error" role="alert">{accountError}</p>}<button className="lobby-button primary" disabled={lobbyBusy} type="submit">Update password</button></form></div>}
         {managingOffice && <div className="manager-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setManagingOffice(null); }}>
@@ -2801,7 +2889,6 @@ export function OfficeApp() {
       : "You're the first one here.";
   const selectedVoiceConnected = meetingZoneActive ? voiceConnected : privateZoneId ? privateVoiceConnected : proximityVoiceConnected;
   const selectedMicMuted = meetingZoneActive ? voiceMuted : privateZoneId ? privateVoiceMuted : proximityVoiceMuted;
-  const selectedVoiceLabel = meetingZoneActive ? "Meeting" : privateZoneId ? (privateZoneName ?? "Private zone") : "Public";
   const activeDeskZoneId = privateZoneId ?? selectedDeskZoneId;
   const selectedMapZone = selectedMapZoneId ? officeMapLayout?.zones.find((zone) => zone.id === selectedMapZoneId) ?? null : null;
   const mapDraftDirty = Boolean(mapEditMode && officeMapLayout && mapEditBaseline && JSON.stringify(officeMapLayout) !== JSON.stringify(mapEditBaseline));
@@ -2820,148 +2907,107 @@ export function OfficeApp() {
   const selectedZoneEntranceBlocked = Boolean(selectedMapZoneId && officeMapLayout && roomZoneEntranceIssues(officeMapLayout, new Set([selectedMapZoneId])).length);
   const selectedZoneHasGeneratedDoor = Boolean(selectedMapZoneId && officeMapLayout?.doors.some((door) => door.id.startsWith(`${selectedMapZoneId}-entrance-`)));
   const activeDeskZone = activeDeskZoneId ? officeMapLayout?.zones.find((zone) => zone.id === activeDeskZoneId && zone.kind === "private") ?? null : null;
-  const personalDeskZone = authUser && officeMapLayout ? officeMapLayout.zones.find((zone) => zone.kind === "private" && zone.ownerUsername === authUser.username) ?? null : null;
+  const personalDeskZone = officeDesks.ownDesk ? officeMapLayout?.zones.find((zone) => zone.id === officeDesks.ownDesk?.zoneId && zone.kind === "private") ?? null : null;
   const activeDeskZoneLabel = activeDeskZone?.ownerUsername ? `${activeDeskZone.ownerUsername}'s desk` : activeDeskZone ? "Available desk" : null;
   const activeDeskZoneIsCurrent = Boolean(privateZoneId && activeDeskZone?.id === privateZoneId);
   const canManageCurrentDesk = Boolean(activeDeskZoneIsCurrent && activeDeskZone?.ownerUsername === authUser?.username);
-  const zoneLockTargetId = meetingZoneId ?? (canManageCurrentDesk ? privateZoneId : null);
   const zoneAccessDetail = activeDeskZone
     ? `${activeDeskZoneIsCurrent ? "You’re here · " : ""}${activeDeskZone.ownerUsername ? activeDeskZone.ownerUsername === authUser?.username ? "Your desk" : `Desk owned by ${activeDeskZone.ownerUsername}` : "No owner · available to claim"}`
     : meetingZoneId ? `You’re here · ${lockedZoneIds.includes(meetingZoneId) ? "Locked to current occupants" : "Open to everyone"}` : "Open to everyone";
-  const userOwnsAnotherDesk = Boolean(activeDeskZone && authUser && officeMapLayout?.zones.some((zone) => zone.kind === "private" && zone.ownerUsername === authUser.username && zone.id !== activeDeskZone.id));
-  const canClaimAnyDesk = !authUser || !officeMapLayout?.zones.some((zone) => zone.kind === "private" && zone.ownerUsername === authUser.username);
-  const localRosterPlayer = people.find(([id]) => id === localSessionIdRef.current)?.[1];
-  const localRosterAreaKey = localRosterPlayer ? officeMapLayout ? voiceRosterAreaKey(localRosterPlayer, officeMapLayout, meetingZoneId ?? privateZoneId) : "lobby" : null;
-  const localRosterRangePlayers = new Set<string>();
-  if (localRosterPlayer) {
-    for (const [sessionId, player] of people) {
-      if (sessionId !== localSessionIdRef.current && Math.hypot(localRosterPlayer.x - player.x, localRosterPlayer.z - player.z) <= CAMPUS_WORLD.proximityRadius) localRosterRangePlayers.add(sessionId);
-    }
-  }
-  const rosterParticipantSessionIds = new Set(people.flatMap(([sessionId, player]) => {
-    if (sessionId === localSessionIdRef.current) return [];
-    const playerAreaKey = officeMapLayout ? voiceRosterAreaKey(player, officeMapLayout) : "lobby";
-    const sharesZoneWithLocal = Boolean(localRosterAreaKey && localRosterAreaKey !== "lobby" && playerAreaKey === localRosterAreaKey);
-    const nearbyInSameOpenArea = localRosterRangePlayers.has(sessionId);
-    if (player.presence === "online" && (sharesZoneWithLocal || nearbyInSameOpenArea)) return [sessionId];
-    return [];
+  const roomIsLocked = Boolean(zonePrivacyTargetId && lockedZoneIds.includes(zonePrivacyTargetId));
+  const roomLockAction = roomIsLocked ? { action: "unlock" as const } : { action: "lock" as const };
+  const roomLockEnabled = officeConversations.privateAccess.snapshot?.zoneId === zonePrivacyTargetId
+    && privateActionEnabled(officeConversations.privateAccess.snapshot, roomLockAction,
+      officeConversations.privateAccess.pending, officeConversations.privateAccess.nowMs);
+  const admittedRosterSessions = new Set(conversation?.conversation?.members.map(member => member.sessionId) ?? []);
+  const voiceRosterPeople: VoiceRosterPerson[] = people.filter(([id]) => admittedRosterSessions.has(id)).map(([sessionId, player]) => ({
+    sessionId, username: player.username, displayName: player.displayName, isMaintainer: player.isMaintainer,
+    status: player.status, presence: player.presence, local: sessionId === localSessionIdRef.current, nearby: player.nearby,
   }));
-  const voiceRosterPeople: VoiceRosterPerson[] = rosterParticipantSessionIds.size === 0 ? [] : people.flatMap(([sessionId, player]) => {
-    if (sessionId !== localSessionIdRef.current && !rosterParticipantSessionIds.has(sessionId)) return [];
-    const local = sessionId === localSessionIdRef.current;
-    const username = player.username.toLocaleLowerCase();
-    return [{ sessionId, username, displayName: player.displayName, isMaintainer: player.isMaintainer, status: player.status, presence: player.presence, local, nearby: localRosterRangePlayers.has(sessionId) }];
-  });
-  const openVoiceRosterVideo = (username: string, source: VoiceRosterMediaSource) => {
-    const tile = videoTiles.find((candidate) => candidate.username === username.toLocaleLowerCase() && candidate.source === source);
-    if (!tile) return;
-    setFocusedVideoKey(tile.key);
-    setVideoPopupOpen(true);
-  };
-  const focusedVideoTile = videoTiles.find((tile) => tile.key === focusedVideoKey) ?? videoTiles[0] ?? null;
-  const secondaryVideoTiles = focusedVideoTile ? videoTiles.filter((tile) => tile.key !== focusedVideoTile.key) : [];
-  const miniVideoTiles = secondaryVideoTiles.length > 0 ? secondaryVideoTiles : focusedVideoTile ? [focusedVideoTile] : [];
+  const userOwnsAnotherDesk = Boolean(activeDeskZone && officeDesks.ownDesk && officeDesks.ownDesk.zoneId !== activeDeskZone.id);
+  const canClaimAnyDesk = status === "connected" && !deskClaimBusy && !officeDesks.ownDesk;
   const previewCharacterId = characterDraft ?? authUser.characterId ?? DEFAULT_CHARACTER_ID;
   const previewCharacter = characterDetails(previewCharacterId, personalAvatarModels);
   const displayedOfficeMapLayout = modifyPropsOpen && officeMapLayout ? { ...officeMapLayout, props: modifyPropsDraft } : officeMapLayout;
   const setGhostMode = (enabled: boolean) => {
-    if (enabled && (appPausedRef.current || userStatusRef.current === "do-not-disturb" || userStatusRef.current === "in-meeting")) return;
+    if (enabled && appPausedRef.current) return;
     roomRef.current?.send("ghost-mode", { enabled });
   };
 
+  const openConversations = () => {
+    heldKeysRef.current.clear();
+    lockedMovementRef.current = null;
+    sendHeldMovementRef.current();
+    setMapPlayerAction(null);
+    setConversationsOpen(true);
+  };
+  const openWorkspacePanel = (panel: OfficePanel) => { setActiveLeftTab(panel); setWorkspacePanelOpen(true); setCharacterPanelOpen(false); };
+  const personActionContext: PersonActionContext = {
+    localSessionId: localSessionIdRef.current, localUsername: authUser.username, followingSessionId,
+    spotlightUsernames: social.spotlight.usernames, canSpotlight: activeOffice.role === "owner" || activeOffice.role === "admin",
+    disabled: status !== "connected", canMeet: true, localStatus: userStatus, meetPending: meetOffers.pending,
+  };
+  const personActionCallbacks: PersonActionCallbacks = {
+    onMeet: sessionId => { if (meetOffers.create("meet", sessionId)) openConversations(); },
+    onInviteToJoin: sessionId => { if (meetOffers.create("join-me", sessionId)) openConversations(); },
+    onMessage: username => { setChatTarget(username); setChatTargetRevision(revision => revision + 1); openWorkspacePanel("chat"); },
+    onGoTo: sessionId => { if (!travel.expectDestination(null)) return; roomRef.current?.send("auto-move-to-player", { targetSessionId: sessionId }); },
+    onLocate: sessionId => { locateRequestRef.current = { sessionId, requestId: performance.now() }; },
+    onFollow: sessionId => { travel.reset(); if (followingSessionId === sessionId) roomRef.current?.send("follow-stop"); else roomRef.current?.send("follow-player", { targetSessionId: sessionId }); },
+    onWave: sessionId => roomRef.current?.send("wave", { targetSessionId: sessionId }),
+    onSpotlight: username => roomRef.current?.send("spotlight", { targetUsername: username, on: !social.spotlight.usernames.includes(username) }),
+  };
+  const selectedMapPerson = people.find(([sessionId]) => sessionId === mapPlayerAction?.sessionId);
   return (
-    <main className={`app-shell${characterPanelOpen ? " character-panel-open" : ""}`}>
+    <main className={`app-shell office-experience${characterPanelOpen ? " character-panel-open" : ""}`} onPointerDownCapture={(event) => {
+      if (workspacePanelOpen && event.target instanceof Element && event.target.closest(".world-canvas")) setWorkspacePanelOpen(false);
+    }}>
       <PageTutorial page={meetingEntry ? "meeting" : "office"} username={authUser.username} />
       {profileDialog}
-      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} localPetIdRef={localPetIdRef} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} cameraBehindCharacterRef={cameraBehindCharacterRef} firstPersonViewRef={firstPersonViewRef} map2dDecorationsRef={social.decorationsRef} map2dViewRef={map2dViewRef} map2dToggleRef={map2dToggleRef} locateRequestRef={locateRequestRef} autoMoveStatusRevisionRef={autoMoveStatusRevisionRef} propsConfigVersion={modifyPropsOpen ? modifyPropsVersion : mapPropsConfigVersion} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={appPaused || Boolean(social.interaction)} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen} selectedAsset={selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={placeOfficeProp} onPlacementComplete={() => setSelectedModifyPropAsset(null)} onMoveProp={moveOfficeProp} onRotateProp={rotateOfficeProp} onDeleteProp={deleteOfficeProp} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} jumpStartedAtRef={jumpStartedAtRef} onJump={() => roomRef.current?.send("jump", true)} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination, randomVehicle) => { if (appPausedRef.current) return; heldKeysRef.current.clear(); lockedMovementRef.current = null; roomRef.current?.send("auto-move", { ...destination, randomVehicle }); }} onSelectPlayer={(sessionId, x, y) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") setMapPlayerAction({ sessionId, displayName: playerName(player), x, y }); }} onGhostModeChange={setGhostMode} onMapViewChange={setMap2dViewActive} />
-      <OfficeSocialOverlay social={social} room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} endpoint={endpoint} officeId={activeOffice.id} username={authUser.username} sessionKey={localSessionIdRef.current} chatTarget={chatTarget} chatContainer={chatContainer} chatVisible={activeLeftTab === "chat" && workspacePanelOpen} onUnread={setChatUnread} doNotDisturb={userStatus === "do-not-disturb"} zoneUsernames={zoneAudioUsernames} />
-      <Minimap layout={displayedOfficeMapLayout} configVersion={mapPropsConfigVersion} playersRef={playersRef} firstPersonViewRef={firstPersonViewRef} hidden={mapEditMode || modifyPropsOpen} onPan={(center) => { locateRequestRef.current = { center, requestId: performance.now() }; }} />
-      <VoiceParticipantRoster
-        people={voiceRosterPeople}
-        speakingUsernames={speakingUsernames}
-        activities={voiceRosterActivities}
-        audioLevels={participantAudioLevels}
-        canMuteAll={voiceRosterPeople.filter((person) => !person.local).length > 1 && ["owner", "admin", "maintainer"].includes(activeOffice.role)}
-        canOpenVideo={(username, source) => videoTiles.some((tile) => tile.username === username.toLocaleLowerCase() && tile.source === source)}
-        onOpenVideo={openVoiceRosterVideo}
+      <WorldCanvas activeRoomKey="lobby" cameraRoomKey={activeCameraRoomKey} playersRef={playersRef} localSessionIdRef={localSessionIdRef} localPetIdRef={localPetIdRef} map2dToggleRef={map2dToggleRef} onMapViewChange={setMap2dViewActive} speakingUsernamesRef={speakingUsernamesRef} heldKeysRef={heldKeysRef} cameraYawRef={cameraYawRef} cameraBehindCharacterRef={cameraBehindCharacterRef} firstPersonViewRef={firstPersonViewRef} map2dDecorationsRef={social.decorationsRef} map2dViewRef={map2dViewRef} locateRequestRef={locateRequestRef} travelFeedback={travel.feedback} travelRequesting={travel.requesting} onCancelTravel={() => roomRef.current?.send("auto-move-cancel", {})} propsConfigVersion={modifyPropsOpen ? modifyPropsVersion : mapPropsConfigVersion} roomLayout={displayedOfficeMapLayout} personalDeskZone={personalDeskZone} onReturnToDesk={returnToDesk} deskClaimingZoneId={deskClaimingZoneId} currentPrivateZoneId={privateZoneId} inboundAudioMuted={inboundAudioMutedRef.current} appPaused={deskManagerOpen || conversationsOpen || Boolean(social.interaction) || workspaceOverlayOpen || Boolean(mapPlayerAction)} idleAnimationsEnabled={idleAnimationsEnabled} ghostSessionIds={ghostSessionIds} mapEditMode={mapEditMode} selectedMapZoneId={selectedMapZoneId} buildMode={modifyPropsOpen || mapBuildingPickerOpen} selectedAsset={mapBuildingPickerOpen ? selectedMapBuildingAsset : selectedModifyPropAsset} selectedMapItemId={selectedModifyPropId} onPlaceProp={(asset, position) => mapEditMode ? placeMapBuilding(asset, position) : placeOfficeProp(asset, position)} onPlacementComplete={() => { if (!mapEditMode) setSelectedModifyPropAsset(null); else if (ROOM_PROP_CATALOG.find((item) => item.asset === selectedMapBuildingAsset)?.editorRole !== "map-component") setSelectedMapBuildingAsset(null); }} onMoveProp={(id, position) => mapEditMode ? moveMapBuilding(id, position) : moveOfficeProp(id, position)} onRotateProp={(id) => mapEditMode ? rotateMapBuilding(id) : rotateOfficeProp(id)} onDeleteProp={(id) => mapEditMode ? deleteMapBuilding(id) : deleteOfficeProp(id)} onSelectMapItem={setSelectedModifyPropId} onModifyProps={() => void enterModifyPropsMode()} spawnPlacementMode={spawnPlacementMode} onMoveSpawnPoint={(position) => void saveMapSpawnPoint(position)} zoneDrawing={mapZoneDrawing} onZoneAreaDrawn={(area) => { setMapZoneArea(area); setMapZoneDrawing(false); setMapZoneName(""); setLobbyError(null); }} onSelectDeskZone={(zoneId) => setSelectedDeskZoneId(zoneId)} onSelectMapZone={(zoneId) => setSelectedMapZoneId(zoneId)} onClaimDeskZone={(zoneId) => void claimDeskZone(zoneId)} canClaimDesk={canClaimAnyDesk} canEditMap={authUser?.role === "maintainer" || activeOffice.role === "owner" || activeOffice.role === "admin"} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockRequestPending} onEditMap={() => enterMapEditMode(activeOffice)} blasterEventsRef={blasterEventsRef} jumpStartedAtRef={jumpStartedAtRef} onJump={() => roomRef.current?.send("jump", true)} onBlasterShot={(shot) => { if (!appPausedRef.current) roomRef.current?.send("blaster-shot", shot); }} onWeaponEquip={(weaponId) => { if (!appPausedRef.current) roomRef.current?.send("weapon-equip", weaponId); }} onVehicleInteract={(vehicleId, propId) => { if (!appPausedRef.current) roomRef.current?.send("vehicle-interact", vehicleId ? { vehicleId, propId } : ""); }} onAutoMove={(destination) => { if (appPausedRef.current) return; if (!travel.expectDestination(destination)) return; heldKeysRef.current.clear(); lockedMovementRef.current = null; roomRef.current?.send("auto-move", { ...destination, randomVehicle: true }); }} onSelectPlayer={(sessionId) => { const player = playersRef.current.get(sessionId); if (player?.presence === "online") { heldKeysRef.current.clear(); setMapPlayerAction({ sessionId }); } }} onGhostModeChange={setGhostMode} />
+      <OfficeSocialOverlay social={social} room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} endpoint={endpoint} officeId={activeOffice.id} username={authUser.username} sessionKey={localSessionIdRef.current} chatTarget={chatTarget} chatTargetRevision={chatTargetRevision} chatContainer={chatContainer} chatVisible={activeLeftTab === "chat" && workspacePanelOpen} onUnread={setChatUnread} doNotDisturb={mediaSuppressed} zoneUsernames={zoneAudioUsernames} />
+      <Minimap layout={displayedOfficeMapLayout} configVersion={mapPropsConfigVersion} playersRef={playersRef} localSessionIdRef={localSessionIdRef} cameraYawRef={cameraYawRef} hidden={mapEditMode || modifyPropsOpen} />
+      <VoiceParticipantRoster people={voiceRosterPeople} speakingUsernames={speakingUsernames} activities={voiceRosterActivities}
+        audioLevels={participantAudioLevels} canMuteAll={voiceRosterPeople.filter(person => !person.local).length > 1 && ["owner", "admin"].includes(activeOffice.role)}
         onSetAudioLevel={setParticipantAudioLevel}
-        onModeratePerson={(username, source) => void moderateVoiceMedia(source, username)}
-        onMuteAll={(source) => void moderateVoiceMedia(source)}
-      />
-      {mapPlayerAction && <div className="map-player-action-backdrop" role="presentation" onPointerDown={() => setMapPlayerAction(null)}>
-        <div className="map-player-action-menu" role="menu" aria-label={`Actions for ${mapPlayerAction.displayName}`} style={{ left: Math.max(8, Math.min(mapPlayerAction.x, window.innerWidth - 188)), top: Math.max(8, Math.min(mapPlayerAction.y, window.innerHeight - 104)) }} onPointerDown={(event) => event.stopPropagation()}>
-          <strong>{mapPlayerAction.displayName}</strong>
-          <button type="button" role="menuitem" onClick={() => { if (followingSessionId === mapPlayerAction.sessionId) roomRef.current?.send("follow-stop"); else roomRef.current?.send("follow-player", { targetSessionId: mapPlayerAction.sessionId }); setMapPlayerAction(null); }}>{followingSessionId === mapPlayerAction.sessionId ? "Stop following" : "Follow"}</button>
-          <button type="button" role="menuitem" onClick={() => { roomRef.current?.send("wave", { targetSessionId: mapPlayerAction.sessionId }); setMapPlayerAction(null); }}>Wave</button>
-        </div>
-      </div>}
+        onModeratePerson={(username, source) => void moderateVoiceMedia(source, username)} onMuteAll={source => void moderateVoiceMedia(source)} />
+      <OfficeConversationHub model={officeConversations} open={conversationsOpen} connected={status === "connected"}
+        userStatus={userStatus} localSessionId={localSessionIdRef.current} onOpen={openConversations} onClose={() => setConversationsOpen(false)}
+        onApproach={id => { if (!travel.expectDestination(null)) return; if (!publicConversations.approach(id)) travel.reset(); }}
+        onOfferAction={(id, action) => { if (meetOffers.act(id, action) && action === "accept") travel.reset(); }} />
+      {selectedMapPerson && <MapPersonDialog {...personActionContext} {...personActionCallbacks} entry={selectedMapPerson} onClose={() => setMapPlayerAction(null)} />}
       {blasterHitNotice !== null && <div className="blaster-hit-feedback" key={blasterHitNotice} aria-hidden="true" />}
-      <header className="topbar">
-        <div className="topbar-side topbar-side-left">
-          <button type="button" className={`left-sidebar-tab${workspacePanelOpen ? " selected" : ""}`} aria-controls="office-sidebar" aria-expanded={workspacePanelOpen} aria-label={workspacePanelOpen ? "Hide office panel" : "Show office panel"} title={workspacePanelOpen ? "Hide office panel" : "Show office panel"} onClick={() => setWorkspacePanelOpen((open) => !open)}>
-            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><rect x="2.5" y="3" width="15" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M7.5 3v14" stroke="currentColor" strokeWidth="1.5"/></svg>
-          </button>
-        </div>
-        <div className="topbar-title"><span className="brand-mark" aria-hidden="true">G</span><strong>GAMVerse</strong></div>
-        <div className="topbar-side topbar-side-right">
-          <button type="button" className={`right-character-tab${characterPanelOpen ? " selected" : ""}`} aria-label={characterPanelOpen ? "Hide user settings" : "Open user settings"} aria-expanded={characterPanelOpen} aria-controls="character-drawer" title="User settings" onClick={() => { setCharacterPanelOpen((open) => !open); setCharacterError(null); }}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.25" stroke="currentColor" strokeWidth="1.7"/><path d="M5.5 20c.3-3.5 2.8-5.6 6.5-5.6s6.2 2.1 6.5 5.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>
-          </button>
-        </div>
-      </header>
-      {workspacePanelMounted && <aside id="office-sidebar" className={`office-sidebar sidebar-transition${workspacePanelOpen ? " is-open" : ""}`} aria-label="Office and people" aria-hidden={!workspacePanelOpen} inert={!workspacePanelOpen}>
-        <nav className="left-sidebar-nav" aria-label="Office navigation">
-          <button type="button" aria-label="Workspace" title="Workspace" aria-pressed={activeLeftTab === "workspace"} className={activeLeftTab === "workspace" ? "active" : ""} onClick={() => setActiveLeftTab("workspace")}><FeatherIcon name="office" /></button>
-          <button type="button" aria-label={chatUnread ? `Chat, ${chatUnread} unread` : "Chat"} title="Chat" aria-pressed={activeLeftTab === "chat"} className={activeLeftTab === "chat" ? "active" : ""} onClick={() => setActiveLeftTab("chat")}><FeatherIcon name="chat" />{chatUnread > 0 && <span>{chatUnread}</span>}</button>
-          <button type="button" aria-label={`People, ${playerCount}`} title="People" aria-pressed={activeLeftTab === "people"} className={activeLeftTab === "people" ? "active" : ""} onClick={() => setActiveLeftTab("people")}><FeatherIcon name="people" /><span>{playerCount}</span></button>
-          <button type="button" aria-label="Activity" title="Activity" aria-pressed={activeLeftTab === "activity"} className={activeLeftTab === "activity" ? "active" : ""} onClick={() => setActiveLeftTab("activity")}><FeatherIcon name="clock" /></button>
-        </nav>
-        <div className="office-sidebar-content">
-        <div ref={setChatContainer} className={`sidebar-chat-container${activeLeftTab === "chat" ? " is-active" : ""}`} />
+      <WorkspaceChrome key={activeOffice.id} officeId={activeOffice.id} offices={offices}
+        username={authUser.nickname ?? authUser.username} people={people.filter(([id]) => id !== localSessionIdRef.current).map(([sessionId, person]) => ({ ...person, sessionId }))}
+        rooms={officeMapLayout?.zones ?? []} panel={activeLeftTab} panelOpen={workspacePanelOpen} unread={chatUnread} accountOpen={characterPanelOpen}
+        navigationDisabled={status !== "connected" || mapEditMode || modifyPropsOpen} onInputBlocked={setWorkspaceInputBlocked}
+        onSelectPanel={(panel) => { setWorkspacePanelOpen(panel !== activeLeftTab || !workspacePanelOpen); setActiveLeftTab(panel); setCharacterPanelOpen(false); }}
+        onOpenPanel={openWorkspacePanel} onAccount={() => { setCharacterPanelOpen((open) => !open); setWorkspacePanelOpen(false); setCharacterError(null); }}
+        onSwitchOffice={(id) => { const office = offices.find((item) => item.id === id); if (office) selectOffice(office); }}
+        onLocate={personActionCallbacks.onLocate} onGoTo={personActionCallbacks.onGoTo}
+        onGoToRoom={(zoneId) => { const zone = officeMapLayout?.zones.find((item) => item.id === zoneId); if (zone) { if (!travel.expectDestination(zone)) return; roomRef.current?.send("auto-move", { x: zone.x, z: zone.z, randomVehicle: true }); } }} />
+      {workspacePanelMounted && <aside id="office-sidebar" onKeyDown={onWorkspacePanelKeyDown} className={`office-sidebar sidebar-transition${workspacePanelOpen ? " is-open" : ""}`} aria-labelledby="office-panel-title" aria-hidden={!workspacePanelOpen} inert={!workspacePanelOpen}>
+        <OfficePanelHeader panel={activeLeftTab} />
+        <div className="office-chat-slot" ref={setChatContainer} />
         {activeLeftTab === "workspace" && <section className="sidebar-workspace" aria-label="Your workspace">
           <span className="eyebrow">WORKSPACE</span>
           <h1>{activeOffice.name}</h1>
           <div className="room-meta"><span className="live-indicator" /> {activeOffice.role} <span className="meta-divider">·</span> Owner: {activeOffice.ownerUsername}</div>
-          <div className="office-space-card" aria-label="Office space"><span>200 × 250 m</span><span>One shared space</span></div>
+          <div className="office-space-card" aria-label="Office space"><span>{mapDimensions.width} × {mapDimensions.depth} m</span><span>One shared space</span></div>
           {(["owner", "admin", "maintainer"] as string[]).includes(activeOffice.role) ? <button type="button" className="workspace-share-button" aria-label="Create and copy office invite link" title="Create and copy invite link" disabled={inviteLinkBusyOfficeId !== null} onClick={() => void createAndCopyOfficeInviteLink(activeOffice.id)}>
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10.5 10.5 7a3 3 0 0 1 4.2 4.2l-2 2"/><path d="m13 9.5-3.5 3.5a3 3 0 0 1-4.2-4.2l2-2"/></svg>
             <span>{inviteLinkBusyOfficeId === activeOffice.id ? "Creating…" : "Copy invite link"}</span>
           </button> : <p className="workspace-share-notice">Ask an office admin to invite someone.</p>}
           {inviteLinkFeedback?.officeId === activeOffice.id && <p className="workspace-share-notice" role="status">{inviteLinkFeedback.message}</p>}
+          <div className="office-workspace-guide">
+            <h3>Make yourself at home</h3>
+            <p><strong>Find a teammate.</strong> Open People, choose someone, then go to them, wave or send a message.</p>
+            <p><strong>Start a conversation.</strong> Walk near a teammate or enter the same room to connect audio.</p>
+            <p><strong>Explore in 2D.</strong> Click to walk, drag to look around, and use Recenter on you to return to your character.</p>
+          </div>
         </section>}
-        {activeLeftTab === "people" && <section id="people-panel" className="sidebar-people" aria-label="People in the office">
-        <div className="card-heading"><div><span className="eyebrow">IN THE SPACE</span><h2>People <span>{playerCount}</span></h2></div></div>
-        <label className="people-search"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.6"/><path d="m12.5 12.5 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg><input type="search" value={peopleSearch} onChange={(event) => setPeopleSearch(event.target.value)} placeholder="Search people" aria-label="Search people in the office" /></label>
-        {playerCount === 0 ? (
-          <p className="empty-people">{emptyPeopleMessage}</p>
-        ) : (
-          <ul className="people-list">
-            {people.filter(([id, player]) => `${player.displayName} ${id === localSessionIdRef.current ? "You" : ""}`.toLocaleLowerCase().includes(peopleSearch.trim().toLocaleLowerCase())).map(([id, player]) => (
-              <li className="person-row" key={id}>
-                <span className="person-avatar">{player.displayName.slice(0, 1)}</span>
-                <span className="person-info"><strong>{player.handRaised ? "✋ " : ""}{playerName(player, id === localSessionIdRef.current)}</strong><small>{player.presence === "away" ? "Reconnecting" : id === localSessionIdRef.current ? "At your desk" : player.nearby ? "Nearby" : "In the office"}</small></span>
-                <button type="button" aria-label={`Message ${player.displayName}`} onClick={() => { setChatTarget(player.username); setActiveLeftTab("chat"); }}>DM</button>
-                {(activeOffice.role === "owner" || activeOffice.role === "admin") && <button type="button" className={`person-spotlight-button${social.spotlight.usernames.includes(player.username) ? " is-active" : ""}`} aria-pressed={social.spotlight.usernames.includes(player.username)} onClick={() => roomRef.current?.send("spotlight", { targetUsername: player.username, on: !social.spotlight.usernames.includes(player.username) })}>{social.spotlight.usernames.includes(player.username) ? "Remove spotlight" : "Spotlight"}</button>}
-                <span className="presence-dot" aria-label={player.presence === "away" ? "Reconnecting" : "Online"} />
-                {id !== localSessionIdRef.current && player.presence === "online" && <span className="person-actions">
-                  <button type="button" className="person-action-button" title="Go to" onClick={() => roomRef.current?.send("auto-move-to-player", { targetSessionId: id })}>Go</button>
-                  <button type="button" className="person-action-button" title="Locate" onClick={() => { locateRequestRef.current = { sessionId: id, requestId: performance.now() }; }}>Locate</button>
-                  <button type="button" className={`person-action-button${followingSessionId === id ? " is-active" : ""}`} aria-label={followingSessionId === id ? `Stop following ${player.displayName}` : `Follow ${player.displayName}`} title={followingSessionId === id ? "Stop following" : "Follow"} onClick={() => {
-                    if (followingSessionId === id) roomRef.current?.send("follow-stop");
-                    else roomRef.current?.send("follow-player", { targetSessionId: id });
-                  }}>
-                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4v6h6M4 10a8 8 0 1 1 2 8"/><path d="m12 16 4-4-4-4m4 4H9"/></svg>
-                  </button>
-                  <button type="button" className="person-action-button" aria-label={`Wave to ${player.displayName}`} title="Wave" onClick={() => roomRef.current?.send("wave", { targetSessionId: id })}>
-                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 12V5a1.7 1.7 0 0 1 3.4 0v5-6a1.7 1.7 0 0 1 3.4 0v6-4a1.7 1.7 0 0 1 3.4 0v7l.8-1.8a1.8 1.8 0 0 1 3.3 1.4l-2.2 5.5A6 6 0 0 1 14 21h-1.5a6 6 0 0 1-4.2-1.7L4 15a1.8 1.8 0 0 1 2.5-2.6L8 14"/></svg>
-                  </button>
-                </span>}
-              </li>
-            ))}
-          </ul>
-        )}
-        {playerCount > 0 && people.filter(([id, player]) => `${player.displayName} ${id === localSessionIdRef.current ? "You" : ""}`.toLocaleLowerCase().includes(peopleSearch.trim().toLocaleLowerCase())).length === 0 && <p className="empty-people">No people match “{peopleSearch.trim()}”.</p>}
-        </section>}
+        {activeLeftTab === "people" && <PeoplePanel {...personActionContext} {...personActionCallbacks} people={people}
+          directoryEndpoint={endpoint} officeId={activeOffice.id} directoryRefreshKey={status} emptyMessage={emptyPeopleMessage} />}
         {activeLeftTab === "activity" && <section className="sidebar-activity" aria-label="Office activity log">
           <div className="card-heading"><div><span className="eyebrow">OFFICE HISTORY</span><h2>Activity</h2></div><span className="activity-retention">Last 24 hours</span></div>
           {activityError ? <p className="empty-people" role="alert">{activityError}</p> : officeActivities.length === 0 ? <p className="empty-people">{activityBusy ? "Loading activity…" : "No activity recorded in the last 24 hours."}</p> : <ul className="office-activity-list">
@@ -2972,7 +3018,6 @@ export function OfficeApp() {
             </li>)}
           </ul>}
         </section>}
-        </div>
       </aside>}
 
       {characterPanelMounted && <aside id="character-drawer" className={`character-drawer sidebar-transition${characterPanelOpen ? " is-open" : ""}`} aria-label="User settings menu" aria-hidden={!characterPanelOpen} inert={!characterPanelOpen}>
@@ -2990,7 +3035,7 @@ export function OfficeApp() {
         <footer className="character-drawer-footer"><button type="button" className="right-drawer-map-mode" aria-label={map2dViewActive ? "Switch to 3D view" : "Switch to 2D view"} onClick={() => map2dToggleRef.current()}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3V7Z"/><path d="M9 4v13m6-10v13"/></svg><span>{map2dViewActive ? "Switch to 3D" : "Switch to 2D"}</span></button><button type="button" className="account-action signout" onClick={signOut}>Sign out</button></footer>
       </aside>}
 
-      {characterDialogOpen && <div className="profile-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCharacterDialogOpen(false); }}><section className="profile-dialog character-select-dialog" role="dialog" aria-modal="true" aria-labelledby="character-select-title">
+      {characterDialogOpen && createPortal(<div className="profile-dialog-backdrop character-select-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCharacterDialogOpen(false); }}><section className="profile-dialog character-select-dialog" role="dialog" aria-modal="true" aria-labelledby="character-select-title">
         <header className="profile-dialog-header"><div><span className="eyebrow">APPEARANCE</span><h2 id="character-select-title">Choose your character</h2></div><button type="button" className="icon-button" aria-label="Close character selection" onClick={() => setCharacterDialogOpen(false)}><FeatherIcon name="close" size={17} /></button></header>
         <div className="profile-dialog-content">
           <section className="character-preview-card" aria-label="Selected character preview">
@@ -3015,36 +3060,23 @@ export function OfficeApp() {
           </section>
         </div>
         <footer className="profile-dialog-footer">{characterError && <p className="auth-error" role="alert">{characterError}</p>}<button type="button" className="auth-submit" aria-busy={characterBusy} disabled={characterBusy || !characterDraft || (characterDraft === authUser.characterId && activePetId === characterDialogInitialPetId)} onClick={() => { if (characterDraft === authUser.characterId) setCharacterDialogOpen(false); else void saveCharacter(); }}>{characterBusy ? "Saving…" : "Save character"}</button></footer>
-      </section></div>}
+      </section></div>, document.body)}
 
-      {settingsOpen && <div className="profile-dialog-backdrop settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="profile-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
-        <header className="profile-dialog-header"><div><span className="eyebrow">USER SETTINGS</span><h2 id="settings-dialog-title">Settings</h2></div><button type="button" className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><FeatherIcon name="close" size={17} /></button></header>
-        <div className="settings-dialog-body"><nav className="settings-section-nav" aria-label="Settings topics"><button type="button" className={settingsSection === "general" ? "active" : ""} aria-current={settingsSection === "general" ? "page" : undefined} onClick={() => setSettingsSection("general")}>General</button><button type="button" className={settingsSection === "sound" ? "active" : ""} aria-current={settingsSection === "sound" ? "page" : undefined} onClick={() => setSettingsSection("sound")}>Sound</button><button type="button" className={settingsSection === "permissions" ? "active" : ""} aria-current={settingsSection === "permissions" ? "page" : undefined} onClick={() => setSettingsSection("permissions")}>Permission</button><button type="button" className={settingsSection === "security" ? "active" : ""} aria-current={settingsSection === "security" ? "page" : undefined} onClick={() => setSettingsSection("security")}>Security</button></nav>
-          <div className="settings-section-content">
-            {settingsSection === "general" && <section aria-labelledby="general-settings-title"><span className="eyebrow">PREFERENCES</span><h3 id="general-settings-title">General</h3><p className="settings-intro">Adjust client-side preferences.</p><div className="permission-row settings-general-row"><div><strong>Idle animations</strong><small>Turn off idle movement for characters and pets</small></div><label className="settings-toggle-control"><span className="sr-only">Idle animations</span><input type="checkbox" role="switch" checked={idleAnimationsEnabled} onChange={(event) => updateIdleAnimationsEnabled(event.target.checked)} /><span aria-hidden="true" /></label></div></section>}
-            {settingsSection === "sound" && <SoundSettings inputDeviceId={audioDevicePreferences.inputDeviceId} outputDeviceId={audioDevicePreferences.outputDeviceId} onInputDeviceChange={switchMicrophoneDevice} onOutputDeviceChange={switchSpeakerDevice} noiseReductionEnabled={noiseReductionEnabled} noiseReductionStatus={noiseReductionStatus} noiseReductionDetails={noiseReductionDetails} onNoiseReductionChange={updateNoiseReductionPreference} />}
-            {settingsSection === "permissions" && <section aria-labelledby="permissions-title"><span className="eyebrow">DEVICE ACCESS</span><h3 id="permissions-title">Permissions</h3><p className="settings-intro">Allow GAMVerse to use your microphone, camera, or screen when you choose those controls.</p>
-            {(["microphone", "camera"] as const).map((kind) => <div className="permission-row" key={kind}><div><strong>{kind === "microphone" ? "Microphone" : "Camera"}</strong><small className={`permission-state ${browserPermissions[kind]}`}>{browserPermissions[kind] === "unknown" ? "Status unavailable" : browserPermissions[kind]}</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission(kind)}>{permissionBusy === kind ? "Checking…" : browserPermissions[kind] === "denied" ? "Check again" : "Allow access"}</button></div>)}
-            <div className="permission-row"><div><strong>Screen sharing</strong><small>Browser asks each time you share</small></div><button type="button" className="lobby-button" disabled={permissionBusy !== null} onClick={() => void requestBrowserPermission("screen")}>{permissionBusy === "screen" ? "Checking…" : "Check sharing"}</button></div>
-            {permissionMessage && <p className="permission-message" role="status">{permissionMessage}</p>}{screenPermissionResult && <p className="permission-message" role="status">{screenPermissionResult}</p>}
-            {(browserPermissions.microphone === "denied" || browserPermissions.camera === "denied") && <p className="permission-help">If access is blocked, open this site’s permissions from the browser address bar, allow the device, then select Check again.</p>}
-          </section>}
-            {settingsSection === "security" && <section aria-labelledby="security-title"><span className="eyebrow">ACCOUNT SECURITY</span><h3 id="security-title">Security</h3><p className="settings-intro">Update the password you use to sign in to GAMVerse.</p><button type="button" className="settings-menu-row security-password-action" onClick={() => { setAccountError(null); setChangePasswordOpen(true); }}><span><strong>Change password</strong><small>Choose a new sign-in password</small></span><span aria-hidden="true">›</span></button></section>}
-          </div>
-        </div>
-      </section></div>}
+      {settingsDialog}
 
-      {changePasswordOpen && <div className="manager-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setChangePasswordOpen(false); }}><form className="manager-dialog password-dialog" onSubmit={(event) => void changePassword(event)}><button type="button" className="manager-close" aria-label="Close" onClick={() => setChangePasswordOpen(false)}>×</button><span className="eyebrow">ACCOUNT SECURITY</span><h2>Change password</h2><label>Current password<input type="password" autoComplete="current-password" required minLength={8} maxLength={128} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>{accountError && <p className="auth-error" role="alert">{accountError}</p>}<button className="lobby-button primary" disabled={lobbyBusy} type="submit">Update password</button></form></div>}
+      {changePasswordOpen && <WorkspaceDialog labelledBy="change-password-title" onClose={() => setChangePasswordOpen(false)} className="password-settings-dialog"><form className="manager-dialog password-dialog" onSubmit={(event) => void changePassword(event)}><button type="button" className="manager-close" aria-label="Close" onClick={() => setChangePasswordOpen(false)}>×</button><span className="eyebrow">ACCOUNT SECURITY</span><h2 id="change-password-title">Change password</h2><label>Current password<input type="password" autoComplete="current-password" required minLength={8} maxLength={128} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>{accountError && <p className="auth-error" role="alert">{accountError}</p>}<button className="lobby-button primary" disabled={lobbyBusy} type="submit">Update password</button></form></WorkspaceDialog>}
 
       {mapEditMode && <div className="map-edit-controls">
         <div className="map-edit-mode-bar"><div><span className="eyebrow">EDIT MAP · REAL WORLD</span><strong>{mapDimensions.width} × {mapDimensions.depth} m</strong><small>1 m grid · 10 m major lines</small></div>
           {mapZoneDrawing ? <><span className="map-edit-hint">Drag on the map to draw a zone</span><button type="button" className="lobby-button" onClick={() => setMapZoneDrawing(false)}>Cancel</button></> : <button type="button" className="lobby-button primary" onClick={() => { setSpawnPlacementMode(false); startMapZoneDrawing(); }}>＋ Create zone</button>}
           {!mapZoneDrawing && <button type="button" className="lobby-button" onClick={() => { setSpawnPlacementMode(false); setMapGeneratorOpen((open) => !open); setGeneratorError(null); }}>Generate layout</button>}
+          {!mapZoneDrawing && <button type="button" className={`lobby-button${mapBuildingPickerOpen ? " primary" : ""}`} onClick={() => { setSpawnPlacementMode(false); setMapZoneDrawing(false); setMapGeneratorOpen(false); setMapBuildingPickerOpen((open) => !open); setSelectedMapBuildingAsset(null); setSelectedModifyPropId(null); }}>Building components</button>}
           {!mapZoneDrawing && <button type="button" className={`lobby-button${spawnPlacementMode ? " primary" : ""}`} disabled={mapSpawnSaving} title="Choose where new users start" onClick={() => { setMapZoneDrawing(false); setLobbyError(null); setSpawnPlacementMode((placing) => !placing); }}>{mapSpawnSaving ? "Saving spawn…" : spawnPlacementMode ? "Cancel spawn placement" : "◎ Set spawn"}</button>}
           {spawnPlacementMode && <span className="map-edit-hint">Click the map to move the spawn point</span>}
           {mapDraftDirty && <button type="button" className="lobby-button primary" disabled={mapSaving || Boolean(mapConflictLatest)} onClick={() => void saveMapDraft()}>{mapSaving ? "Saving map…" : "Save map"}</button>}
           <button type="button" className="lobby-button" onClick={exitMapEditMode}>{mapDraftDirty ? "Discard & exit" : "Exit edit mode"}</button>
         </div>
+        {mapBuildingPickerOpen && officeMapLayout && <MapBuildingPicker props={officeMapLayout.props} selectedAsset={selectedMapBuildingAsset} selectedPropId={selectedModifyPropId} onSelectAsset={(asset) => setSelectedMapBuildingAsset(asset as RoomLayoutProp["asset"] | null)} onSelectProp={setSelectedModifyPropId} onDeleteProp={deleteMapBuilding} onClose={() => { setMapBuildingPickerOpen(false); setSelectedMapBuildingAsset(null); setSelectedModifyPropId(null); }} />}
         {mapConflictLatest && <div className="map-edit-error map-edit-conflict" role="alert"><span>{mapConflictLatest.message} Your unsaved draft is preserved. Reloading the latest map will discard it.</span><button type="button" className="lobby-button" onClick={reloadLatestMapAfterConflict}>Discard draft & load latest</button></div>}
         {lobbyError && !mapConflictLatest && <p className="map-edit-error" role="alert">{lobbyError}</p>}
         {mapGeneratorOpen && <section className="map-layout-generator" aria-label="Generate office layout">
@@ -3099,48 +3131,51 @@ export function OfficeApp() {
       </div>}
 
       <section className="touch-controls" aria-label="Touch movement controls">
-        <TouchMoveButton label="Move forward" code="KeyW" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={appPaused}>↑</TouchMoveButton>
-        <TouchMoveButton label="Left / turn left" code="KeyA" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={appPaused}>←</TouchMoveButton>
-        <TouchMoveButton label="Move backward" code="KeyS" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={appPaused}>↓</TouchMoveButton>
-        <TouchMoveButton label="Right / turn right" code="KeyD" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={appPaused}>→</TouchMoveButton>
+        <TouchMoveButton label="Move forward" code="KeyW" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={status !== "connected"}>↑</TouchMoveButton>
+        <TouchMoveButton label="Left / turn left" code="KeyA" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={status !== "connected"}>←</TouchMoveButton>
+        <TouchMoveButton label="Move backward" code="KeyS" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={status !== "connected"}>↓</TouchMoveButton>
+        <TouchMoveButton label="Right / turn right" code="KeyD" heldKeysRef={heldKeysRef} onInputChange={() => sendHeldMovementRef.current()} disabled={status !== "connected"}>→</TouchMoveButton>
       </section>
 
-      {focusedVideoTile && videoPopupOpen && createPortal(
-        <section className="video-popup" role="dialog" aria-modal="true" aria-label="Full-screen camera and screen share">
-          <header className="video-popup-header"><div><span className="video-popup-live"><i /> LIVE MEDIA</span><strong>{focusedVideoTile.label}{focusedVideoTile.local ? " · You" : ""}</strong><small className="video-quality-target">{String(focusedVideoTile.track.source).toLowerCase().includes("screen") ? "Screen share: up to 1080p · 30 FPS" : "Camera: up to 720p · 30 FPS"} · depends on device and network</small></div><button type="button" className="video-popup-close" aria-label="Close full-screen media" title="Close full-screen media" onClick={() => setVideoPopupOpen(false)}><FeatherIcon name="close" size={21} /></button></header>
-          <div className="video-popup-stage"><VideoTile key={focusedVideoTile.key} track={focusedVideoTile.track} label={focusedVideoTile.label} local={focusedVideoTile.local} focused onFocus={() => setFocusedVideoKey(focusedVideoTile.key)} /></div>
-          {miniVideoTiles.length > 0 && <section className="video-mini-strip" aria-label="Camera and screen share previews"><div className="video-mini-strip-scroll">{miniVideoTiles.map((tile) => <VideoTile key={`mini:${tile.key}`} track={tile.track} label={tile.label} local={tile.local} focused={tile.key === focusedVideoTile.key} compact onFocus={() => setFocusedVideoKey(tile.key)} />)}</div></section>}
-          <div className="video-popup-controls" aria-label="Media controls">
-            <button type="button" disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void toggleMicrophone()}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /><span>{selectedMicMuted ? "Mic off" : "Mic on"}</span></button>
-            <button type="button" className={cameraEnabled ? "active" : ""} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "video" : "videoOff"} /><span>{cameraEnabled ? "Camera off" : "Camera"}</span></button>
-            <button type="button" className={screenShareEnabled ? "active" : ""} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name={screenShareEnabled ? "screen" : "screenOff"} /><span>{screenShareEnabled ? "Stop share" : "Share screen"}</span></button>
-          </div>
-        </section>,
-        document.body,
-      )}
-      {videoTiles.length > 0 && !videoPopupOpen && <button type="button" className="video-popup-reopen" onClick={() => setVideoPopupOpen(true)}><FeatherIcon name="maximize" size={16} /> Show camera / screen</button>}
+      {deskManagerOpen && <DeskManagerDialog context={{ endpoint, officeId: activeOffice.id, username: authUser.username,
+        sessionKey: status === "connected" ? roomRef.current?.sessionId ?? null : null, configVersion: mapServerVersion }}
+        room={status === "connected" ? roomRef.current : null}
+        officeName={activeOffice.name} onClose={() => setDeskManagerOpen(false)} onChanged={() => void officeDesks.refresh()} />}
+      <OfficeContextOverlay deskError={deskClaimError} desksLoading={officeDesks.loading} onRetryDesks={() => void officeDesks.refresh()}
+        deskAssignmentNotice={deskAssignmentNotice.notice} onDismissDeskAssignmentNotice={deskAssignmentNotice.dismiss}
+        voiceNotice={voiceMediaNotice} onDismissVoiceNotice={() => setVoiceMediaNotice(null)} availabilityError={!availabilityEditorOpen ? availability.error : null}
+        >
+      {(meetingZoneId || privateZoneId || selectedDeskZoneId) && <div className="zone-access-control" role="group" aria-label={`${activeDeskZoneLabel ?? mediaZoneName ?? "Desk"} access settings`}>
+        <span><strong>{activeDeskZoneLabel ?? mediaZoneName ?? "Zone"}</strong><small>{zoneAccessDetail}</small></span>
+        {activeDeskZone && !activeDeskZone.ownerUsername && !userOwnsAnotherDesk && <button type="button" disabled={deskClaimBusy} onClick={() => void claimDeskZone(activeDeskZone.id)}>{deskClaimBusy && deskClaimingZoneId === activeDeskZone.id ? "Claiming…" : "Claim desk"}</button>}
+        {activeDeskZone && !activeDeskZone.ownerUsername && userOwnsAnotherDesk && <small className="desk-claim-limit">You already own a desk.</small>}
+        {zonePrivacyTargetId && <>
+          <button type="button" className={`zone-lock-button${roomIsLocked ? " is-locked" : ""}`} disabled={!roomLockEnabled}
+            aria-label={roomIsLocked ? "Unlock room" : "Lock room"} aria-pressed={roomIsLocked}
+            title={roomLockEnabled ? (roomIsLocked ? "Unlock room" : "Lock room") : "Room lock is unavailable while access settings load or for your role"}
+            onClick={() => officeConversations.privateAccess.command(roomLockAction)}>
+            <FeatherIcon name={roomIsLocked ? "lock" : "unlock"} size={20} />
+          </button>
+        </>}
+        {canManageCurrentDesk && activeDeskZone && <button type="button" disabled={deskClaimBusy} onClick={() => void unclaimDeskZone(activeDeskZone.id)}>{deskClaimBusy && deskClaimingZoneId === activeDeskZone.id ? "Unclaiming…" : "Unclaim"}</button>}
+      </div>}
+      </OfficeContextOverlay>
 
-      {voiceMediaNotice && <div className="error-banner" role="status">{voiceMediaNotice}<button type="button" onClick={() => setVoiceMediaNotice(null)}>{DISMISS_MEDIA_NOTICE_LABEL}</button></div>}
-      {(voiceBusy || autoMoveNotice) && <div className="voice-area-status" role="status" aria-live="polite">{voiceBusy ? "Joining voice…" : autoMoveNotice}</div>}
       <div className="bottom-dock" data-tutorial-target="office-toolbar" aria-label="Office controls">
-        {voiceRetryExhausted && !appPaused ? <span className="dock-button voice-reconnect-indicator" role="img" aria-label="Voice disconnected" title="Voice disconnected"><FeatherIcon name="refresh" /></span> :
-        <button data-tutorial-target="office-microphone" type="button" className={`dock-button ${selectedVoiceConnected && !selectedMicMuted ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : selectedVoiceConnected ? (selectedMicMuted ? "Turn microphone on" : "Turn microphone off") : "Voice connects automatically when you enter a voice zone"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void toggleMicrophone()}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /></button>}
-        <button type="button" className={`dock-button ${cameraEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "video" : "videoOff"} /></button>
-        <button type="button" className={`dock-button ${screenShareEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || appPaused} title={appPaused ? "Unavailable while the app is paused" : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name={screenShareEnabled ? "screen" : "screenOff"} /></button>
-        <button type="button" className={`dock-button ${userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "active" : ""}`} aria-pressed={userStatus === "do-not-disturb" || userStatus === "in-meeting"} title={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Headphones off · click to set Available" : "Headphones on · click to turn on Do not disturb"} aria-label={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "Turn headphones on" : "Turn headphones off"} onClick={toggleHeadphones}><FeatherIcon name={userStatus === "do-not-disturb" || userStatus === "in-meeting" ? "headphonesOff" : "headphones"} /></button>
-        <button type="button" className={`dock-button hand-raise-button${playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ? " active" : ""}`} aria-pressed={Boolean(playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised)} title={playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ? "Lower hand" : "Raise hand · up to 1 minute"} aria-label={playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ? "Lower hand" : "Raise hand"} disabled={appPaused || status !== "connected"} onClick={() => roomRef.current?.send("hand-raise", { raised: !playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised })}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 12V5a1.7 1.7 0 0 1 3.4 0v5-6a1.7 1.7 0 0 1 3.4 0v6-4a1.7 1.7 0 0 1 3.4 0v7l.8-1.8a1.8 1.8 0 0 1 3.3 1.4l-2.2 5.5A6 6 0 0 1 14 21h-1.5a6 6 0 0 1-4.2-1.7L4 15a1.8 1.8 0 0 1 2.5-2.6L8 14"/></svg></button>
-        <ReactionPicker room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} disabled={appPaused} />
+        {voiceRetryExhausted && !mediaSuppressed ? <button type="button" className="dock-button" aria-label={RECONNECT_VOICE_LABEL} title={RECONNECT_VOICE_LABEL} onClick={() => voiceSessionRef.current?.reconnect()}><span aria-hidden="true">↻</span></button> :
+        <button data-tutorial-target="office-microphone" type="button" className={`dock-button ${selectedVoiceConnected && !selectedMicMuted ? "active" : ""}`} disabled={!selectedVoiceConnected || !canPublishConversation} title={publishingDisabledReason ? publishingDisabledReason : selectedVoiceConnected ? (selectedMicMuted ? "Turn microphone on" : "Turn microphone off") : "Voice connects automatically when you enter a voice zone"} aria-label={selectedMicMuted ? "Turn microphone on" : "Turn microphone off"} onClick={() => void toggleMicrophone()}><FeatherIcon name={selectedMicMuted ? "micOff" : "mic"} /></button>}
+        <button type="button" className={`dock-button ${cameraEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || !canPublishConversation} title={publishingDisabledReason ? publishingDisabledReason : cameraEnabled ? "Turn camera off" : "Turn camera on"} aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"} onClick={() => void toggleCamera()}><FeatherIcon name={cameraEnabled ? "videoOff" : "video"} /></button>
+        <button type="button" className={`dock-button ${screenShareEnabled ? "active" : ""}`} disabled={!selectedVoiceConnected || !canPublishConversation} title={publishingDisabledReason ? publishingDisabledReason : screenShareEnabled ? "Stop sharing screen" : "Share screen"} aria-label={screenShareEnabled ? "Stop sharing screen" : "Share screen"} onClick={() => void toggleScreenShare()}><FeatherIcon name="screen" /></button>
+        <button type="button" className={`dock-button ${mediaSuppressed ? "active" : ""}`} aria-pressed={mediaSuppressed} title={mediaSuppressed ? "Headphones off · click to set Available" : "Headphones on · click to turn on Do not disturb"} aria-label={mediaSuppressed ? "Turn headphones on" : "Turn headphones off"} onClick={toggleHeadphones}><FeatherIcon name={mediaSuppressed ? "headphonesOff" : "headphones"} /></button>
+        <ReactionPicker room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} disabled={status !== "connected"} />
+        <HandRaiseButton room={status === "connected" ? roomRef.current as unknown as ChatTransport : null} raised={playersRef.current.get(localSessionIdRef.current ?? "")?.handRaised ?? false} disabled={status !== "connected"} />
         <span className="dock-separator" />
         <div className="user-status-dock-control">
           <button type="button" className={`dock-button user-status-trigger${userStatusMenuOpen ? " active" : ""}`} aria-label={`Your status: ${userStatusOptions.find((item) => item.value === userStatus)?.label ?? "Available"}`} title={`Status · ${userStatusOptions.find((item) => item.value === userStatus)?.label ?? "Available"}`} aria-haspopup="menu" aria-expanded={userStatusMenuOpen} onClick={() => setUserStatusMenuOpen((open) => !open)}>
             <span className={`user-status-dot status-${userStatus}`} aria-hidden="true">{userStatusOptions.find((item) => item.value === userStatus)?.icon ?? "✓"}</span>
           </button>
-          {userStatusMenuOpen && <div className="user-status-menu" role="menu" aria-label="Set your status">
-            <span className="user-status-menu-heading">YOUR STATUS</span>
-            {userStatusOptions.map((option) => <button key={option.value} type="button" role="menuitemradio" aria-checked={userStatus === option.value} className={`user-status-option${userStatus === option.value ? " is-selected" : ""}`} onClick={() => selectUserStatus(option.value)}>
-              <span className={`user-status-dot status-${option.value}`} aria-hidden="true">{option.icon}</span><span>{option.label}</span>{userStatus === option.value && <span className="user-status-check" aria-hidden="true">✓</span>}
-            </button>)}
-          </div>}
+          {userStatusMenuOpen && <div className="user-status-menu"><AvailabilityMenu status={userStatus} disabled={availability.pending || status !== "connected"}
+            onStatusChange={next => { void selectUserStatus(next); }} onEditCustomStatus={() => { setUserStatusMenuOpen(false); setAvailabilityEditorOpen(true); }} /></div>}
         </div>
         <span className="dock-separator" />
           <button type="button" className="leave-button" title="Leave office" aria-label="Leave office" onClick={() => {
@@ -3156,29 +3191,14 @@ export function OfficeApp() {
           }}><FeatherIcon name="exit" /></button>
       </div>
 
-      {userStatus !== "available" && <div className="status-pause-overlay" role="dialog" aria-modal="true" aria-label={`Status: ${userStatusOptions.find((item) => item.value === userStatus)?.label ?? userStatus}`}>
-        <section className="status-pause-card">
-          <span className={`user-status-dot status-${userStatus}`} aria-hidden="true">{userStatusOptions.find((item) => item.value === userStatus)?.icon}</span>
-          <span className="eyebrow">YOUR STATUS</span>
-          <h2>{userStatusOptions.find((item) => item.value === userStatus)?.label ?? userStatus}</h2>
-          {userStatus === "toilet" && <p>{statusTravelError ?? "Traveling to the restroom. Choose Available when you’re back."}</p>}
-          {(userStatus === "do-not-disturb" || userStatus === "in-meeting") && <p>The office is paused while this status is active.</p>}
-          <button type="button" className="status-return-button" onClick={() => selectUserStatus("available")}>Back to Available</button>
-          <button type="button" className="status-dropdown-toggle" aria-expanded={statusMenuOverlayOpen} onClick={() => setStatusMenuOverlayOpen((open) => !open)}>{statusMenuOverlayOpen ? "Choose another status" : "Change status"}</button>
-          {statusMenuOverlayOpen && <label className="status-overlay-select-label">Set status<select value={userStatus} onChange={(event) => selectUserStatus(event.target.value as UserStatus)}>{userStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
-        </section>
-      </div>}
+      {availabilityEditorOpen && <AvailabilityDialog status={userStatus} customStatus={customStatusFromFields(playersRef.current.get(localSessionIdRef.current ?? "") ?? {})}
+        pending={availability.pending} error={availability.error} onClose={() => setAvailabilityEditorOpen(false)}
+        onSave={(nextStatus, customStatus) => { void selectUserStatus(nextStatus, customStatus).then(saved => { if (saved) setAvailabilityEditorOpen(false); }); }} />}
+      {statusTravelError && <div className="auto-move-toast" role="status">{statusTravelError}</div>}
 
-      {(meetingZoneId || privateZoneId || selectedDeskZoneId) && <div className="zone-access-control" role="group" aria-label={`${activeDeskZoneLabel ?? mediaZoneName ?? "Desk"} access settings`}>
-        <span><strong>{activeDeskZoneLabel ?? mediaZoneName ?? "Zone"}</strong><small>{zoneAccessDetail}</small></span>
-        {activeDeskZone && !activeDeskZone.ownerUsername && !userOwnsAnotherDesk && <button type="button" disabled={deskClaimBusy} onClick={() => void claimDeskZone(activeDeskZone.id)}>{deskClaimBusy && deskClaimingZoneId === activeDeskZone.id ? "Claiming…" : "Claim desk"}</button>}
-        {activeDeskZone && !activeDeskZone.ownerUsername && userOwnsAnotherDesk && <small className="desk-claim-limit">You already own a desk.</small>}
-        {zoneLockTargetId && <button type="button" className={`zone-lock-button${lockedZoneIds.includes(zoneLockTargetId) ? " is-locked" : ""}`} aria-label={lockedZoneIds.includes(zoneLockTargetId) ? "Unlock room" : "Lock room"} aria-pressed={lockedZoneIds.includes(zoneLockTargetId)} title={lockedZoneIds.includes(zoneLockTargetId) ? "Unlock room" : "Lock room"} onClick={() => roomRef.current?.send("zone-lock", { zoneId: zoneLockTargetId, locked: !lockedZoneIds.includes(zoneLockTargetId) })}>
-          <FeatherIcon name={lockedZoneIds.includes(zoneLockTargetId) ? "lock" : "unlock"} size={24} />
-        </button>}
-        {canManageCurrentDesk && activeDeskZone && <button type="button" disabled={deskClaimBusy} onClick={() => void unclaimDeskZone(activeDeskZone.id)}>{deskClaimBusy && deskClaimingZoneId === activeDeskZone.id ? "Unclaiming…" : "Unclaim"}</button>}
-        {activeDeskZone && deskClaimError && <small className="desk-claim-error" role="alert">{deskClaimError}</small>}
-      </div>}
+
+
+      {(travel.requestNotice || autoMoveNotice) && <div className="auto-move-toast" role="status">{travel.requestNotice ?? autoMoveNotice}</div>}
 
       {followAlerts.length > 0 && <div className="social-alert-stack follow-alert-stack" role="region" aria-label="People following you">
         {followAlerts.map((alert) => <div className="social-alert follow-alert" key={alert.followerSessionId} role="status">
@@ -3209,7 +3229,7 @@ export function OfficeApp() {
           }}>Rejoin office</button>
         </div>
       )}
-      <p className="screen-reader-only">With the camera locked behind your character, W and S walk forward and backward; hold A or D to turn in 15 degree steps. Right-drag to free the camera, and use Focus character to lock it again. Hold Shift while moving to run. Double-click the ground to travel automatically by a randomly selected vehicle.</p>
+      <p className="screen-reader-only">With the camera locked behind your character, W and S walk forward and backward; hold A or D to turn in 15 degree steps. Right-drag to free the camera, and use Focus character to lock it again. Hold Shift while moving to run. Click the ground to travel automatically by a randomly selected vehicle. Drag the map to pan it.</p>
       {modifyPropsOpen && officeMapLayout && <ModifyPropsEditor open={modifyPropsOpen} officeName={activeOffice.name} dimension={{ width: mapDimensions.width, depth: mapDimensions.depth, gridSize: 1 }} props={modifyPropsDraft} selectedPropId={selectedModifyPropId} placingAsset={selectedModifyPropAsset} error={modifyPropsError} onDraftChange={setModifyPropsDraft} onRequestPlacement={(asset) => setSelectedModifyPropAsset(asset as RoomLayoutProp["asset"] | null)} onSelectProp={setSelectedModifyPropId} onRotateProp={rotateOfficeProp} onSave={saveModifyProps} onCancel={() => { setModifyPropsOpen(false); setSelectedModifyPropAsset(null); setSelectedModifyPropId(null); setModifyPropsError(null); }} />}
       {modifyPropsBusy && <FullScreenLoading label="Loading office props…" />}
     </main>

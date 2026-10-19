@@ -183,6 +183,28 @@ Each phase is one PR and leaves the game playable. The server stays authoritativ
 3. Any office member can attach or edit prop interactions, matching today's prop permission (`repository.ts:52`). Because any member can publish a link others will click, link safety rests on the validator, `noopener,noreferrer` and the provider-only embed rule. The open action shows the destination hostname before navigating.
 4. Spotlight: admin. Owners are included, since the owner role is a superset of admin. Meeting hosts are not.
 
+## Visual detail pass (2026-10-15)
+
+Single visual pass requested by the owner: bring the existing 2D play map closer to the furnished-office detail of Gather 2.0. Keep the established vector approach and existing licensed catalog; no new asset packs.
+
+- Draw warm staggered floorboards in meeting/common areas, muted carpet in private workspaces, tiled restrooms, subtle outdoor texture and road edges. Suppress fine patterns at minimap scale and keep them in the existing static bitmap cache.
+- Replace generic colored prop blocks with recognizable top-down furniture and foliage: desks/tables, seats/sofas, monitors, cabinets, plants and trees. Preserve each saved footprint and rotation; retain catalog previews for unsupported assets.
+- Give walls a light cap/baseboard and shallow shadow; preserve door/opening positions and avoid drawing detail across the doorway.
+- Polish avatar/name contrast with soft shadows and readable dark name pills while retaining selected head portraits, facing, status, speaking and local-player indicators.
+- Keep world positions, movement, collision, room membership, media, picking and 3D behavior unchanged.
+
+Validation: registered contract tests for visual classification and detail scaling, existing client/shared tests, `pnpm build`, independent review, and browser-rendered representative rooms at play/minimap scales. Record any unavailable authenticated or two-session Compose checks explicitly. Browser fixtures and build/test output live on the mounted BaseData volume.
+
+Implemented with focused surface, wall and prop modules; no map data or 3D changes. New surface/prop contracts were run RED before implementation and GREEN afterwards. The doorway-shadow regression was reproduced before its fix and passes at 2 and 12 px/m afterwards. Client tests pass 136/136. The root test command stops at the existing shared `propInteraction.test.ts:19` URL-validation failure (49/50 shared tests pass; shared source is unchanged from HEAD).
+
+Safari checks use the real 2D renderer in an isolated fixture: furnished rooms at 12 and 24 px/m, static detail suppression at 2 px/m, generated campus, portrait and unsupported-prop preview loading, interaction badge, and click-to-walk intent. Authenticated gameplay and two-session movement/media checks were not run because of the local HTTPS connection/certificate issue. Independent review findings about doorway shadows, wall-function complexity and plan/material consistency were corrected and re-reviewed.
+
 ## Routing
 
 Plan by Claude (opus), reviewed by Codex `gpt-6.1-sol` `medium`. Implementation is Codex `medium`, one run per phase. Claude reviews each diff. Phases 2 and 4 also get an authorization-focused review. Every phase report lists the shared, client and server test commands it ran, the test-fails-on-revert evidence, and which multiplayer browser checks were and were not run.
+
+## Owner UX updates — 2026-10-15
+
+3D wheel and toolbar zoom stays in 3D at the existing distance limit; mode controls or M switch 2D/3D explicitly. Workspace colors reuse the GAMVerse navy/cyan/sky/yellow theme, including light/dark and a navy light-theme focus outline. Automatic participation defaults to Join for server-confirmed conversations; explicit Listen/Off, availability suppression and private-admission muting remain. Talk and AV shortcuts are removed from the dock and available through Account and settings → Settings → General.
+
+Verification: complete build and 335 registered client tests passed. Camera regression tests failed before the change, then passed; automatic-join regressions also failed before the change. Two production browser profiles formed a Nearby conversation by real server-routed walking and selected Join automatically with microphone off; manual Off remained selected. Normal pointer clicks switched 3D ↔ 2D, maximum zoom remained in 3D, Light/Dark were visually inspected, and Settings opened both destinations with Enter and closed before each. AV dialog fit a 390 px viewport without horizontal overflow and Escape closed it. Independent Sol review cleared camera, palette, automatic join and Settings; no Astra was used.

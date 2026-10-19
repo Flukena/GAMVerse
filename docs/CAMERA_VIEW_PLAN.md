@@ -4,6 +4,10 @@ Drafted: 2026-10-12
 
 This plan comes from a read-only review of the current checkout. Nothing in it has been run in a browser yet. Line numbers are approximate; re-locate code with `codegraph explore` before editing.
 
+## Current behavior (2026-10-15)
+
+The owner requires explicit 2D/3D switching through the mode control or M. Wheel and toolbar zoom stay in the selected view, including at the 3D distance limit. The previous threshold-driven view transitions described below are superseded; the campus-fit ratio now only bounds 3D distance.
+
 ## Current structure
 
 | Concern | Location |

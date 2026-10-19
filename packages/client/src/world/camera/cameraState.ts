@@ -1,6 +1,6 @@
 import { CAMERA } from "@gammyverse/shared";
 import { MathUtils } from "three";
-import { CAMPUS_2D_ZOOM_THRESHOLD_RATIO, CAMPUS_MAX_ZOOM_RATIO, CAMPUS_MIN_ZOOM_RATIO, DEFAULT_CAMPUS_ELEVATION_DEG, DEFAULT_TPP_ELEVATION_RAD, LIVE_OFFICE_FOCUS_DISTANCE_M, TPP_ELEVATION_MAX_DEG, TPP_ELEVATION_MIN_DEG } from "./constants";
+import { CAMPUS_MAX_ZOOM_RATIO, CAMPUS_MIN_ZOOM_RATIO, DEFAULT_CAMPUS_ELEVATION_DEG, DEFAULT_TPP_ELEVATION_RAD, LIVE_OFFICE_FOCUS_DISTANCE_M, TPP_ELEVATION_MAX_DEG, TPP_ELEVATION_MIN_DEG } from "./constants";
 
 import { MAP2D_DEFAULT_SCALE_PX_PER_M } from "../map2d/constants";
 import { clampMap2dScale } from "../map2d/map2dProjection";
@@ -55,7 +55,6 @@ function resolveMode(state: CameraState): CameraState {
   if (state.editing) return { ...state, mode: "free" };
   if (state.mode === "fpp") return state;
   if (state.view === "2d") return { ...state, mode: "map2d" };
-  if (state.campus && state.zoomRatio >= CAMPUS_2D_ZOOM_THRESHOLD_RATIO) return { ...state, mode: "map2d" };
   return { ...state, mode: state.following ? "tpp" : "free" };
 }
 

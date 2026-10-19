@@ -1,4 +1,5 @@
 import type { VoiceTarget } from "./voiceTarget";
+import { isConversationGrantBinding, type ConversationGrantBinding } from "@gammyverse/shared";
 
 const VOICE_TOKEN_ERROR_LABEL = "Could not authorize voice.";
 const VOICE_TOKEN_PATHS = { meeting: "/media/meeting-token", private: "/media/private-token", proximity: "/media/proximity-token", spotlight: "/media/spotlight-token" };
@@ -17,8 +18,16 @@ export function isVoiceAuthorizationDenied(error: Error): boolean {
 
 interface VoiceTokenResponse { url?: string; token?: string; groupId?: string; error?: string }
 
+function conversationBinding(target: VoiceTarget): ConversationGrantBinding | Record<string, never> {
+  const { conversationId, conversationGeneration, roomIncarnationId } = target;
+  if (conversationId === undefined && conversationGeneration === undefined && roomIncarnationId === undefined) return {};
+  const binding = { conversationId, conversationGeneration, roomIncarnationId };
+  if (!isConversationGrantBinding(binding)) throw new VoiceTokenError(VOICE_TOKEN_ERROR_LABEL);
+  return binding;
+}
+
 export async function fetchVoiceToken(endpoint: string, target: VoiceTarget, signal: AbortSignal): Promise<{ url: string; token: string } | null> {
-  const body = { officeId: target.officeId, ...(target.kind === "meeting" ? { roomKey: target.id } : target.kind === "private" ? { zoneId: target.id } : {}) };
+  const body = { officeId: target.officeId, ...conversationBinding(target), ...(target.mode ? { mode: target.mode } : {}), ...(target.kind === "meeting" ? { roomKey: target.id } : target.kind === "private" ? { zoneId: target.id } : {}) };
   const response = await fetch(`${endpoint}${VOICE_TOKEN_PATHS[target.kind]}`, {
     method: "POST", credentials: "include", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });

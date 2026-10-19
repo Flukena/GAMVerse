@@ -56,6 +56,9 @@ export async function initializeDatabase() {
     { version: 22, file: "022_office_chat_messages.sql" },
     { version: 23, file: "023_polygonal_mind_character_presets.sql" },
     { version: 24, file: "024_kaykit_character_presets.sql" },
+    { version: 25, file: "025_office_user_availability_compat.sql" },
+    { version: 26, file: "026_office_desks_compat.sql" },
+    { version: 27, file: "027_character_presets_compat.sql" },
   ];
   const client = await database.connect();
   try {

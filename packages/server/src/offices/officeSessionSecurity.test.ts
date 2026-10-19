@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { mock, after } from "node:test";
 import type { AuthContext, Client } from "@colyseus/core";
-import { DEFAULT_CHARACTER_ID, PlayerState } from "@gammyverse/shared";
+import { DEFAULT_CHARACTER_ID, PlayerState, defaultAvailability } from "@gammyverse/shared";
 import { getRecentServerErrorCount } from "../infra/logger.js";
 import { Spotlight, OFFICE_ACCESS_REVOKED_CLOSE_CODE } from "./spotlight.js";
 
@@ -277,6 +277,9 @@ test("OfficeRoom rechecks suspension using token retained by real onAuth and onJ
     const context = authContext();
     const auth = await f.room.onAuth(f.client, { officeId: OFFICE_ID }, context);
     f.room.onJoin(f.client, {}, auth);
+    assert.deepEqual(f.leaveCodes, [], "the joining session must not block its own spawn");
+    assert.notEqual(f.room.state.players.get(SESSION_ID), f.player);
+    assert.equal(f.internals.sessionSecurity.activeSession(USERNAME), SESSION_ID);
     queryBoundary(false);
     f.room.onDrop(f.client, TRANSPORT_DROP_CLOSE_CODE);
     await f.room.onReconnect(f.client);
@@ -516,4 +519,32 @@ test("OfficeRoom non-last disposal of pending-seat non-presenter keeps spotlight
     assert.equal(first.seatRejected(), true);
     assert.deepEqual(first.spotlight.snapshot(), before);
   } finally { first.cleanup(); second.cleanup(); }
+});
+
+
+test("concurrent authentication replaces the session activated while availability was loading", async () => {
+  const f = fixture();
+  const pending: Array<() => void> = [];
+  let bothLoading!: () => void;
+  const loading = new Promise<void>(resolve => { bothLoading = resolve; });
+  const internals = f.room as unknown as { availability: { load(): Promise<ReturnType<typeof defaultAvailability>> } };
+  internals.availability = { load: () => new Promise(resolve => {
+    pending.push(() => resolve(defaultAvailability()));
+    if (pending.length === 2) bothLoading();
+  }) };
+  try {
+    queryBoundary();
+    const first = { ...f.client, sessionId: "first-concurrent" } as Client;
+    const second = { ...f.client, sessionId: "second-concurrent" } as Client;
+    const firstAuth = f.room.onAuth(first, { officeId: OFFICE_ID }, authContext());
+    const secondAuth = f.room.onAuth(second, { officeId: OFFICE_ID }, authContext());
+    await loading;
+    pending[0]!();
+    f.room.onJoin(first, {}, await firstAuth);
+    pending[1]!();
+    f.room.onJoin(second, {}, await secondAuth);
+    assert.equal(f.room.state.players.has(first.sessionId), false);
+    assert.equal(f.room.state.players.has(second.sessionId), true);
+    assert.equal(f.internals.sessionSecurity.activeSession(USERNAME), second.sessionId);
+  } finally { f.cleanup(); }
 });

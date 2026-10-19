@@ -42,6 +42,9 @@
 .modify-props-categories { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; }
 .modify-props-categories button { flex: 0 0 auto; border: 1px solid rgba(2, 48, 71, .1); border-radius: 999px; padding: 6px 9px; color: #58717c; background: transparent; font-size: 10px; cursor: pointer; }
 .modify-props-categories button.is-active { border-color: #219ebc; color: #023047; background: rgba(142, 202, 230, .35); }
+.modify-props-sections { display: flex; gap: 6px; margin: 0 0 8px; padding: 3px; border: 1px solid rgba(2,48,71,.1); border-radius: 10px; background: rgba(2,48,71,.035); }
+.modify-props-sections button { flex: 1; min-width: 0; border: 0; border-radius: 7px; padding: 7px 8px; color: #58717c; background: transparent; font-size: 10px; font-weight: 700; cursor: pointer; }
+.modify-props-sections button.is-active { color: #023047; background: rgba(255,255,255,.88); box-shadow: 0 2px 8px rgba(2,48,71,.1); }
 .modify-props-catalog { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .modify-props-catalog-card { min-width: 0; overflow: hidden; padding: 4px; border: 1px solid rgba(2, 48, 71, .1); border-radius: 10px; color: #294653; background: rgba(255,255,255,.7); cursor: pointer; }
 .modify-props-catalog-card:hover, .modify-props-catalog-card.is-selected { border-color: #219ebc; box-shadow: 0 0 0 2px rgba(33, 158, 188, .14); }

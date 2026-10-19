@@ -39,8 +39,9 @@ class PersistenceSeam {
   async query(
     sql: string,
     values: unknown[] = [],
-  ): Promise<{ rows: unknown[] }> {
+  ): Promise<{ rows: unknown[]; rowCount?: number }> {
     this.calls.push(sql);
+    if (sql.includes("SELECT 1 FROM app_offices")) return { rows: [{}], rowCount: 1 };
     if (sql.startsWith("SELECT config,"))
       return { rows: [{ config: this.map, config_version: INITIAL_VERSION }] };
     if (sql.startsWith("SELECT config "))
@@ -166,5 +167,20 @@ test("map draft with stale empty props retains latest server interaction metadat
     seam.calls.some((sql) => sql.startsWith("UPDATE app_office_props")),
     false,
   );
+  assert.equal(seam.released, true);
+});
+
+test("maintainers can save office map layouts", async () => {
+  const seam = new PersistenceSeam();
+  const dependencies = { ...seam.dependencies(), role: async () => "maintainer" };
+  const saved = await saveOfficeMapLayout(
+    USERNAME,
+    true,
+    OFFICE_ID,
+    { configVersion: INITIAL_VERSION, layout: { props: [], zones: [], walls: [], doors: [] } },
+    dependencies,
+  );
+  assert.equal(saved.configVersion, INITIAL_VERSION + 1);
+  assert.ok(seam.calls.some(sql => sql.includes("NOT $4::boolean OR $3::boolean")));
   assert.equal(seam.released, true);
 });

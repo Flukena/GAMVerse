@@ -1,22 +1,37 @@
 .page-tutorial-layer { position: fixed; z-index: 1200; inset: 0; pointer-events: auto; }
-.page-tutorial-dim { position: absolute; inset: 0; background: rgba(2, 25, 39, .68); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
-.page-tutorial-spotlight { position: fixed; z-index: 1; border: 2px solid #51d3ee; border-radius: 14px; background: transparent; box-shadow: 0 0 0 9999px rgba(2, 25, 39, .68), 0 0 0 5px rgba(81, 211, 238, .2), 0 0 32px rgba(81, 211, 238, .55); pointer-events: auto; animation: tutorial-focus-in .24s ease-out both; }
+.page-tutorial-dim { position: absolute; inset: 0; background: rgba(35, 48, 40, .58); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.page-tutorial-spotlight { position: fixed; z-index: 1; border: 2px solid var(--color-secondary, #587c6a); border-radius: 14px; background: transparent; box-shadow: 0 0 0 9999px rgba(35, 48, 40, .58), 0 0 0 5px color-mix(in srgb, var(--color-secondary, #587c6a) 20%, transparent), 0 0 28px color-mix(in srgb, var(--color-secondary, #587c6a) 45%, transparent); pointer-events: auto; animation: tutorial-focus-in .24s ease-out both; }
 .page-tutorial-focused-target { scale: 1.08; transition: scale .2s ease-out; }
-.page-tutorial-card { position: fixed; z-index: 2; width: min(340px, calc(100vw - 32px)); padding: 21px; border: 1px solid #cfe0e5; border-radius: 16px; background: #f8fcfd; color: #193b4b; box-shadow: 0 20px 70px rgba(1, 28, 42, .3); pointer-events: auto; animation: tutorial-card-in .2s ease-out both; }
+.page-tutorial-card { position: fixed; z-index: 2; box-sizing: border-box; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 22px; border: 1px solid var(--color-border, #bfd1c4); border-radius: 18px; background: color-mix(in srgb, var(--color-surface, #e7eee7) 88%, transparent); color: var(--color-ink, #293a32); box-shadow: 0 20px 70px rgba(35, 48, 40, .25), inset 0 1px 0 rgba(255,255,255,.55); -webkit-backdrop-filter: blur(24px) saturate(135%); backdrop-filter: blur(24px) saturate(135%); pointer-events: auto; animation: tutorial-card-in .2s ease-out both; }
 .page-tutorial-card.is-popup { top: 50%; left: 50%; transform: translate(-50%, -50%); }
-.page-tutorial-eyebrow { display: block; padding-right: 30px; color: #66828e; font-size: 10px; font-weight: 800; letter-spacing: .13em; }
-.page-tutorial-card h2 { margin: 8px 28px 6px 0; color: #062f43; font: 750 20px/1.2 "Manrope", sans-serif; }
-.page-tutorial-card > p { margin: 0; color: #526f7a; font-size: 13px; line-height: 1.5; }
-.page-tutorial-keys { display: block; width: fit-content; margin-top: 14px; padding: 8px 10px; border: 1px solid #b8d9e2; border-radius: 8px; background: #eaf7fa; color: #06384e; font: 700 12px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.page-tutorial-close { position: absolute; top: 11px; right: 11px; display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 8px; background: #e8f1f4; color: #315768; font-size: 20px; cursor: pointer; }
+.page-tutorial-eyebrow { display: block; padding-right: 30px; color: var(--color-muted, #5f7368); font-size: 10px; font-weight: 800; letter-spacing: .13em; }
+.page-tutorial-progress { height: 4px; margin-top: 12px; overflow: hidden; border-radius: 99px; background: color-mix(in srgb, var(--color-border, #bfd1c4) 55%, transparent); }
+.page-tutorial-progress span { display: block; height: 100%; border-radius: inherit; background: var(--color-secondary, #587c6a); transition: width .2s ease; }
+.page-tutorial-card h2 { margin: 10px 28px 7px 0; color: var(--color-ink, #293a32); font: 750 20px/1.2 "Manrope", sans-serif; }
+.page-tutorial-card > p { margin: 0; color: var(--color-muted, #5f7368); font-size: 13px; line-height: 1.55; }
+.page-tutorial-keys { display: block; width: fit-content; margin-top: 14px; padding: 8px 10px; border: 1px solid var(--color-border, #bfd1c4); border-radius: 8px; background: color-mix(in srgb, var(--color-surface-soft, #d3e1d7) 82%, transparent); color: var(--color-ink, #293a32); font: 700 12px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.page-tutorial-close { position: absolute; top: 11px; right: 11px; display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--color-border, #bfd1c4); border-radius: 9px; background: color-mix(in srgb, var(--color-surface-soft, #d3e1d7) 70%, transparent); color: var(--color-ink, #293a32); font-size: 20px; cursor: pointer; }
 .page-tutorial-actions { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 17px; }
-.page-tutorial-optout { display: flex; align-items: flex-start; gap: 7px; max-width: 148px; color: #536f7a; font-size: 11px; line-height: 1.35; cursor: pointer; }
-.page-tutorial-optout input { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; accent-color: #087b99; }
+.page-tutorial-optout { display: flex; align-items: flex-start; gap: 7px; max-width: 148px; color: var(--color-muted, #5f7368); font-size: 11px; line-height: 1.35; cursor: pointer; }
+.page-tutorial-optout input { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; accent-color: var(--color-secondary, #587c6a); }
 .page-tutorial-nav { display: flex; gap: 7px; margin-left: auto; }
 .page-tutorial-done, .page-tutorial-back { min-height: 36px; padding: 0 14px; border: 0; border-radius: 9px; font-size: 12px; font-weight: 750; cursor: pointer; }
-.page-tutorial-done { background: #06384e; color: #fff; }
-.page-tutorial-back { border: 1px solid #cfe0e5; background: #fff; color: #315768; }
-.page-tutorial-reopen { position: fixed; z-index: 1100; left: max(18px, env(safe-area-inset-left, 0px)); bottom: max(22px, env(safe-area-inset-bottom, 0px)); display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid #c8dce3; border-radius: 50%; background: #f8fcfd; color: #06384e; box-shadow: 0 5px 18px rgba(8, 40, 55, .18); font-size: 20px; font-weight: 800; cursor: pointer; }
+.page-tutorial-done { background: var(--color-secondary, #587c6a); color: #fff; }
+.page-tutorial-back { border: 1px solid var(--color-border, #bfd1c4); background: color-mix(in srgb, var(--color-surface) 80%, transparent); color: var(--color-ink, #293a32); }
+.page-tutorial-reopen { position: fixed; z-index: 1100; left: max(18px, env(safe-area-inset-left, 0px)); bottom: max(22px, env(safe-area-inset-bottom, 0px)); display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--color-border, #bfd1c4); border-radius: 50%; background: color-mix(in srgb, var(--color-surface, #e7eee7) 88%, transparent); color: var(--color-ink, #293a32); box-shadow: 0 5px 18px rgba(35, 48, 40, .18); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); font-size: 20px; font-weight: 800; cursor: pointer; }
+:root .office-experience .page-tutorial-card { border-color: var(--workspace-edge); background: color-mix(in srgb, var(--workspace-surface) 88%, transparent); color: var(--workspace-ink); color-scheme: light; }
+:root .office-experience .page-tutorial-card h2 { color: var(--workspace-ink); }
+:root .office-experience .page-tutorial-card > p,
+:root .office-experience .page-tutorial-eyebrow,
+:root .office-experience .page-tutorial-optout { color: var(--workspace-muted); }
+:root .office-experience .page-tutorial-keys,
+:root .office-experience .page-tutorial-close,
+:root .office-experience .page-tutorial-back { border-color: var(--workspace-edge); background: var(--workspace-subtle); color: var(--workspace-ink); }
+:root .office-experience .page-tutorial-done { background: var(--workspace-action); color: var(--workspace-on-action); }
+:root .office-experience .page-tutorial-spotlight { border-color: var(--workspace-focus); box-shadow: 0 0 0 9999px rgba(35, 48, 40, .58), 0 0 0 5px color-mix(in srgb, var(--workspace-focus) 20%, transparent), 0 0 28px color-mix(in srgb, var(--workspace-focus) 45%, transparent); }
+:root .office-experience .page-tutorial-optout input { accent-color: var(--workspace-action); }
+:root .office-experience .page-tutorial-card :focus-visible,
+:root .office-experience .page-tutorial-reopen:focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 3px; }
 @keyframes tutorial-focus-in { from { opacity: .6; transform: scale(.93); } to { opacity: 1; transform: scale(1); } }
 @keyframes tutorial-card-in { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 520px) { .page-tutorial-card { padding: 18px; } .page-tutorial-card h2 { font-size: 19px; } .page-tutorial-actions { align-items: end; } }

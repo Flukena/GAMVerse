@@ -1,3 +1,4 @@
+import { MAX_OFFICE_PROPS } from "./officePropLimits.js";
 import { ROOM_PROP_CATALOG, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "./roomLayout.js";
 
 export interface CampusMapGeneratorInputs {
@@ -23,7 +24,6 @@ const MAP_DEPTH = 260;
 const TOP_TEAM_START_Z = -104;
 const BOTTOM_TEAM_START_Z = 60;
 const MEETING_EDGE_ROAD_Z = 108;
-const MAX_GENERATED_PROPS = 10_000;
 const OUTDOOR_FLOOR_COVERAGE = 0.05;
 const COLORS = ["#ffb703", "#fb8500", "#219ebc", "#8ecae6", "#70c1b3", "#b8a1d9", "#e5989b", "#84a59d", "#f6bd60", "#90be6d"];
 // Lightened tints of brand palette colors 2–5 for generated room walls.
@@ -525,6 +525,6 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
     }
   }
 
-  if (layout.props.length > MAX_GENERATED_PROPS) throw new Error(`This layout needs ${layout.props.length.toLocaleString()} environment props. The current limit is ${MAX_GENERATED_PROPS.toLocaleString()}.`);
+  if (layout.props.length > MAX_OFFICE_PROPS) throw new Error(`This layout needs ${layout.props.length.toLocaleString()} environment props. The current limit is ${MAX_OFFICE_PROPS.toLocaleString()}.`);
   return { layout, dimensions: { width, depth }, privateRoomCount: peoplePerTeam * teamCount, teamCount };
 }

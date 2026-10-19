@@ -1,7 +1,8 @@
-import type { RoomLayout } from "@gammyverse/shared";
+import type { Map2dPresentation } from "./map2dPresentation";
+import { drawMap2dRoomLabels } from "./map2dRoomLabels";
+import type { RoomLayout, RoomLayoutProp } from "@gammyverse/shared";
 import {
   MAP2D_COLORS,
-  MAP2D_DRAG_THRESHOLD_PX,
   MAP2D_VIEW_STORAGE_KEY,
 } from "./constants";
 import { Map2dPlayerFrames } from "./map2dPlayerFrames";
@@ -13,7 +14,7 @@ import {
   type Map2dDecoration,
   type Map2dPlayer,
 } from "./map2dDynamicLayer";
-import { pickMap2dPlayer } from "./map2dInput";
+import { isMap2dDrag, pickMap2dPlayer } from "./map2dInput";
 import { Map2dStaticLayer } from "./map2dStaticLayer";
 import { AvatarPortraits } from "./avatarPortraits";
 import {
@@ -31,6 +32,7 @@ export interface Map2dListener {
   selectPlayer(sessionId: string, screenX: number, screenY: number): void;
 }
 export type Map2dFrame = {
+  presentation?: Map2dPresentation;
   visible: boolean;
   view: "2d" | "3d";
   layout: RoomLayout | null;
@@ -67,9 +69,13 @@ export class Map2dRenderer {
   private state: Map2dFrame | null = null;
   private readonly playerFrames = new Map2dPlayerFrames();
   private readonly changes = new Map2dFrameChanges();
+  private staticLayoutSource: RoomLayout | null | undefined;
+  private staticVehicleIds = "";
+  private staticLayout: RoomLayout | null = null;
   private readonly projection: Map2dProjection = { center: { x: 0, z: 0 }, pxPerM: 0, widthPx: 0, heightPx: 0, dpr: 1 };
   private pointer: {
     id: number;
+    button: number;
     start: ScreenPoint;
     previous: ScreenPoint;
     dragged: boolean;
@@ -85,19 +91,23 @@ export class Map2dRenderer {
     canvas.addEventListener("pointermove", this.pointerMove);
     canvas.addEventListener("pointerup", this.pointerUp);
     canvas.addEventListener("pointercancel", this.pointerCancel);
+    canvas.addEventListener("lostpointercapture", this.pointerCancel);
     canvas.addEventListener("wheel", this.wheel, { passive: false });
+    canvas.addEventListener("contextmenu", this.contextMenu);
   }
   private point(event: PointerEvent | WheelEvent): ScreenPoint {
     const rect = this.canvas.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
   private readonly pointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0 || !this.state?.visible) return;
+    if ((event.button !== 0 && event.button !== 2) || this.pointer || !this.state?.visible) return;
+    if (event.button === 2) event.preventDefault();
     this.canvas.focus();
     this.canvas.setPointerCapture(event.pointerId);
     const point = this.point(event);
     this.pointer = {
       id: event.pointerId,
+      button: event.button,
       start: point,
       previous: point,
       dragged: false,
@@ -106,11 +116,9 @@ export class Map2dRenderer {
   private readonly pointerMove = (event: PointerEvent): void => {
     const pointer = this.pointer;
     const state = this.state;
-    if (!pointer || !state) return;
+    if (!pointer || pointer.id !== event.pointerId || !state?.visible) return;
     const point = this.point(event);
-    pointer.dragged ||=
-      Math.hypot(point.x - pointer.start.x, point.y - pointer.start.y) >=
-      MAP2D_DRAG_THRESHOLD_PX;
+    pointer.dragged ||= isMap2dDrag(pointer.start, point);
     if (pointer.dragged)
       this.listener.pan({
         x:
@@ -124,10 +132,12 @@ export class Map2dRenderer {
   };
   private readonly pointerUp = (event: PointerEvent): void => {
     const pointer = this.pointer;
+    if (!pointer || pointer.id !== event.pointerId) return;
     this.pointer = null;
+    if (pointer.button !== 0) return;
     const state = this.state;
-    if (!pointer || pointer.dragged || !state) return;
     const point = this.point(event);
+    if (pointer.dragged || isMap2dDrag(pointer.start, point) || !state?.visible) return;
     const playerId = pickMap2dPlayer(
       this.projection,
       this.playerFrames.players,
@@ -144,8 +154,9 @@ export class Map2dRenderer {
     )
       this.listener.walk(world);
   };
-  private readonly pointerCancel = (): void => {
-    this.pointer = null;
+  private readonly contextMenu = (event: MouseEvent): void => { event.preventDefault(); };
+  private readonly pointerCancel = (event: PointerEvent): void => {
+    if (this.pointer?.id === event.pointerId) this.pointer = null;
   };
   private readonly wheel = (event: WheelEvent): void => {
     const state = this.state;
@@ -178,6 +189,7 @@ export class Map2dRenderer {
     this.state = state;
     this.canvas.style.display = state.visible ? "block" : "none";
     if (!state.visible) {
+      this.pointer = null;
       this.changes.invalidate();
       return;
     }
@@ -197,19 +209,48 @@ export class Map2dRenderer {
     ctx.setTransform(p.dpr, 0, 0, p.dpr, 0, 0);
     ctx.fillStyle = MAP2D_COLORS.outside;
     ctx.fillRect(0, 0, p.widthPx, p.heightPx);
+    const movingVehicleProps: RoomLayoutProp[] = [];
+    const movingVehicleIds = new Set<string>();
+    if (state.layout) {
+      const propsById = new Map(state.layout.props.map(prop => [prop.id, prop]));
+      for (const player of this.playerFrames.players.values()) {
+        if (!player.vehiclePropId || movingVehicleIds.has(player.vehiclePropId)) continue;
+        const prop = propsById.get(player.vehiclePropId);
+        if (!prop) continue;
+        movingVehicleIds.add(player.vehiclePropId);
+        const driving = Boolean(player.vehicleId);
+        movingVehicleProps.push({
+          ...prop,
+          x: driving ? player.x : player.vehiclePropX ?? prop.x,
+          z: driving ? player.z : player.vehiclePropZ ?? prop.z,
+          rotation: driving ? player.rotation : player.vehiclePropRotation ?? prop.rotation,
+        });
+      }
+    }
+    const vehicleIds = [...movingVehicleIds].sort().join("|");
+    if (this.staticLayoutSource !== state.layout || this.staticVehicleIds !== vehicleIds) {
+      this.staticLayoutSource = state.layout;
+      this.staticVehicleIds = vehicleIds;
+      this.staticLayout = state.layout && movingVehicleIds.size
+        ? { ...state.layout, props: state.layout.props.filter(prop => !movingVehicleIds.has(prop.id)) }
+        : state.layout;
+    }
+    const visibleProps = [...(this.staticLayout?.props ?? []), ...movingVehicleProps];
     this.staticLayer.update(
-      state.layout,
+      this.staticLayout,
       state.widthM,
       state.depthM,
       state.configVersion,
       p.pxPerM,
+      state.presentation,
     );
     this.staticLayer.blit(ctx, p);
+    drawMap2dRoomLabels(ctx, p, state.layout?.zones ?? []);
     if (state.destination) drawMap2dDestination(ctx, p, state.destination);
     drawMap2dInteraction(
       ctx,
       p,
-      state.layout?.props ?? [],
+      visibleProps,
       state.localId ? this.playerFrames.players.get(state.localId) : undefined,
     );
     drawMap2dDynamic(
@@ -221,16 +262,22 @@ export class Map2dRenderer {
       this.changes.activeDecorations,
       state.nowMs,
       this.portraits,
+      state.presentation,
+      movingVehicleProps,
     );
   }
   dispose(): void {
     this.staticLayer.dispose();
     this.portraits.dispose();
     this.playerFrames.clear();
+    this.staticLayoutSource = undefined;
+    this.staticLayout = null;
     this.canvas.removeEventListener("pointerdown", this.pointerDown);
     this.canvas.removeEventListener("pointermove", this.pointerMove);
     this.canvas.removeEventListener("pointerup", this.pointerUp);
     this.canvas.removeEventListener("pointercancel", this.pointerCancel);
+    this.canvas.removeEventListener("lostpointercapture", this.pointerCancel);
     this.canvas.removeEventListener("wheel", this.wheel);
+    this.canvas.removeEventListener("contextmenu", this.contextMenu);
   }
 }

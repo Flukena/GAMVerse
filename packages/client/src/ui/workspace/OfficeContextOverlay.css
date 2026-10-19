@@ -1,0 +1,53 @@
+.office-experience .office-context-overlay {
+  --office-context-gap-px: 12px;
+  --office-context-dock-clearance-px: 140px;
+  position: fixed;
+  z-index: 12;
+  top: calc(var(--office-header-height) + var(--office-context-gap-px));
+  left: calc(var(--office-rail-width) + var(--office-context-gap-px));
+  max-width: calc(100vw - var(--office-rail-width) - 2 * var(--office-context-gap-px));
+  pointer-events: none;
+}
+.office-context-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: max-content;
+  max-width: 100%;
+  max-height: calc(100dvh - var(--office-header-height) - var(--office-context-dock-clearance-px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+}
+.office-context-notice {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: min(440px, 100%);
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid var(--workspace-edge);
+  border-radius: 10px;
+  background: var(--workspace-surface);
+  color: var(--workspace-ink);
+  box-shadow: 0 6px 20px #173b4b18;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.office-context-notice > span { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.office-context-notice button { flex: 0 0 auto; padding: 8px 10px; border: 1px solid var(--workspace-edge); border-radius: 7px; background: var(--workspace-subtle); color: var(--workspace-ink); font: inherit; cursor: pointer; }
+.office-context-notice button:disabled { cursor: wait; opacity: .6; }
+.office-context-notice button:focus-visible { outline: 2px solid var(--workspace-accent); outline-offset: 2px; }
+.office-experience .office-context-overlay .zone-access-control { position: static; box-sizing: border-box; max-width: min(620px, 100%); flex-shrink: 0; }
+@media (min-width: 1100px) {
+  .office-experience:has(.office-sidebar.is-open) .office-context-overlay {
+    left: calc(var(--office-rail-width) + var(--office-panel-width) + var(--office-context-gap-px));
+    max-width: calc(100vw - var(--office-rail-width) - var(--office-panel-width) - 2 * var(--office-context-gap-px));
+  }
+}
+@media (max-width: 720px) {
+  .office-experience .office-context-overlay { --office-context-gap-px: 10px; }
+}

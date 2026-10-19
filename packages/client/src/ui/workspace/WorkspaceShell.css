@@ -1,0 +1,144 @@
+/* Use the GAMVerse palette from styles.css for every workspace surface. */
+:root {
+  --workspace-glass: linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 88%, transparent), color-mix(in srgb, var(--color-surface-soft) 78%, transparent));
+  --workspace-glass-edge: color-mix(in srgb, var(--color-border) 82%, transparent);
+  --workspace-glass-shadow: 0 16px 42px color-mix(in srgb, var(--color-ink) 15%, transparent);
+  --workspace-surface: var(--color-surface);
+  --workspace-subtle: var(--color-surface-soft);
+  --workspace-hover: color-mix(in srgb, var(--color-secondary) 14%, var(--color-surface));
+  --workspace-selected: color-mix(in srgb, var(--color-secondary) 20%, var(--color-surface));
+  --workspace-ink: var(--color-ink);
+  --workspace-muted: var(--color-muted);
+  --workspace-edge: var(--color-border);
+  --workspace-accent: var(--color-primary);
+  --workspace-focus: var(--color-primary);
+  --workspace-action: var(--color-primary);
+  --workspace-on-action: #f1eadc;
+  --workspace-warning: color-mix(in srgb, var(--color-accent) 25%, var(--workspace-surface));
+  --workspace-danger: #a34d42;
+}
+:root .office-experience {
+  --office-ink: var(--workspace-ink);
+  --office-muted: var(--workspace-muted);
+  --office-edge: var(--workspace-edge);
+  --office-accent: var(--workspace-accent);
+  color: var(--workspace-ink);
+}
+:root .office-experience .office-rail { background: var(--workspace-glass); border-color: var(--workspace-glass-edge); }
+:root .office-experience .office-header,
+:root .office-experience .office-sidebar,
+:root .office-experience .character-drawer,
+:root .office-experience .bottom-dock,
+:root .office-experience .user-status-menu,
+:root .office-experience .reaction-picker-popover { background: var(--workspace-surface); color: var(--workspace-ink); border-color: var(--workspace-edge); }
+:root .office-experience .office-header,
+:root .office-experience .office-sidebar,
+:root .office-experience .character-drawer {
+  background: var(--workspace-glass);
+  color: var(--workspace-ink);
+  border-color: var(--workspace-glass-edge);
+  box-shadow: var(--workspace-glass-shadow), inset 0 1px 0 color-mix(in srgb, var(--color-ink) 10%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(155%);
+  backdrop-filter: blur(24px) saturate(155%);
+}
+:root .office-experience .office-rail-item,
+:root .office-experience .dock-button { color: var(--workspace-muted); }
+:root .office-experience .office-rail-item:hover,
+:root .office-experience .office-panel-header > button:hover,
+:root .office-experience .dock-button:hover:not(:disabled) { background: var(--workspace-hover); color: var(--workspace-ink); }
+:root .office-experience .office-rail-item.is-active,
+:root .office-experience .dock-button.active { background: var(--workspace-selected); color: var(--workspace-accent); }
+:root .office-experience .office-space-card { background: transparent; color: var(--workspace-ink); }
+:root .office-experience .office-rail-brand { color: var(--workspace-accent); }
+:root .office-experience .settings-character-summary,
+:root .office-experience .settings-menu-row,
+:root .office-experience .settings-dialog,
+:root .office-experience .profile-edit-dialog,
+:root .office-experience .settings-dialog .profile-dialog-footer,
+:root .office-experience .profile-edit-dialog .profile-dialog-footer,
+:root .office-experience .settings-dialog .profile-dialog-header,
+:root .office-experience .profile-edit-dialog .profile-dialog-header,
+:root .office-experience .nickname-settings input,
+:root .office-experience .sound-device-field select {
+  background: var(--workspace-surface);
+  color: var(--workspace-ink);
+  border-color: var(--workspace-edge);
+}
+:root .office-experience .device-settings-preview,
+:root .office-experience .sound-device-test {
+  border-color: var(--workspace-edge);
+  background: var(--workspace-subtle);
+  color: var(--workspace-ink);
+}
+:root .office-experience .character-account,
+:root .office-experience .profile-edit-identity,
+:root .office-experience .settings-section-nav { background: var(--workspace-subtle); border-color: var(--workspace-edge); }
+:root .office-experience .settings-menu-row:hover { background: var(--workspace-hover); border-color: var(--workspace-accent); }
+:root .office-experience .settings-section-nav button.active { background: var(--workspace-selected); color: var(--workspace-accent); }
+:root .office-experience .settings-character-summary strong,
+:root .office-experience .settings-menu-row strong,
+:root .office-experience .settings-dialog .profile-dialog-header h2,
+:root .office-experience .profile-edit-dialog .profile-dialog-header h2,
+:root .office-experience .profile-edit-identity strong,
+:root .office-experience .settings-section-content h3,
+:root .office-experience .nickname-settings > label,
+:root .office-experience .sound-device-field,
+:root .office-experience .permission-row strong { color: var(--workspace-ink); }
+:root .office-experience .settings-character-summary small,
+:root .office-experience .settings-dialog .eyebrow,
+:root .office-experience .profile-edit-dialog .eyebrow,
+:root .office-experience .character-drawer .eyebrow,
+:root .office-experience .settings-dialog .settings-general-row small,
+:root .office-experience .profile-edit-identity small,
+:root .office-experience .settings-menu-row small,
+:root .office-experience .settings-menu-row > span:last-child,
+:root .office-experience .settings-section-nav button,
+:root .office-experience .settings-intro,
+:root .office-experience .nickname-settings > label span,
+:root .office-experience .nickname-settings > small:not(.nickname-saved):not(.auth-error),
+:root .office-experience .sound-device-note { color: var(--workspace-muted); }
+:root .office-experience .settings-menu-row:focus-visible,
+:root .office-experience .profile-dialog :focus-visible,
+:root .office-experience .manager-dialog :focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 3px; }
+:root .office-experience .office-main-menu-trigger { width: 100%; padding: 0; border: 0; border-radius: 8px; background: transparent; cursor: pointer; }
+:root .office-experience .office-main-menu-trigger:hover { background: var(--workspace-hover); }
+.workspace-dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--workspace-edge); border-radius: 16px; background: var(--workspace-surface); color: var(--workspace-ink); box-shadow: 0 18px 70px #0005; color-scheme: light; }
+.workspace-dialog.settings-dialog { width: min(640px, calc(100vw - 32px)); max-width: none; min-height: 0; max-height: calc(100dvh - 32px); margin: auto; padding: 0; }
+.workspace-dialog.settings-dialog[open] { display: flex; flex-direction: column; }
+.workspace-dialog.settings-dialog .profile-dialog-header { flex-shrink: 0; }
+.workspace-dialog.settings-dialog .settings-dialog-body { min-height: 0; overflow: auto; }
+.workspace-dialog.settings-dialog .settings-section-content { min-width: 0; }
+.workspace-dialog.password-settings-dialog { width: min(420px, calc(100vw - 32px)); max-width: none; margin: auto; }
+.workspace-dialog.password-settings-dialog > .password-dialog { width: 100%; max-height: none; margin: 0; border: 0; border-radius: 0; background: transparent; color: var(--workspace-ink); box-shadow: none; }
+.workspace-dialog.password-settings-dialog h2 { color: var(--workspace-ink); }
+.workspace-dialog.password-settings-dialog label,
+.workspace-dialog.password-settings-dialog .eyebrow { color: var(--workspace-muted); }
+.workspace-dialog.password-settings-dialog input { border-color: var(--workspace-edge); background: var(--workspace-subtle); color: var(--workspace-ink); }
+.workspace-dialog.password-settings-dialog .lobby-button.primary { border-color: var(--workspace-action); background: var(--workspace-action); color: var(--workspace-on-action); }
+.workspace-dialog.password-settings-dialog .auth-error { background: var(--color-surface); }
+.workspace-dialog::backdrop { background: color-mix(in srgb, var(--color-primary) 50%, transparent); }
+.office-main-menu { padding: 24px; }
+.office-main-menu header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.office-main-menu h2 { margin: 0; font-size: 20px; }
+.office-main-menu h3 { margin: 24px 0 12px; font-size: 12px; color: var(--workspace-muted); }
+.office-main-menu header button { border: 0; background: transparent; color: var(--workspace-muted); font-size: 26px; cursor: pointer; }
+.office-switcher-list { display: grid; gap: 8px; max-height: 40dvh; overflow: auto; }
+.office-switcher-list button { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid var(--workspace-edge); border-radius: 8px; background: var(--workspace-subtle); color: var(--workspace-ink); text-align: left; cursor: pointer; }
+.office-switcher-list button span { overflow-wrap: anywhere; }
+.office-switcher-list button small { flex-shrink: 0; color: var(--workspace-muted); }
+.office-switcher-list button[aria-current] { background: var(--workspace-selected); border-color: var(--workspace-accent); }
+.workspace-dialog :focus-visible,
+.office-main-menu-trigger:focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 3px; }
+.office-theme-settings h3 { margin: 5px 0 6px; color: var(--workspace-ink); font-size: 18px; }
+.office-theme-choices { display: grid; gap: 8px; margin-top: 14px; }
+.office-theme-choice { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 66px; padding: 10px 12px; border: 1px solid var(--workspace-edge); border-radius: 10px; background: var(--workspace-surface); color: var(--workspace-ink); text-align: left; cursor: pointer; }
+.office-theme-choice:hover, .office-theme-choice.is-selected { border-color: var(--workspace-accent); background: var(--workspace-selected); }
+.office-theme-swatches { display: flex; flex: 0 0 62px; height: 34px; overflow: hidden; border: 1px solid var(--workspace-edge); border-radius: 8px; }
+.office-theme-swatches i { flex: 1; }
+.office-theme-choice-copy { display: grid; flex: 1; gap: 3px; }
+.office-theme-choice-copy strong { color: var(--workspace-ink); font-size: 12px; }
+.office-theme-choice-copy small { color: var(--workspace-muted); font-size: 10px; }
+.office-theme-selected-mark { color: var(--workspace-accent); font-size: 16px; }
+@media (prefers-reduced-motion: reduce) {
+  .workspace-dialog, .workspace-dialog *, .office-rail *, .office-header * { scroll-behavior: auto; transition: none; animation: none; }
+}

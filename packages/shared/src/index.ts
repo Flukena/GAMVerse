@@ -1,4 +1,9 @@
 export { isValidAutoMoveInput, isValidTargetPlayerInput } from "./routeInputs.js";
+export * from "./privateConversations.js";
+export * from "./mediaModeration.js";
+export * from "./meetOffers.js";
+export * from "./conversationListening.js";
+export * from "./conversation.js";
 export * from "./chat.js";
 export * from "./reactions.js";
 export * from "./spotlight.js";
@@ -17,8 +22,10 @@ export { roomBoundaryWalls, roomWallSolidSegments } from "./roomWallSegments.js"
 export { isRoomWallProp } from "./roomWallProps.js";
 export { CAMPUS_COUNTS, CAMPUS_LAYOUT, campusPropPlacements, legacyPortalToCampus } from "./campusLayout.js";
 export type { CampusPropPlacement, CampusRoom, CampusRoomKind } from "./campusLayout.js";
-export { ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, parseRoomPropSeatReference, readRoomLayout, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropPlacementSupport, roomPropSeatAnchors, roomPropSeatReference, type RoomLayoutRoadway, type RoomPropSeatAnchor } from "./roomLayout.js";
+export { ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_BLOCK_SIZE_M, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, parseRoomPropSeatReference, readRoomLayout, roomPropBlockFootprint, roomPropCollisionClearanceRadius, roomPropCollisionFootprint, roomPropPlacementSupport, roomPropSeatAnchors, roomPropSeatReference, type RoomLayoutRoadway, type RoomPropEditorRole, type RoomPropSeatAnchor } from "./roomLayout.js";
 export { generateCampusMap, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, type CampusMapGeneratorInputs, type GeneratedCampusMap } from "./campusMapGenerator.js";
+export { createCampusOfficeDraft, type CampusInteriorPreset } from "./campusFurnishing.js";
+export { MAX_OFFICE_PROPS } from "./officePropLimits.js";
 export type { RoomPropDefinition } from "./roomLayout.js";
 export type { OfficePropsSnapshot, RoomLayout, RoomLayoutDoor, RoomLayoutProp, RoomLayoutWall, RoomLayoutZone } from "./roomLayout.js";
 
@@ -318,16 +325,7 @@ export const CAMERA = {
 
 export const DEFAULT_CAMERA_YAW = Math.atan2(CAMERA.offsetX, CAMERA.offsetZ);
 
-/** Session-scoped presence status shown to other members in the same office. */
-export const USER_STATUSES = [
-  "available",
-  "do-not-disturb",
-  "in-meeting",
-  "toilet",
-  "lunch",
-  "coffee-break",
-] as const;
-export type UserStatus = (typeof USER_STATUSES)[number];
+export * from "./availability.js";
 
 export type MediaActivity = { microphone: boolean; camera: boolean; screenShare: boolean };
 
@@ -364,6 +362,9 @@ export const PlayerState = schema(
     screenShareEnabled: t.boolean(),
     // Append schema fields so existing field indexes remain stable.
     isMaintainer: t.boolean().default(false),
+    customStatusText: t.string(),
+    customStatusEmoji: t.string(),
+    customStatusExpiresAtMs: t.float64(),
   },
   "PlayerState",
 );
@@ -417,7 +418,7 @@ interface BlockerGrid {
   cells: ReadonlyMap<string, readonly Blocker[]>;
 }
 
-function makeBlockerGrid(blockers: readonly Blocker[], cellSize = 8): BlockerGrid {
+export function makeBlockerGrid(blockers: readonly Blocker[], cellSize = 8): BlockerGrid {
   const cells = new Map<string, Blocker[]>();
   for (const blocker of blockers) {
     const minX = Math.floor((blocker.x - blocker.width / 2) / cellSize);
@@ -563,3 +564,8 @@ export function isValidMovementInput(value: unknown): value is MovementInput {
 }
 
 export { normalizeAccountUsername } from "./accountUsername.js";
+
+export * from "./desks.js";
+
+
+export * from "./deskAssignmentFences.js";

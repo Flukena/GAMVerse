@@ -1,8 +1,9 @@
+import type { UserStatus } from "@gammyverse/shared";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { playerName } from "../../identity/playerName";
 
-export type VoiceRosterStatus = "available" | "do-not-disturb" | "in-meeting" | "toilet" | "lunch" | "coffee-break";
+export type VoiceRosterStatus = UserStatus;
 export type VoiceRosterPerson = {
   sessionId: string;
   displayName: string;
@@ -14,10 +15,10 @@ export type VoiceRosterPerson = {
   nearby: boolean;
 };
 export type VoiceRosterActivity = { microphone: boolean; camera: boolean; screenShare: boolean };
-export type VoiceRosterMediaSource = "camera" | "screen";
 
 const STATUS_LABELS: Record<VoiceRosterStatus, string> = {
   available: "Available",
+  away: "Away",
   "do-not-disturb": "Do not disturb",
   "in-meeting": "In meeting",
   toilet: "Toilet",
@@ -27,6 +28,7 @@ const STATUS_LABELS: Record<VoiceRosterStatus, string> = {
 
 const STATUS_COLORS: Record<VoiceRosterStatus, string> = {
   available: "#2f9e62",
+  away: "#8a949e",
   "do-not-disturb": "#dc3545",
   "in-meeting": "#7950c7",
   toilet: "#168aad",
@@ -34,7 +36,7 @@ const STATUS_COLORS: Record<VoiceRosterStatus, string> = {
   "coffee-break": "#8a5a35",
 };
 
-function MediaGlyph({ source, off }: { source: "microphone" | VoiceRosterMediaSource; off?: boolean }) {
+function MediaGlyph({ source, off }: { source: "microphone" | "camera" | "screen"; off?: boolean }) {
   if (source === "microphone") return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v3m-3 0h6"/>{off && <path d="m3 3 14 14"/>}</svg>;
   if (source === "camera") return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4.5" width="11" height="11" rx="2"/><path d="m13 8 5-3v10l-5-3"/>{off && <path d="m3 3 14 14"/>}</svg>;
   return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="16" height="11" rx="1.7"/><path d="M7 17h6m-3-3v3m-4-7 2-2 2 2 3-3"/>{off && <path d="m3 3 14 14"/>}</svg>;
@@ -42,10 +44,6 @@ function MediaGlyph({ source, off }: { source: "microphone" | VoiceRosterMediaSo
 
 function MoreGlyph() {
   return <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor"><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg>;
-}
-
-function ExpandGlyph() {
-  return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4M3 7l5-5m9 5-5-5M3 13l5 5m9-5-5 5"/></svg>;
 }
 
 function ScrollGlyph({ direction }: { direction: "left" | "right" }) {
@@ -58,8 +56,6 @@ export function VoiceParticipantRoster({
   activities,
   audioLevels,
   canMuteAll,
-  canOpenVideo,
-  onOpenVideo,
   onSetAudioLevel,
   onModeratePerson,
   onMuteAll,
@@ -69,8 +65,6 @@ export function VoiceParticipantRoster({
   activities: ReadonlyMap<string, VoiceRosterActivity>;
   audioLevels: ReadonlyMap<string, number>;
   canMuteAll: boolean;
-  canOpenVideo: (username: string, source: VoiceRosterMediaSource) => boolean;
-  onOpenVideo: (username: string, source: VoiceRosterMediaSource) => void;
   onSetAudioLevel: (username: string, level: number) => void;
   onModeratePerson: (username: string, source: "microphone" | "camera" | "screen_share") => void;
   onMuteAll: (source: "microphone" | "camera" | "screen_share") => void;
@@ -158,11 +152,9 @@ export function VoiceParticipantRoster({
             <button type="button" className={`voice-participant-media ${!activityKnown ? "is-unknown" : activity.microphone ? "is-on" : "is-off"}`} aria-pressed={activityKnown && activity.microphone} disabled={!activityKnown || !activity.microphone} title={!activityKnown ? "Microphone status unavailable while voice is disconnected" : activity.microphone ? `Turn off ${person.displayName}'s microphone` : `${person.displayName}'s microphone is off; they can turn it on themselves`} aria-label={`${person.displayName}'s microphone ${!activityKnown ? "status unavailable" : activity.microphone ? "on, click to turn off" : "off"}`} onClick={() => { if (activityKnown && activity.microphone) onModeratePerson(person.username, "microphone"); }}><MediaGlyph source="microphone" off={activityKnown && !activity.microphone} /></button>
             <span className="voice-participant-source-actions">
               <button type="button" className={`voice-participant-media ${!activityKnown ? "is-unknown" : activity.camera ? "is-on" : "is-off"}`} aria-pressed={activityKnown && activity.camera} disabled={!activityKnown || !activity.camera} title={!activityKnown ? "Camera status unavailable while voice is disconnected" : activity.camera ? `Turn off ${person.displayName}'s camera` : `${person.displayName}'s camera is off; they can turn it on themselves`} aria-label={`${person.displayName}'s camera ${!activityKnown ? "status unavailable" : activity.camera ? "on, click to turn off" : "off"}`} onClick={() => { if (activityKnown && activity.camera) onModeratePerson(person.username, "camera"); }}><MediaGlyph source="camera" off={activityKnown && !activity.camera} /></button>
-              {activity.camera && <button type="button" className="voice-participant-media voice-participant-expand" disabled={!canOpenVideo(person.username, "camera")} title={`Open ${person.displayName}'s camera full screen`} aria-label={`Open ${person.displayName}'s camera full screen`} onClick={() => onOpenVideo(person.username, "camera")}><ExpandGlyph /></button>}
             </span>
             <span className="voice-participant-source-actions">
               <button type="button" className={`voice-participant-media ${!activityKnown ? "is-unknown" : activity.screenShare ? "is-on" : "is-off"}`} aria-pressed={activityKnown && activity.screenShare} disabled={!activityKnown || !activity.screenShare} title={!activityKnown ? "Screen share status unavailable while voice is disconnected" : activity.screenShare ? `Stop ${person.displayName}'s screen share` : `${person.displayName} is not sharing a screen`} aria-label={`${person.displayName}'s screen share ${!activityKnown ? "status unavailable" : activity.screenShare ? "on, click to stop" : "off"}`} onClick={() => { if (activityKnown && activity.screenShare) onModeratePerson(person.username, "screen_share"); }}><MediaGlyph source="screen" off={activityKnown && !activity.screenShare} /></button>
-              {activity.screenShare && <button type="button" className="voice-participant-media voice-participant-expand" disabled={!canOpenVideo(person.username, "screen")} title={`Open ${person.displayName}'s screen share full screen`} aria-label={`Open ${person.displayName}'s screen share full screen`} onClick={() => onOpenVideo(person.username, "screen")}><ExpandGlyph /></button>}
             </span>
           </span>
           {!person.local && <button type="button" className={`voice-participant-settings-trigger${isOpen ? " is-open" : ""}`} aria-label={`Settings for ${person.displayName}`} title="Participant settings" aria-haspopup="dialog" aria-expanded={isOpen} aria-controls={isOpen ? `voice-participant-settings-${person.sessionId}` : undefined} onClick={(event) => {

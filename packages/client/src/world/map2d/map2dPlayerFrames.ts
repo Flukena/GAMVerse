@@ -1,9 +1,11 @@
 import { smoothAvatarPose, isPoseSettled } from "./avatarPoseSmoother";
-import type { Map2dPlayer } from "./map2dDynamicLayer";
+import { advanceMap2dAvatarVisual, createMap2dAvatarVisual, type Map2dPlayer, type Map2dRenderedPlayer } from "./map2dAvatarVisual";
 
 function sameMetadata(current: Map2dPlayer, target: Map2dPlayer): boolean {
   return current.displayName === target.displayName && current.username === target.username && current.isMaintainer === target.isMaintainer &&
-    current.status === target.status && current.handRaised === target.handRaised && current.characterId === target.characterId;
+    current.status === target.status && current.handRaised === target.handRaised && current.characterId === target.characterId && current.sittingPropId === target.sittingPropId &&
+    current.vehicleId === target.vehicleId && current.vehiclePropId === target.vehiclePropId && current.vehiclePropX === target.vehiclePropX &&
+    current.vehiclePropZ === target.vehiclePropZ && current.vehiclePropRotation === target.vehiclePropRotation;
 }
 function writeMetadata(current: Map2dPlayer, target: Map2dPlayer): void {
   current.displayName = target.displayName;
@@ -12,8 +14,14 @@ function writeMetadata(current: Map2dPlayer, target: Map2dPlayer): void {
   current.status = target.status;
   current.handRaised = target.handRaised;
   current.characterId = target.characterId;
+  current.sittingPropId = target.sittingPropId;
+  current.vehicleId = target.vehicleId;
+  current.vehiclePropId = target.vehiclePropId;
+  current.vehiclePropX = target.vehiclePropX;
+  current.vehiclePropZ = target.vehiclePropZ;
+  current.vehiclePropRotation = target.vehiclePropRotation;
 }
-function updatePlayer(current: Map2dPlayer, target: Map2dPlayer, deltaS: number, local: boolean): boolean {
+function updatePlayer(current: Map2dRenderedPlayer, target: Map2dPlayer, deltaS: number, local: boolean): boolean {
   const previousX = current.x;
   const previousZ = current.z;
   const previousRotation = current.rotation;
@@ -24,12 +32,15 @@ function updatePlayer(current: Map2dPlayer, target: Map2dPlayer, deltaS: number,
     current.z = target.z;
     current.rotation = target.rotation;
   }
+  const visualChanged = advanceMap2dAvatarVisual(current.visual, {
+    previousX, previousZ, x: current.x, z: current.z, deltaS, sittingPropId: target.sittingPropId,
+  });
   writeMetadata(current, target);
-  return metadataChanged || previousX !== current.x || previousZ !== current.z || previousRotation !== current.rotation;
+  return visualChanged || metadataChanged || previousX !== current.x || previousZ !== current.z || previousRotation !== current.rotation;
 }
 /** Persistent render poses: allocation occurs on join, never for a steady player frame. */
 export class Map2dPlayerFrames {
-  readonly players = new Map<string, Map2dPlayer>();
+  readonly players = new Map<string, Map2dRenderedPlayer>();
   update(targets: ReadonlyMap<string, Map2dPlayer>, localId: string | null, deltaS: number): boolean {
     let changed = false;
     for (const [id, target] of targets) {
@@ -37,7 +48,7 @@ export class Map2dPlayerFrames {
       if (current) {
         changed = updatePlayer(current, target, deltaS, id === localId) || changed;
       } else {
-        this.players.set(id, { ...target });
+        this.players.set(id, { ...target, visual: createMap2dAvatarVisual(target.sittingPropId) });
         changed = true;
       }
     }

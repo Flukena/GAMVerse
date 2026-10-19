@@ -1,0 +1,18 @@
+.map2d-controls { color: var(--color-primary); font: 500 12px/1.4 "DM Sans", sans-serif; }
+.map2d-control-stack { display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 8px; pointer-events: auto; }
+.map2d-control-stack > * { pointer-events: auto; }
+.map2d-control-stack svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.map2d-control-stack .world-control-trigger:disabled { opacity: .4; cursor: default; }
+.map2d-control-stack .world-control-trigger.is-following { border-color: rgba(25,135,84,.3); background: rgba(25,135,84,.1); color: #176b46; }
+.map2d-controls .world-control-actions { padding: 5px; border: 1px solid var(--glass-edge); border-radius: 12px; background: rgba(248,252,253,.9); box-shadow: 0 5px 16px rgba(2,48,71,.12); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.map2d-controls .world-control-actions button { min-width: 42px; height: 42px; padding: 0 8px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--color-primary); cursor: pointer; }
+.map2d-controls .world-control-actions button:hover:not(:disabled) { background: rgba(225,243,250,.98); }
+.map2d-controls .world-control-actions button:disabled { opacity: .42; cursor: default; }
+.map2d-zoom-actions { display: flex; align-items: center; gap: 4px; }
+.map2d-zoom-actions output { min-width: 42px; color: var(--color-primary); font-size: 10px; font-variant-numeric: tabular-nums; text-align: center; }
+.map2d-travel-feedback { display: flex; align-items: center; gap: 8px; max-width: min(260px, calc(100vw - 96px)); padding: 7px 9px; border: 1px solid var(--glass-edge); border-radius: 9px; background: rgba(248,252,253,.92); color: var(--color-primary); box-shadow: 0 5px 16px rgba(2,48,71,.12); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); font-size: 11px; pointer-events: auto; }
+.map2d-travel-feedback span { overflow-wrap: anywhere; }
+.map2d-travel-feedback button { flex-shrink: 0; min-height: 30px; padding: 0 8px; border: 1px solid var(--glass-edge); border-radius: 7px; background: rgba(255,255,255,.76); color: inherit; cursor: pointer; }
+@media (max-width: 720px) {
+  .map2d-control-stack svg { width: 19px; height: 19px; }
+}

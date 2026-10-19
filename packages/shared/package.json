@@ -10,7 +10,7 @@
     "@colyseus/schema": "^5.0.0"
   },
   "scripts": {
-    "test": "tsx --test src/index.test.ts src/inputDelivery.test.ts src/angles.test.ts src/playerFacing.test.ts src/roomWallSegments.test.ts src/zoneMembership.test.ts src/chat.test.ts src/reactions.test.ts src/propInteraction.test.ts src/roomLayoutProps.test.ts src/accountUsername.test.ts"
+    "test": "tsx --test src/index.test.ts src/inputDelivery.test.ts src/angles.test.ts src/playerFacing.test.ts src/roomWallSegments.test.ts src/zoneMembership.test.ts src/chat.test.ts src/reactions.test.ts src/propInteraction.test.ts src/roomLayoutProps.test.ts src/accountUsername.test.ts src/availability.test.ts src/desks.test.ts src/conversation.test.ts src/meetOffers.test.ts src/conversationListening.test.ts src/privateConversations.test.ts src/campusFurnishing.test.ts src/deskAssignments.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

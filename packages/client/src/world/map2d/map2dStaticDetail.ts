@@ -11,7 +11,7 @@ export const MAP2D_ZONE_LABEL_MIN_FONT_PX = 10;
 export const MAP2D_ZONE_LABEL_MAX_FONT_PX = 18;
 export const MAP2D_WALL_MIN_THICKNESS_PX = 3;
 export const MAP2D_DETAIL_PALETTE = {
-  grass: "#b5cf9c", floor: "#f3eee0", grid: "#ded6c5", asphalt: "#626d76",
+  grass: "#c4d9b4", floor: "#efe1cc", grid: "#ded6c5", asphalt: "#798782",
   roadLine: "#f9e6a0", wall: "#293c4a", door: "#d49d49", border: "#566c70",
   zone: { private: "#d6dfee", meeting: "#f0dfbd", restroom: "#c5e5df" },
   props: { nature: "#498957", furniture: "#bf8647", vehicles: "#467da6", technology: "#8772ac", walls: "#6e7783", outdoor: "#bb6860" },
