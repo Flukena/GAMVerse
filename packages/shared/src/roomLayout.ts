@@ -800,7 +800,12 @@ const FINISHED_BUILDING_PROP_ASSETS = new Set([
 ]);
 function roomPropEditorRole(item: RoomPropDefinition): RoomPropEditorRole {
   if (FINISHED_BUILDING_PROP_ASSETS.has(item.asset)) return "building-prefab";
+  if (item.vehicleId || item.group === "Vehicles") return "map-component";
   if (item.group === "Roads · Tiles" || item.group === "Roads · Paths") return "map-component";
+  if (item.group?.startsWith("Roads ·") || item.pack === "factory-kit" || item.group === "Industrial"
+    || item.group?.startsWith("Nature ·") || item.group === "Forest" && !/weapon/i.test(`${item.asset} ${item.label}`)
+    || item.group === "Imported · City Park and Playground"
+    || /\b(tree|trees|rock|rocks)\b/i.test(`${item.asset} ${item.label}`)) return "map-component";
   if (item.pack === "building-kit" || item.group === "Building" || item.group === "Floor tiles" || item.group === "Wall" || item.group?.startsWith("Wall ·")) return "building-component";
   return "object";
 }
@@ -827,10 +832,11 @@ const ENVIRONMENT_PROP_SCALE: Readonly<Record<string, number>> = {
   "kit-city-kit-industrial-chimney-small": 2,
   "kenney-city-kit-suburban-tree-large": 1.4,
 };
+const INDUSTRIAL_BUILDING_PREFAB_SCALE = 3.375;
 
 /** Shared behavioral hints for the prop library. Placement/interaction support can be enabled progressively. */
 export const ROOM_PROP_CATALOG: ReadonlyArray<RoomPropDefinition> = [...ROOM_PROP_CATALOG_BASE, ...EXTERNAL_ROOM_PROP_CATALOG, ...NATURE_ROOM_PROP_CATALOG].map((item) => {
-  const scale = ENVIRONMENT_PROP_SCALE[item.asset] ?? (/^kit-city-kit-industrial-building-[a-t]$/.test(item.asset) ? 1.5 : 1);
+  const scale = ENVIRONMENT_PROP_SCALE[item.asset] ?? (/^kit-city-kit-industrial-building-[a-t]$/.test(item.asset) ? INDUSTRIAL_BUILDING_PREFAB_SCALE : 1);
   const sizedItem = scale === 1 ? item : {
     ...item,
     width: item.width * scale,

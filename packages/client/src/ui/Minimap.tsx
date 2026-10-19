@@ -15,7 +15,10 @@ const MINIMAP_ZOOM_FACTOR = 3.24;
 const MINIMAP_MAP_OPACITY = 1;
 const MINIMAP_DOT_RADIUS_PX = 5;
 const MINIMAP_EDGE_PADDING_PX = 8;
-const MINIMAP_REFRESH_INTERVAL_MS = 100;
+const MINIMAP_TARGET_FPS = 30;
+const MINIMAP_MAX_FPS = 60;
+const MINIMAP_REFRESH_INTERVAL_MS = 1000 / Math.min(MINIMAP_TARGET_FPS, MINIMAP_MAX_FPS);
+const MINIMAP_HIDDEN_CHECK_INTERVAL_MS = 500;
 const MINIMAP_FULL_CIRCLE_RAD = Math.PI * 2;
 type Props = {
   layout: RoomLayout | null;
@@ -62,8 +65,14 @@ export function Minimap({
     );
     const draw = () => {
       canvas.style.display = hidden ? "none" : "block";
+      if (hidden || document.visibilityState !== "visible") return false;
+      const bounds = canvas.getBoundingClientRect();
+      const inViewport = bounds.width > 0 && bounds.height > 0 && bounds.right > 0 && bounds.bottom > 0
+        && bounds.left < window.innerWidth && bounds.top < window.innerHeight;
+      const style = window.getComputedStyle(canvas);
+      if (!inViewport || style.visibility === "hidden" || style.display === "none") return false;
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      if (!ctx) return true;
       ctx.clearRect(0, 0, MINIMAP_WIDTH_PX, MINIMAP_HEIGHT_PX);
       const localPlayer = localSessionIdRef.current
         ? playersRef.current.get(localSessionIdRef.current)
@@ -109,11 +118,20 @@ export function Minimap({
         // aligned with that corrected map orientation.
         compassRoseRef.current.style.transform = `rotate(${((Math.PI - yaw) * 180) / Math.PI}deg)`;
       }
+      return true;
     };
-    draw();
-    const timer = window.setInterval(draw, MINIMAP_REFRESH_INTERVAL_MS);
+    let disposed = false;
+    let timer = 0;
+    const schedule = (wasVisible: boolean) => {
+      if (disposed) return;
+      timer = window.setTimeout(() => schedule(draw()), wasVisible
+        ? MINIMAP_REFRESH_INTERVAL_MS
+        : MINIMAP_HIDDEN_CHECK_INTERVAL_MS);
+    };
+    schedule(draw());
     return () => {
-      window.clearInterval(timer);
+      disposed = true;
+      window.clearTimeout(timer);
       layer.dispose();
     };
   }, [

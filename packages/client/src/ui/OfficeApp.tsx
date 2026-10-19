@@ -36,7 +36,7 @@ import { availabilityPolicy, USER_STATUSES, type UserStatus, type CustomStatus }
 import type { PersonActionCallbacks, PersonActionContext } from "./workspace/personActions";
 import "./social/social.css";
 import { Client, type Room } from "@colyseus/sdk";
-import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, generateCampusMap, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomLayoutZoneAt, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
+import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomLayoutZoneAt, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -76,6 +76,7 @@ import { PageTutorial } from "./PageTutorial";
 import { LobbyDirectory } from "./lobby/LobbyDirectory";
 import { MaintainerSystemPanel } from "./MaintainerSystemPanel";
 import { playSocialNotificationSound, unlockSocialNotificationAudio } from "../audio/notificationSounds";
+import { unlockMovementAudio } from "../audio/movementSounds";
 import { setNoiseReduction, type NoiseReductionResult } from "../audio/noiseReduction";
 import { DROP_EVENT_LABEL, LEAVE_EVENT_LABEL, CONSENTED_CLOSE_CODE, REPLACED_CLOSE_CODE, FRESH_JOIN_DELAY_MS, FRESH_JOIN_MAX_DELAY_MS, FRESH_JOIN_MAX_RETRIES_COUNT, RECONNECT_INITIAL_DELAY_MS, REMOVED_CLOSE_CODE, RETRY_BACKOFF_MULTIPLIER, installOfficeReconnection, shouldFreshJoin } from "./connection/officeReconnection";
 
@@ -453,13 +454,11 @@ export function OfficeApp() {
   const [selectedModifyPropId, setSelectedModifyPropId] = useState<string | null>(null);
   const [selectedModifyPropAsset, setSelectedModifyPropAsset] = useState<RoomLayoutProp["asset"] | null>(null);
   const [mapZoneDrawing, setMapZoneDrawing] = useState(false);
-  const [mapGeneratorOpen, setMapGeneratorOpen] = useState(false);
   const [generatorTotalPeople, setGeneratorTotalPeople] = useState(150);
   const [generatorPeoplePerTeam, setGeneratorPeoplePerTeam] = useState(15);
   const [generatorTeamCount, setGeneratorTeamCount] = useState(10);
   const createOfficePeoplePerTeam = generatorTeamCount > 0 ? generatorTotalPeople / generatorTeamCount : Number.NaN;
   const createOfficeInputsValid = Number.isInteger(createOfficePeoplePerTeam) && createOfficePeoplePerTeam > 0 && createOfficePeoplePerTeam <= 16;
-  const [generatorError, setGeneratorError] = useState<string | null>(null);
   const [mapZoneArea, setMapZoneArea] = useState<{ x: number; z: number; width: number; depth: number } | null>(null);
   const [mapZoneName, setMapZoneName] = useState("");
   const [mapZoneKind, setMapZoneKind] = useState<"meeting" | "private" | "restroom">("meeting");
@@ -706,6 +705,7 @@ export function OfficeApp() {
   useEffect(() => {
     const unlockAudio = () => {
       unlockSocialNotificationAudio();
+      unlockMovementAudio();
       if (remoteAudioContextRef.current?.state === "suspended") void remoteAudioContextRef.current.resume().catch(() => {});
       window.removeEventListener("pointerdown", unlockAudio, true);
       window.removeEventListener("keydown", unlockAudio, true);
@@ -2083,43 +2083,6 @@ export function OfficeApp() {
     finally { mapCommitInFlightRef.current = false; setMapSaving(false); }
   };
 
-  const applyGeneratedCampusLayout = async () => {
-    if (!officeMapLayout || !activeOffice) return;
-    try {
-      const generated = generateCampusMap({ totalPeople: generatorTotalPeople, peoplePerTeam: generatorPeoplePerTeam, teamCount: generatorTeamCount, seed: Math.floor(Math.random() * 0x1_0000_0000) });
-      const propsResponse = await fetch(`${endpoint}/offices/${activeOffice.id}/props`, { credentials: "include" });
-      const propsResult = await propsResponse.json() as { props?: RoomLayoutProp[]; configVersion?: number; error?: string };
-      if (!propsResponse.ok || !Array.isArray(propsResult.props)) throw new Error(propsResult.error ?? "Could not load existing office props.");
-      const generatedIds = new Set(generated.layout.props.map((prop) => prop.id));
-      const isPreviousCampusGeneratedProp = (prop: RoomLayoutProp) => /^(?:team-\d+-office-\d+|meeting-|shared-|campus-)/i.test(prop.id);
-      const existingProps = propsResult.props.filter((prop) => !isPreviousCampusGeneratedProp(prop) && !generatedIds.has(prop.id));
-      // Keep manually placed props, but replace props from an earlier generated
-      // campus so the new rooms do not inherit stale furniture in old positions.
-      // If a manual prop is beyond the plan boundary, widen the draft only enough
-      // to contain it and extend the cross streets to match.
-      const requiredHalfWidth = existingProps.reduce((max, prop) => Math.max(max, Math.abs(prop.x) + prop.width / 2), generated.dimensions.width / 2);
-      const preservedWidth = Math.ceil(requiredHalfWidth / 2) * 2;
-      const preservedLayout = preservedWidth > generated.dimensions.width
-        ? {
-            ...generated.layout,
-            dimensions: { ...generated.dimensions, width: preservedWidth },
-            roadways: generated.layout.roadways?.map((road) => road.width === generated.dimensions.width ? { ...road, width: preservedWidth } : road),
-          }
-        : generated.layout;
-      const outsideDepthProps = existingProps.filter((prop) => Math.abs(prop.z) + prop.depth / 2 > generated.dimensions.depth / 2);
-      if (outsideDepthProps.length) throw new Error(`${outsideDepthProps.length} existing prop${outsideDepthProps.length === 1 ? " is" : "s are"} outside the ${generated.dimensions.depth} m map depth. Move them inside before generating this layout.`);
-      setMapPropsConfigVersion(propsResult.configVersion ?? 1);
-      const next = { ...preservedLayout, props: [...existingProps, ...generated.layout.props] };
-      setOfficeMapLayout(next);
-      setSelectedMapZoneId(null);
-      setMapGeneratorOpen(false);
-      setGeneratorError(null);
-      setLobbyError(null);
-    } catch (cause) {
-      setGeneratorError(cause instanceof Error ? cause.message : "Could not generate the campus layout.");
-    }
-  };
-
   const reloadLatestMapAfterConflict = () => {
     if (!mapConflictLatest) return;
     setOfficeMapLayout(mapConflictLatest.layout);
@@ -2952,12 +2915,7 @@ export function OfficeApp() {
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10.5 10.5 7a3 3 0 0 1 4.2 4.2l-2 2"/><path d="m13 9.5-3.5 3.5a3 3 0 0 1-4.2-4.2l2-2"/></svg>
             <span>{SHARE_OFFICE_LABEL}</span>
           </button> : <p className="workspace-share-notice">Ask an office admin to invite someone.</p>}
-          <div className="office-workspace-guide">
-            <h3>Make yourself at home</h3>
-            <p><strong>Find a teammate.</strong> Open People, choose someone, then go to them, wave or send a message.</p>
-            <p><strong>Start a conversation.</strong> Walk near a teammate or enter the same room to connect audio.</p>
-            <p><strong>Explore in 2D.</strong> Click to walk, drag to look around, and use Recenter on you to return to your character.</p>
-          </div>
+          {inviteLinkFeedback?.officeId === activeOffice.id && <p className="workspace-share-notice" role="status">{inviteLinkFeedback.message}</p>}
         </section>}
         {activeLeftTab === "people" && <PeoplePanel {...personActionContext} {...personActionCallbacks} people={people}
           directoryEndpoint={endpoint} officeId={activeOffice.id} directoryRefreshKey={status} emptyMessage={emptyPeopleMessage} />}
@@ -3020,30 +2978,24 @@ export function OfficeApp() {
       {changePasswordOpen && <WorkspaceDialog labelledBy="change-password-title" onClose={() => setChangePasswordOpen(false)} className="password-settings-dialog"><form className="manager-dialog password-dialog" onSubmit={(event) => void changePassword(event)}><button type="button" className="manager-close" aria-label="Close" onClick={() => setChangePasswordOpen(false)}>×</button><span className="eyebrow">ACCOUNT SECURITY</span><h2 id="change-password-title">Change password</h2><label>Current password<input type="password" autoComplete="current-password" required minLength={8} maxLength={128} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>{accountError && <p className="auth-error" role="alert">{accountError}</p>}<button className="lobby-button primary" disabled={lobbyBusy} type="submit">Update password</button></form></WorkspaceDialog>}
 
       {mapEditMode && <div className="map-edit-controls">
-        <div className="map-edit-mode-bar"><div><span className="eyebrow">EDIT MAP · REAL WORLD</span><strong>{mapDimensions.width} × {mapDimensions.depth} m</strong><small>1 m grid · 10 m major lines</small></div>
-          {mapZoneDrawing ? <><span className="map-edit-hint">Drag on the map to draw a zone</span><button type="button" className="lobby-button" onClick={() => setMapZoneDrawing(false)}>Cancel</button></> : <button type="button" className="lobby-button primary" onClick={() => { setSpawnPlacementMode(false); startMapZoneDrawing(); }}>＋ Create zone</button>}
-          {!mapZoneDrawing && <button type="button" className="lobby-button" onClick={() => { setSpawnPlacementMode(false); setMapGeneratorOpen((open) => !open); setGeneratorError(null); }}>Generate layout</button>}
-          {!mapZoneDrawing && <button type="button" className={`lobby-button${mapBuildingPickerOpen ? " primary" : ""}`} onClick={() => { setSpawnPlacementMode(false); setMapZoneDrawing(false); setMapGeneratorOpen(false); setMapBuildingPickerOpen((open) => !open); setSelectedMapBuildingAsset(null); setSelectedModifyPropId(null); }}>Building components</button>}
-          {!mapZoneDrawing && <button type="button" className={`lobby-button${spawnPlacementMode ? " primary" : ""}`} disabled={mapSpawnSaving} title="Choose where new users start" onClick={() => { setMapZoneDrawing(false); setLobbyError(null); setSpawnPlacementMode((placing) => !placing); }}>{mapSpawnSaving ? "Saving spawn…" : spawnPlacementMode ? "Cancel spawn placement" : "◎ Set spawn"}</button>}
-          {spawnPlacementMode && <span className="map-edit-hint">Click the map to move the spawn point</span>}
-          {mapDraftDirty && <button type="button" className="lobby-button primary" disabled={mapSaving || Boolean(mapConflictLatest)} onClick={() => void saveMapDraft()}>{mapSaving ? "Saving map…" : "Save map"}</button>}
-          <button type="button" className="lobby-button" onClick={exitMapEditMode}>{mapDraftDirty ? "Discard & exit" : "Exit edit mode"}</button>
+        <div className="map-edit-mode-bar">
+          <div className="map-edit-summary"><span className="eyebrow">MAP SIZE</span><strong>{mapDimensions.width} × {mapDimensions.depth} m</strong><small>Grid 1 m · Major lines 10 m</small></div>
+          <div className="map-edit-group map-edit-layout-group"><span className="map-edit-group-label">LAYOUT</span>
+            {mapZoneDrawing ? <><span className="map-edit-hint">Drag on map to draw zone</span><button type="button" className="lobby-button quiet" onClick={() => setMapZoneDrawing(false)}>Cancel</button></> : <button type="button" className="lobby-button primary" onClick={() => { setSpawnPlacementMode(false); startMapZoneDrawing(); }}>＋ Zone</button>}
+          </div>
+          {!mapZoneDrawing && <div className="map-edit-group"><span className="map-edit-group-label">WORLD</span>
+            <button type="button" className={`lobby-button quiet${mapBuildingPickerOpen ? " primary" : ""}`} onClick={() => { setSpawnPlacementMode(false); setMapZoneDrawing(false); setMapBuildingPickerOpen((open) => !open); setSelectedMapBuildingAsset(null); setSelectedModifyPropId(null); }}>Components</button>
+            <button type="button" className={`lobby-button quiet${spawnPlacementMode ? " primary" : ""}`} disabled={mapSpawnSaving} title="Choose where new users start" onClick={() => { setMapZoneDrawing(false); setLobbyError(null); setSpawnPlacementMode((placing) => !placing); }}>{mapSpawnSaving ? "Saving…" : spawnPlacementMode ? "Cancel spawn" : "◎ Spawn"}</button>
+          </div>}
+          {spawnPlacementMode && <span className="map-edit-hint">Click map to move spawn</span>}
+          <div className="map-edit-group map-edit-finish-group"><span className="map-edit-group-label">FINISH</span>
+            {mapDraftDirty && <button type="button" className="lobby-button primary" disabled={mapSaving || Boolean(mapConflictLatest)} onClick={() => void saveMapDraft()}>{mapSaving ? "Saving…" : "Save"}</button>}
+            <button type="button" className="lobby-button quiet" onClick={exitMapEditMode}>{mapDraftDirty ? "Discard & exit" : "Exit"}</button>
+          </div>
         </div>
         {mapBuildingPickerOpen && officeMapLayout && <MapBuildingPicker props={officeMapLayout.props} selectedAsset={selectedMapBuildingAsset} selectedPropId={selectedModifyPropId} onSelectAsset={(asset) => setSelectedMapBuildingAsset(asset as RoomLayoutProp["asset"] | null)} onSelectProp={setSelectedModifyPropId} onDeleteProp={deleteMapBuilding} onClose={() => { setMapBuildingPickerOpen(false); setSelectedMapBuildingAsset(null); setSelectedModifyPropId(null); }} />}
         {mapConflictLatest && <div className="map-edit-error map-edit-conflict" role="alert"><span>{mapConflictLatest.message} Your unsaved draft is preserved. Reloading the latest map will discard it.</span><button type="button" className="lobby-button" onClick={reloadLatestMapAfterConflict}>Discard draft & load latest</button></div>}
         {lobbyError && !mapConflictLatest && <p className="map-edit-error" role="alert">{lobbyError}</p>}
-        {mapGeneratorOpen && <section className="map-layout-generator" aria-label="Generate office layout">
-          <header><div><span className="eyebrow">CAMPUS PLANNER</span><strong>Generate office layout</strong></div><button type="button" className="icon-button" aria-label="Close generator" onClick={() => setMapGeneratorOpen(false)}>×</button></header>
-          <div className="map-generator-fields">
-            <label>Total people<input type="number" min="1" max="4000" step="1" value={generatorTotalPeople} onChange={(event) => setGeneratorTotalPeople(Number(event.target.value))} /></label>
-            <label>People per team<input type="number" min="1" max="16" step="1" value={generatorPeoplePerTeam} onChange={(event) => setGeneratorPeoplePerTeam(Number(event.target.value))} /></label>
-            <label>Number of teams<input type="number" min="1" max="250" step="1" value={generatorTeamCount} onChange={(event) => setGeneratorTeamCount(Number(event.target.value))} /></label>
-          </div>
-          <p className="map-zone-help">For 10 teams, each five-team band uses a 2–1–2 layout divided by two 8 m main roads. The plan gives each person a private 8 × 8 m room arranged 3 × 5. The Lobby on the left is the spawn point; Town Hall is centered between a small meeting room and the cafeteria, with four corner restrooms and two large meeting rooms. Generated furniture is replaced; manually placed props stay in place. Generate updates this draft; Save map stores the layout and props.</p>
-          {generatorTotalPeople !== generatorPeoplePerTeam * generatorTeamCount && <p className="auth-error" role="alert">Total people must equal {generatorPeoplePerTeam} × {generatorTeamCount} = {generatorPeoplePerTeam * generatorTeamCount}.</p>}
-          {generatorError && <p className="auth-error" role="alert">{generatorError}</p>}
-          <footer><button type="button" className="lobby-button" onClick={() => setMapGeneratorOpen(false)}>Cancel</button><button type="button" className="lobby-button primary" disabled={generatorTotalPeople !== generatorPeoplePerTeam * generatorTeamCount} onClick={applyGeneratedCampusLayout}>Generate draft</button></footer>
-        </section>}
         {selectedMapZone && <section className="map-zone-selection" aria-label="Selected map zone">
           <div><span className="eyebrow">SELECTED ZONE</span><strong>{selectedMapZone.kind === "private" ? selectedMapZone.ownerUsername ? `${selectedMapZone.ownerUsername}\x27s desk` : "Available desk" : selectedMapZone.name}</strong><small>{selectedMapZone.kind === "private" ? "Desk zone" : selectedMapZone.kind === "restroom" ? "Restroom" : "Meeting zone"} · {selectedMapZone.width} × {selectedMapZone.depth} m</small></div>
           {selectedZoneEntranceBlocked && <span className="auth-error" role="alert">Entrance is blocked.</span>}

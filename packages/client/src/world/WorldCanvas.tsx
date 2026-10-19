@@ -3,6 +3,7 @@ import { playerName } from "../identity/playerName";
 import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, JUMP_DURATION_MS, jumpHeightAt, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, parseRoomPropSeatReference, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone, type UserStatus } from "@gammyverse/shared";
 import type { MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
+import { updateFootstepSound, updateVehicleEngineSound } from "../audio/movementSounds";
 import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
@@ -2782,6 +2783,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     resize();
 
     const render = (now: number) => {
+      if (document.visibilityState !== "visible") return;
       const remoteShots = blasterEventsRef?.current.splice(0, 12) ?? [];
       for (const shot of remoteShots) {
         const beam = makeLaserBeam(new THREE.Vector3(shot.start.x, shot.start.y, shot.start.z), new THREE.Vector3(shot.end.x, shot.end.y, shot.end.z));
@@ -2980,6 +2982,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         setNearbyVehicle(null);
       }
 
+      let localVehicleMoving = false;
       for (const [id, player] of players) {
         const characterId = player.characterId || DEFAULT_CHARACTER_ID;
         const vehicleId = player.vehicleId ?? "";
@@ -3142,6 +3145,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         const renderZ = sittingAnchor ? sittingAnchor.z + (campusOverviewRef.current ? mapWorld.depth / 2 : 0) : player.z + (campusOverviewRef.current ? mapWorld.depth / 2 : 0);
         const moving = !sittingProp && Math.hypot(renderX - current.x, renderZ - current.z) > 0.008;
         const sprinting = id === localId && Boolean(heldKeysRef?.current.has("ShiftLeft") || heldKeysRef?.current.has("ShiftRight"));
+        if (id === localId) updateFootstepSound(moving && !vehicleId && !sittingProp, sprinting, delta);
+        if (id === localId) localVehicleMoving = moving && Boolean(vehicleId);
         const animation = avatarAnimations.get(id);
         if (animation?.proceduralRig) {
           const idleEnabled = idleAnimationsEnabledRef.current;
@@ -3306,6 +3311,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           vehicleRoot.rotation.y = player.rotation + (vehicleId.startsWith("vehicle-") ? Math.PI : 0);
         }
       }
+      updateVehicleEngineSound(Boolean(localPlayer?.vehicleId), localVehicleMoving);
 
       for (const [id, avatar] of avatars) {
         if (!players.has(id)) {
@@ -3639,9 +3645,18 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: travelFeedbackRef.current?.destination ?? null }) ?? map2dCenterRef.current;
       socialOverlay.frame({ camera, players: playersRef.current, decorations: map2dDecorationsRef?.current ?? [], localId, layout: roomLayout, offsetX: campusOverviewRef.current ? mapWorld.width / 2 : 0, offsetZ: campusOverviewRef.current ? mapWorld.depth / 2 : 0, visible: !showMap2d, nowMs: performance.now() });
       if (!showMap2d) renderer.render(scene, camera);
-      animationFrame = requestAnimationFrame(render);
+      if (document.visibilityState === "visible") animationFrame = requestAnimationFrame(render);
     };
-    animationFrame = requestAnimationFrame(render);
+    const onDocumentVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        previousFrame = performance.now();
+        animationFrame = requestAnimationFrame(render);
+      } else {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+    document.addEventListener("visibilitychange", onDocumentVisibilityChange);
+    if (document.visibilityState === "visible") animationFrame = requestAnimationFrame(render);
 
     return () => {
       walkingFootsteps.dispose();
@@ -3652,6 +3667,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       disposed = true;
       zoneLockIconsRef.current.clear();
       cancelAnimationFrame(animationFrame);
+      document.removeEventListener("visibilitychange", onDocumentVisibilityChange);
       observer.disconnect();
       renderer.domElement.removeEventListener("contextmenu", onCanvasContextMenu);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);

@@ -22,7 +22,7 @@ function handleTutorialKeyDown(event: KeyboardEvent<HTMLElement>, close: () => v
 
 export type TutorialPage = "password-reset" | "lobby" | "office" | "meeting";
 
-type TutorialStep = { title: string; body: string; target?: string; keyboard?: string };
+type TutorialStep = { title: string; body: string; target?: string; keyboard?: string; badge?: string };
 
 const tutorials: Record<TutorialPage, { title: string; steps: TutorialStep[] }> = {
   "password-reset": { title: "Reset your password", steps: [
@@ -30,38 +30,51 @@ const tutorials: Record<TutorialPage, { title: string; steps: TutorialStep[] }> 
     { title: "Save password", body: "Save your new password, then return to sign in.", target: "reset-submit" },
   ] },
   lobby: { title: "Your workspace", steps: [
-    { title: "Welcome to your workspace", body: "Your lobby brings your offices, invitations, and (for maintainers) account tools together. Use the sections below to switch between them." },
-    { title: "Create an office", body: "Start a new shared space here. To manage an existing office, use its card in Your offices.", target: "lobby-create-office" },
-    { title: "Your offices", body: "Search the list, open an office you belong to, or move between pages when the list is long. Office management actions appear on cards when your role allows them.", target: "lobby-offices" },
-    { title: "Invitations", body: "Find pending invites, review who invited you and the role offered, then accept to add the office to Your offices. Search and pagination are available here too.", target: "lobby-invitations" },
+    { badge: "START HERE", title: "A home for your offices", body: "Your workspace brings offices, invitations, and maintainer tools together. Pick an office to meet your team, or create one for a new group." },
+    { badge: "CREATE", title: "Set up a shared space", body: "Create an office for your team. New offices can start furnished or with empty rooms; you can update the map and props later.", target: "lobby-create-office" },
+    { badge: "YOUR OFFICES", title: "Open and manage offices", body: "Search your office list and open a space. Owners and admins get role-based controls on the office card; maintainers also have platform tools.", target: "lobby-offices" },
+    { badge: "INVITES", title: "Bring teammates in", body: "Review who invited you and the role offered, then accept to join. Office owners and admins can copy an invite link from inside their office.", target: "lobby-invitations" },
   ] },
   office: { title: "Inside the office", steps: [
-    { title: "Find people and conversations", body: "Use the left rail to open People, Chat, and Activity. Select a teammate to view their profile and available ways to connect.", target: "office-navigation" },
-    { title: "Keep your bearings", body: "The compass and minimap stay centered on you and show nearby teammates. They rotate with your view; the map itself is not an interactive control.", target: "office-minimap" },
-    { title: "Character tools", body: "Open this group to recenter the view or change camera follow. Go to your desk appears only when you have a desk and are not already there; it teleports you to it.", target: "office-focus-character" },
-    { title: "Click to travel, drag to look", body: "Click an open spot on the ground to start automatic travel. Up to 200 blocks it uses a vehicle; farther away it teleports. Locked rooms cannot be entered. Drag the map to pan the view; a drag does not trigger travel.", keyboard: "Click ground · Drag to pan" },
-    { title: "Office controls", body: "Use the bottom toolbar for microphone, camera, screen sharing, audio, status, and leaving the office. Voice connects when you enter a voice zone.", target: "office-toolbar" },
+    { badge: "WORKSPACE", title: "People, chat, and activity", body: "Use the left rail to find teammates, send office or direct messages, and catch up on recent activity. You can message people even when they are offline.", target: "office-navigation" },
+    { badge: "ORIENTATION", title: "Read the minimap", body: "The compass rotates with your view. The minimap stays centered on you and marks teammates nearby; use it to keep your bearings while exploring.", target: "office-minimap" },
+    { badge: "MOVE & LOOK", title: "Choose your view", body: "Walk with WASD or the on-screen controls. Press M to switch between 2D and 3D, V to change the 3D camera, and Space to jump in 3D.", keyboard: "WASD · M 2D/3D · V camera · Space jump" },
+    { badge: "GET AROUND", title: "Click to travel", body: "Click an open place to travel there automatically; nearby trips may use a vehicle. In 2D, drag to pan and click to walk. Hold G to pass through prompted props; walls and locked rooms stay solid.", keyboard: "Click to travel · Drag to pan · Hold G" },
+    { badge: "YOUR DESK", title: "Claim a private workroom", body: "Claim an available desk to make a private room yours. Use the character tools to return to your desk or recenter the camera when you need it.", target: "office-focus-character" },
+    { badge: "TALK", title: "Meet people your way", body: "Walking into a voice conversation connects you automatically with your mic and camera off. Use Talk to listen, join, approach a conversation, or send a meet invitation.", target: "office-toolbar" },
+    { badge: "MAKE IT YOURS", title: "Share and shape the space", body: "Members can place props and add notes, links, or supported embeds. Owners and admins can edit rooms, doors, roads, and the office spawn point." },
+    { badge: "STATUS & PRIVACY", title: "Set boundaries when you need them", body: "Availability can quiet automatic media and interruptions while leaving movement available. Room owners can lock private spaces, admit guests, and revoke access." },
   ] },
   meeting: { title: "Join the meeting", steps: [
-    { title: "Microphone", body: "Speak with people in this room. Your microphone connects when you enter a voice zone.", target: "office-microphone" },
-    { title: "Camera and screen", body: "Turn on your camera or share your screen from these controls.", target: "office-toolbar" },
-    { title: "Move around", body: "When camera lock is on, W/S walk and holding A/D turns in 15° steps. Use the lock button to release or restore the angle; press Space to jump in 3D.", keyboard: "W / S  ·  Hold A / D  ·  Space" },
+    { badge: "AUDIO", title: "You join muted", body: "Entering a voice zone does not turn on your microphone. Use the microphone control when you are ready to speak.", target: "office-microphone" },
+    { badge: "SHARE", title: "Camera and screen", body: "Turn on your camera or share your screen when it helps the conversation. Camera-off participants remain visible in the meeting view.", target: "office-toolbar" },
+    { badge: "MOVE", title: "Move around the room", body: "Walk with WASD. With heading lock on, hold A or D to turn; press Space to jump in 3D. M switches between the 2D and 3D views.", keyboard: "WASD · Hold A / D to turn · Space jump" },
   ] },
 };
 
 function storageKey(page: TutorialPage, username?: string) {
   const userScope = username?.trim().toLowerCase() || "visitor";
+  return `gammyverse.tutorial.seen.v2.${userScope}.${page}`;
+}
+
+function legacyStorageKey(page: TutorialPage, username?: string) {
+  const userScope = username?.trim().toLowerCase() || "visitor";
   return `gammyverse.tutorial.dismissed.v1.${userScope}.${page}`;
+}
+
+function tutorialWasSeen(key: string, page: TutorialPage, username?: string) {
+  try {
+    return window.localStorage.getItem(key) === "1" || window.localStorage.getItem(legacyStorageKey(page, username)) === "1";
+  } catch {
+    return false;
+  }
 }
 
 export function PageTutorial({ page, username }: { page: TutorialPage; username?: string }) {
   const cardRef = useRef<HTMLElement>(null);
   const reopenRef = useRef<HTMLButtonElement>(null);
   const key = storageKey(page, username);
-  const [open, setOpen] = useState(() => {
-    try { return window.localStorage.getItem(key) !== "1"; } catch { return true; }
-  });
-  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [open, setOpen] = useState(() => !tutorialWasSeen(key, page, username));
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [cardHeight, setCardHeight] = useState(0);
@@ -79,10 +92,9 @@ export function PageTutorial({ page, username }: { page: TutorialPage; username?
   }, [open]);
 
   useEffect(() => {
-    try { setOpen(window.localStorage.getItem(key) !== "1"); } catch { setOpen(true); }
-    setDontShowAgain(false);
+    setOpen(!tutorialWasSeen(key, page, username));
     setStepIndex(0);
-  }, [key]);
+  }, [key, page, username]);
 
   useLayoutEffect(() => {
     const card = cardRef.current;
@@ -130,9 +142,7 @@ export function PageTutorial({ page, username }: { page: TutorialPage; username?
   }, [open, step.target, stepIndex]);
 
   const close = () => {
-    if (dontShowAgain) {
-      try { window.localStorage.setItem(key, "1"); } catch { /* Preference remains active for this tab if storage is unavailable. */ }
-    }
+    try { window.localStorage.setItem(key, "1"); } catch { /* The guide stays closed for this view if storage is unavailable. */ }
     setOpen(false);
   };
   const next = () => {
@@ -140,7 +150,7 @@ export function PageTutorial({ page, username }: { page: TutorialPage; username?
     else close();
   };
   const goBack = () => setStepIndex((index) => Math.max(0, index - 1));
-  const tooltipWidth = Math.min(340, window.innerWidth - 32);
+  const tooltipWidth = Math.min(390, window.innerWidth - 32);
   const tooltipLeft = targetRect
     ? Math.max(16, Math.min(window.innerWidth - tooltipWidth - 16, targetRect.left + targetRect.width / 2 - tooltipWidth / 2))
     : Math.max(16, (window.innerWidth - tooltipWidth) / 2);
@@ -153,18 +163,19 @@ export function PageTutorial({ page, username }: { page: TutorialPage; username?
     : Math.max(16, (window.innerHeight - 300) / 2);
 
   return <>
-    {!open && <button ref={reopenRef} type="button" className="page-tutorial-reopen" aria-label="Show page guide" title="Show page guide" onClick={() => { setDontShowAgain(false); setStepIndex(0); setOpen(true); }}>?</button>}
+    {!open && <button ref={reopenRef} type="button" className="page-tutorial-reopen" aria-label="Show page guide" title="Show page guide" onClick={() => { setStepIndex(0); setOpen(true); }}>?</button>}
     {open && <div className="page-tutorial-layer" role="presentation">
       {step.target && targetRect ? <div className="page-tutorial-spotlight" aria-hidden="true" style={{ left: targetRect.left - 8, top: targetRect.top - 8, width: targetRect.width + 16, height: targetRect.height + 16 }} /> : <div className="page-tutorial-dim" aria-hidden="true" />}
       <section ref={cardRef} onKeyDown={event => handleTutorialKeyDown(event, close)} className={`page-tutorial-card${step.target && targetRect ? " is-focus" : " is-popup"}`} style={step.target && targetRect ? { left: tooltipLeft, top: tooltipTop } : undefined} role="dialog" aria-modal="true" aria-labelledby="page-tutorial-title" aria-describedby="page-tutorial-body">
         <button type="button" className="page-tutorial-close" aria-label="Close guide" onClick={close}>×</button>
-        <span className="page-tutorial-eyebrow">{page === "lobby" ? "LOBBY GUIDE" : "OFFICE GUIDE"} · STEP {stepIndex + 1} OF {content.steps.length}</span>
+        <div className="page-tutorial-heading"><span className="page-tutorial-eyebrow">{content.title}</span><span className="page-tutorial-count">{stepIndex + 1} / {content.steps.length}</span></div>
         <div className="page-tutorial-progress" role="progressbar" aria-label="Guide progress" aria-valuemin={1} aria-valuemax={content.steps.length} aria-valuenow={stepIndex + 1}><span style={{ width: `${((stepIndex + 1) / content.steps.length) * 100}%` }} /></div>
+        {step.badge && <span className="page-tutorial-badge">{step.badge}</span>}
         <h2 id="page-tutorial-title">{step.title}</h2>
         <p id="page-tutorial-body">{step.body}</p>
         {step.keyboard && <kbd className="page-tutorial-keys">{step.keyboard}</kbd>}
         <div className="page-tutorial-actions">
-          <label className="page-tutorial-optout"><input type="checkbox" checked={dontShowAgain} onChange={(event) => setDontShowAgain(event.target.checked)} /> Don’t show again</label>
+          <span className="page-tutorial-hint">Press Esc to close</span>
           <div className="page-tutorial-nav">
             {stepIndex > 0 && <button type="button" className="page-tutorial-back" onClick={goBack}>Back</button>}
             <button type="button" className="page-tutorial-done" onClick={next}>{stepIndex + 1 < content.steps.length ? "Next" : "Finish"}</button>

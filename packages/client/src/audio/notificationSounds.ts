@@ -7,7 +7,6 @@ function getAudioContext() {
   audioContext ??= new window.AudioContext();
   return audioContext;
 }
-
 /** Resume notification audio from a real user gesture before async room events need it. */
 export function unlockSocialNotificationAudio() {
   try {
