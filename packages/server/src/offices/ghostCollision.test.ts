@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CAMPUS_WORLD, campusWorldFromConfig, isPositionWalkable, movePlayer, type WorldConfig } from "@gammyverse/shared";
+import { CAMPUS_WORLD, campusWorldFromConfig, isPositionWalkable, makeBlockerGrid, movePlayer, type WorldConfig } from "@gammyverse/shared";
 import { ghostCollisionWorld, movementBlockedByProps } from "./ghostCollision.js";
 
 test("ghost collision removes prop and car blockers but keeps every wall blocker", () => {
@@ -57,5 +57,20 @@ test("ghost collision keeps map walls and wall-model props solid while passing t
 
   assert.equal(isPositionWalkable({ x: 0, z: 0 }, ghostWorld), false);
   assert.equal(isPositionWalkable({ x: 0, z: 5 }, ghostWorld), false);
+  assert.equal(isPositionWalkable({ x: 5, z: 0 }, ghostWorld), true);
+});
+
+test("ghost collision omits dynamic vehicle blockers while preserving static walls", () => {
+  const world: WorldConfig = {
+    ...CAMPUS_WORLD,
+    width: 20,
+    depth: 20,
+    walls: [{ x: -5, z: 0, width: 1, depth: 4 }],
+    obstacles: [],
+    collisionGrid: makeBlockerGrid([{ x: -5, z: 0, width: 1, depth: 4 }]),
+    dynamicCollisionGrid: makeBlockerGrid([{ x: 5, z: 0, width: 2, depth: 4, vehiclePropId: "car" }]),
+  };
+  const ghostWorld = ghostCollisionWorld(world);
+  assert.equal(isPositionWalkable({ x: -5, z: 0 }, ghostWorld), false);
   assert.equal(isPositionWalkable({ x: 5, z: 0 }, ghostWorld), true);
 });

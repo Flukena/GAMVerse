@@ -1,5 +1,6 @@
 import { APPROACH_CONVERSATION_EVENT, APPROACH_CONVERSATION_RESULT_EVENT, CONVERSATION_ACTION_MIN_INTERVAL_MS, PUBLIC_CONVERSATIONS_EVENT, PUBLIC_CONVERSATIONS_REQUEST_EVENT, isApproachConversationIntent, isConversationSnapshotRequest, type ApproachConversationIntent, type PublicConversationSummary } from "@gammyverse/shared";
-import { planPublicConversationApproachRoute, type MeetGeometry, type MeetRoutePlan, type MeetTravelParticipant } from "./meetRoutePlanner.js";
+import { planPublicConversationApproachRoute, type MeetGeometry, type MeetRoutePlan, type MeetTravelParticipant, type MeetWalkingRoute } from "./meetRoutePlanner.js";
+import type { Position } from "@gammyverse/shared";
 import type { PublicConversations } from "./publicConversations.js";
 type Client = {sessionId: string; send(event: string, payload: unknown): void};
 type Room = {onMessage(event: string, handler: (client: Client, payload: unknown) => void): unknown};
@@ -10,6 +11,7 @@ export type PublicConversationState = {
   geometry(): MeetGeometry;
   commit(plan: MeetRoutePlan): void;
   navigationIntent(sessionId: string): void;
+  searchApproach?(participant: MeetTravelParticipant, target: Position, geometry: MeetGeometry, targetMeetingZoneId?: string): Promise<MeetWalkingRoute | null>;
 };
 const APPROACH_UNAVAILABLE_LABEL = "This conversation is no longer available to approach.";
 const APPROACH_BUSY_LABEL = "Wait a moment before approaching another conversation.";
@@ -48,13 +50,29 @@ export class PublicConversationMessages {
       const authorized = await this.state.authorize(client.sessionId,participant.username);
       const current = this.state.participant(client.sessionId);
       if (!pending.valid) return;
-      if (!authorized || !current?.active || current.username !== participant.username) {this.failed(client,payload.requestId,APPROACH_UNAVAILABLE_LABEL);return;}
+      if (!authorized || !current?.active || current.username !== participant.username || current.presence !== "online" || current.vehicleId) {this.failed(client,payload.requestId,APPROACH_UNAVAILABLE_LABEL);return;}
       const conversation = this.state.conversation(payload.conversationId);
       if (!conversation) {this.failed(client,payload.requestId,APPROACH_UNAVAILABLE_LABEL);return;}
       const geometry = this.state.geometry();
-      const route = planPublicConversationApproachRoute(current,conversation.summary.location,geometry,conversation.meetingZoneId);
+      const geometryRevision = geometry.revision;
+      const route = this.state.searchApproach
+        ? await this.state.searchApproach(current, conversation.summary.location, geometry, conversation.meetingZoneId)
+        : planPublicConversationApproachRoute(current,conversation.summary.location,geometry,conversation.meetingZoneId);
+      if (!pending.valid) return;
       if (!route) {this.failed(client,payload.requestId,APPROACH_FAILED_LABEL);return;}
-      this.state.commit({routes:[route],geometryRevision:geometry.revision});
+      const stillAuthorized = await this.state.authorize(client.sessionId, participant.username);
+      const latest = this.state.participant(client.sessionId);
+      const latestConversation = this.state.conversation(payload.conversationId);
+      const latestGeometry = this.state.geometry();
+      if (!pending.valid) return;
+      if (!stillAuthorized || !latest?.active || latest.username !== participant.username || latest.presence !== "online" || latest.vehicleId || !latestConversation
+          || latestGeometry.revision !== geometryRevision
+          || latestConversation.summary.location.x !== conversation.summary.location.x
+          || latestConversation.summary.location.z !== conversation.summary.location.z
+          || Math.hypot(latest.x - current.x, latest.z - current.z) > 0.75) {
+        this.failed(client,payload.requestId,APPROACH_UNAVAILABLE_LABEL);return;
+      }
+      this.state.commit({routes:[route],geometryRevision});
       client.send(APPROACH_CONVERSATION_RESULT_EVENT,{requestId:payload.requestId,status:route.points.length ? "started" : "arrived"});
   }
   private failed(client: Client, requestId: string, message: string) {client.send("auto-move-status",{status:"unreachable",requestId,message});client.send(APPROACH_CONVERSATION_RESULT_EVENT,{requestId,status:"unreachable",message});}

@@ -1,3 +1,5 @@
+import { realtimeMetricsEndpoint } from "./realtimeMetricsEndpoint.js";
+import { realtimeRuntimeMetrics } from "../infra/realtimeRuntimeMetrics.js";
 import { mediaModerationEndpoint } from "./mediaModerationEndpoint.js";
 import { deskAssignmentControl } from "../http/deskAssignmentControl.js";
 import { conversationTokenEndpoint } from "./conversationEndpoint.js";
@@ -40,22 +42,14 @@ const server = defineServer({
       logServerEvent("realtime", "account.sessions.kicked", { kickedClientCount });
       response.json({ kickedClientCount });
     });
-    app.get("/internal/operations/metrics", async (request: AuthRequest, response: AuthResponse) => {
-      if (!authorizedServiceCall(request)) { response.sendStatus(401); return; }
-      response.setHeader("Cache-Control", "no-store");
+    app.get("/internal/operations/metrics", realtimeMetricsEndpoint(serviceToken, async () => {
       let ready = false;
       if (database) {
         try { await databaseIsReady(); ready = true; }
         catch { ready = false; }
       }
-      const { activeRoomCount, activeParticipantCount } = OfficeRoom.getOperationsCounts();
-      response.json({
-        ready,
-        activeRoomCount,
-        activeParticipantCount,
-        recentErrorCount: getRecentServerErrorCount(),
-      });
-    });
+      return { ready, ...OfficeRoom.getOperationsCounts(), recentErrorCount: getRecentServerErrorCount() };
+    }));
     app.post("/internal/offices/map", async (request: AuthRequest, response: AuthResponse) => {
       if (!authorizedServiceCall(request)) { response.sendStatus(401); return; }
       const officeId = request.body?.officeId;
@@ -99,6 +93,8 @@ const server = defineServer({
   },
 });
 
+realtimeRuntimeMetrics.start();
+process.once("exit", () => realtimeRuntimeMetrics.stop());
 server.listen(port);
 logServerEvent("realtime", "service.listening", { port, nodeEnv: process.env.NODE_ENV ?? "development" });
 

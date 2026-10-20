@@ -839,7 +839,7 @@ const ENVIRONMENT_PROP_SCALE: Readonly<Record<string, number>> = {
 };
 // The low-poly nature packs are authored for much smaller scenes. At their
 // source dimensions they read like shrubs beside an avatar and city buildings.
-const CAMPUS_TREE_SCALE = 1.9;
+const CAMPUS_TREE_SCALE = 1.9 * 1.5;
 function isCampusTreeAsset(asset: string) {
   return asset.startsWith("nature-kenney-nature-kit-tree-")
     || asset.startsWith("kit-mini-forest-tree")

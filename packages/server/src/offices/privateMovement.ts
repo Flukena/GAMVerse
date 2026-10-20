@@ -1,4 +1,4 @@
-import { isPositionWalkable, makeBlockerGrid, type Position, type RoomLayoutZone, type WorldConfig } from "@gammyverse/shared";
+import { isPositionWalkable, type Position, type RoomLayoutZone, type WorldConfig } from "@gammyverse/shared";
 
 const LARGE_WORLD_WIDTH_M = 30;
 const LARGE_WORLD_SPAWN_GRID_STEP_M = 2.2;
@@ -9,15 +9,7 @@ const MIN_GRID_DIMENSION_CELLS = 1;
 
 export function restrictedZoneWorld(world: WorldConfig, deniedZones: readonly RoomLayoutZone[]): WorldConfig {
   if (deniedZones.length === 0) return world;
-  const obstacles = [...world.obstacles, ...deniedZones];
-  if (!world.collisionGrid) return { ...world, obstacles };
-  const baseGrid = world.collisionGrid;
-  const overlay = makeBlockerGrid(deniedZones, baseGrid.cellSize);
-  const cells = new Map(baseGrid.cells);
-  for (const [key, blockers] of overlay.cells) {
-    cells.set(key, [...new Set([...(cells.get(key) ?? []), ...blockers])]);
-  }
-  return { ...world, obstacles, collisionGrid: { ...baseGrid, cells } };
+  return { ...world, accessOverlay: [...(world.accessOverlay ?? []), ...deniedZones] };
 }
 
 function* spawnCandidates(world: WorldConfig): Generator<Position> {

@@ -10,7 +10,7 @@ export * from "./reactions.js";
 export * from "./spotlight.js";
 export * from "./propInteraction.js";
 import { zoneAtWithExitMargin } from "./zoneMembership.js";
-export { ZONE_EXIT_MARGIN_M } from "./zoneMembership.js";
+export { ZONE_EXIT_MARGIN_M, zoneAtWithExitMargin } from "./zoneMembership.js";
 import { roomBoundaryWalls, roomWallSolidSegments } from "./roomWallSegments.js";
 import type { MovementInput } from "./inputDelivery.js";
 import { schema, t } from "@colyseus/schema";
@@ -156,6 +156,12 @@ export type WorldConfig = {
   walls: readonly Blocker[];
   obstacles: readonly Blocker[];
   collisionGrid?: BlockerGrid;
+  /** Optional collision grid for movers (currently vehicles), refreshed independently of static geometry. */
+  dynamicCollisionGrid?: BlockerGrid;
+  /** Small per-request blockers layered over cached static and dynamic collision grids. */
+  accessOverlay?: readonly Blocker[];
+  /** A mounted vehicle must not collide with its own movable prop. */
+  excludedVehiclePropId?: string;
 };
 
 const CAMPUS_FLOOR = CAMPUS_LAYOUT.floors[0]!;
@@ -412,6 +418,7 @@ interface Blocker {
   width: number;
   depth: number;
   playerClearanceRadius?: number;
+  vehiclePropId?: string;
 }
 
 interface BlockerGrid {
@@ -439,18 +446,30 @@ export function makeBlockerGrid(blockers: readonly Blocker[], cellSize = 8): Blo
 }
 
 function blockersNear(position: Position, world: WorldConfig): readonly Blocker[] {
-  if (!world.collisionGrid) return [...world.walls, ...world.obstacles];
-  const { cellSize, cells } = world.collisionGrid;
   const radius = world.playerRadius;
-  const minX = Math.floor((position.x - radius) / cellSize);
-  const maxX = Math.floor((position.x + radius) / cellSize);
-  const minZ = Math.floor((position.z - radius) / cellSize);
-  const maxZ = Math.floor((position.z + radius) / cellSize);
   const seen = new Set<Blocker>();
-  for (let cellX = minX; cellX <= maxX; cellX += 1) {
-    for (let cellZ = minZ; cellZ <= maxZ; cellZ += 1) {
-      for (const blocker of cells.get(`${cellX},${cellZ}`) ?? []) seen.add(blocker);
+  const grids = [world.collisionGrid, world.dynamicCollisionGrid];
+  if (!world.collisionGrid) {
+    for (const blocker of [...world.walls, ...world.obstacles]) {
+      if (!world.excludedVehiclePropId || blocker.vehiclePropId !== world.excludedVehiclePropId) seen.add(blocker);
     }
+  }
+  for (const grid of grids) {
+    if (!grid) continue;
+    const gridMinX = Math.floor((position.x - radius) / grid.cellSize);
+    const gridMaxX = Math.floor((position.x + radius) / grid.cellSize);
+    const gridMinZ = Math.floor((position.z - radius) / grid.cellSize);
+    const gridMaxZ = Math.floor((position.z + radius) / grid.cellSize);
+    for (let cellX = gridMinX; cellX <= gridMaxX; cellX += 1) {
+      for (let cellZ = gridMinZ; cellZ <= gridMaxZ; cellZ += 1) {
+        for (const blocker of grid.cells.get(`${cellX},${cellZ}`) ?? []) {
+          if (!world.excludedVehiclePropId || blocker.vehiclePropId !== world.excludedVehiclePropId) seen.add(blocker);
+        }
+      }
+    }
+  }
+  for (const blocker of world.accessOverlay ?? []) {
+    if (!world.excludedVehiclePropId || blocker.vehiclePropId !== world.excludedVehiclePropId) seen.add(blocker);
   }
   return [...seen];
 }

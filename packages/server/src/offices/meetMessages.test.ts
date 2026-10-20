@@ -23,7 +23,7 @@ function fixture() {
   const offers = () => messages.requests.visible(FROM_ID);
   const offer = () => offers()[0]!;
   const action = (actionName: "accept" | "decline" | "cancel", sessionId = TO_ID, selected: MeetOffer = offer()) => messages.action({ sessionId }, { requestId: `action-${actionName}`, offerId: selected.id, expectedRevision: 1, action: actionName });
-  return { messages, people, geometry, commits, events, offers, offer, action, roles: () => roleCalls, authorize: (next: typeof authorize) => { authorize = next; }, advance: (elapsedMs: number) => { nowMs += elapsedMs; } };
+  return { messages, people, geometry, commits, events, offers, offer, action, roles: () => roleCalls, authorize: (next: typeof authorize) => { authorize = next; }, search: (read: NonNullable<MeetState["searchMeetingRoom"]>) => { state.searchMeetingRoom=read; }, advance: (elapsedMs: number) => { nowMs += elapsedMs; } };
 }
 test("creation is party-only, correlated and idempotent; accepted replay commits only once", async () => {
   const f = fixture();
@@ -116,4 +116,37 @@ test("unavailable participant at accept immediately publishes the terminal offer
   const snapshots = f.events.filter(event => event.event === "meet-offers");
   assert.deepEqual(new Set(snapshots.map(event => event.sessionId)), new Set([FROM_ID, TO_ID]));
   assert.ok(snapshots.every(event => (event.payload as MeetOfferSnapshot).offers[0]?.state === "unavailable"));
+});
+
+test("worker meeting routes are discarded when participant moves or the zone becomes occupied", async () => {
+  for (const change of ["movement","occupied"] as const) {
+    const f=fixture(); await f.messages.create({sessionId:FROM_ID},CREATE);
+    let release!: (plan: MeetRoutePlan | null)=>void;
+    f.search(async()=>new Promise(resolve=>{release=resolve;}));
+    const accepting=f.action("accept");
+    await new Promise<void>(resolve=>setImmediate(resolve));
+    if(change==="movement")f.people.get(TO_ID)!.x+=1;
+    else {const person=f.people.get("eve-session")!;person.x=0;person.z=8;}
+    release({geometryRevision:f.geometry.revision,routes:[
+      {sessionId:FROM_ID,points:[{x:-1,z:7.25}],destination:{x:-1,z:7.25}},
+      {sessionId:TO_ID,points:[{x:1,z:7.25}],destination:{x:1,z:7.25}},
+    ]});
+    await accepting;
+    assert.equal(f.commits.length,0,change);
+    assert.equal(f.offer().state,"unavailable",change);
+  }
+});
+
+test("worker meeting routes recheck membership after path planning", async () => {
+  const f=fixture(); await f.messages.create({sessionId:FROM_ID},CREATE);
+  let roleCalls=0;
+  f.authorize(async()=>++roleCalls>3?null:"user");
+  f.search(async()=>({geometryRevision:f.geometry.revision,routes:[
+    {sessionId:FROM_ID,points:[{x:-1,z:7.25}],destination:{x:-1,z:7.25}},
+    {sessionId:TO_ID,points:[{x:1,z:7.25}],destination:{x:1,z:7.25}},
+  ]}));
+  await f.action("accept");
+  assert.equal(roleCalls,4,"both participants are reauthorized after worker completion");
+  assert.equal(f.commits.length,0);
+  assert.equal(f.offer().state,"unavailable");
 });

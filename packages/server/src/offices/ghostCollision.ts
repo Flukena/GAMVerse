@@ -27,7 +27,7 @@ export function ghostCollisionWorld(world: WorldConfig): WorldConfig {
     collisionGrid = { cellSize, cells };
     ghostCollisionGrids.set(walls, collisionGrid);
   }
-  return { ...world, obstacles: [], collisionGrid };
+  return { ...world, obstacles: [], collisionGrid, dynamicCollisionGrid: undefined, excludedVehiclePropId: undefined };
 }
 
 /** True when prop/car collision changes the authoritative result of a walking step. */

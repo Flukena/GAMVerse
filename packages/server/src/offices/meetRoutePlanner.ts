@@ -10,12 +10,14 @@ const RENDEZVOUS_SEARCH_RADII_M = [0, 2, 4] as const;
 const RENDEZVOUS_SEARCH_DIRECTION_COUNT = 4;
 const PARTICIPANT_SEPARATION_M = 1.5;
 const ARRIVAL_TOLERANCE_M = 0.8;
-function meetingZoneIsPublic(zone: RoomLayoutZone, geometry: MeetGeometry) {
+export function meetingZoneIsPublic(zone: RoomLayoutZone, geometry: MeetGeometry) {
   return zone.kind === "meeting" && !geometry.lockedZoneIds.has(zone.id);
 }
+export function publicNavigationDeniedZones(geometry: MeetGeometry): RoomLayoutZone[] {
+  return geometry.layout.zones.filter(zone => !meetingZoneIsPublic(zone, geometry));
+}
 function publicWorld(geometry: MeetGeometry): WorldConfig {
-  const restrictedZones = geometry.layout.zones.filter(zone => !meetingZoneIsPublic(zone, geometry));
-  return restrictedZoneWorld(geometry.world, restrictedZones);
+  return restrictedZoneWorld(geometry.world, publicNavigationDeniedZones(geometry));
 }
 export function meetParticipantAvailable(participant: MeetTravelParticipant) {
   return participant.active && participant.presence === "online" && !participant.vehicleId && !availabilityPolicy(participant.status).suppressInterruptions;
@@ -32,6 +34,22 @@ function* candidates(target: Position): Generator<Position> {
       yield { x: target.x + Math.cos(angle) * radiusM, z: target.z + Math.sin(angle) * radiusM };
     }
   }
+}
+export function publicConversationApproachCandidates(target: Position): Position[] {
+  return [...candidates(target)].map(point => ({ x: point.x, z: point.z }));
+}
+export function meetRoomRouteCandidates(from: MeetTravelParticipant, to: MeetTravelParticipant, zone: RoomLayoutZone) {
+  const result: Array<{ firstStart: Position; firstDestination: Position; secondStart: Position; secondDestination: Position }> = [];
+  const offsets = [PARTICIPANT_SEPARATION_M / 2, -PARTICIPANT_SEPARATION_M / 2];
+  for (const offset of [0, -0.5, 0.5, -1, 1]) {
+    result.push({
+      firstStart: { x: from.x, z: from.z },
+      firstDestination: { x: zone.x + offset, z: zone.z - offsets[0] },
+      secondStart: { x: to.x, z: to.z },
+      secondDestination: { x: zone.x + offset, z: zone.z + offsets[1] },
+    });
+  }
+  return result;
 }
 function routeTo(participant: MeetTravelParticipant, destination: Position, world: WorldConfig): MeetWalkingRoute | null {
   if (!isPositionWalkable(participant, world) || !isPositionWalkable(destination, world)) return null;

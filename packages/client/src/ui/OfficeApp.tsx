@@ -67,6 +67,7 @@ import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { Minimap } from "./Minimap";
 import type { Map2dLocateRequest } from "../world/map2d/map2dInput";
 import { WorldCanvas } from "../world/WorldCanvas";
+import { clientRuntimeMetrics } from "../world/clientRuntimeMetrics";
 import type { LockedTurnState } from "../world/camera/lockedMovement";
 import { resolveHeldMovement } from "../world/camera/heldMovement";
 import { FullScreenLoading } from "./FullScreenLoading";
@@ -2259,6 +2260,7 @@ export function OfficeApp() {
         setError(null);
 
         const applyState = (state: OfficeState) => {
+          const applyStartedAtMs = performance.now();
           const snapshot = new Map<string, PlayerSnapshot>();
           const localPlayer = localSessionIdRef.current
             ? state.players.get(localSessionIdRef.current)
@@ -2329,6 +2331,7 @@ export function OfficeApp() {
             setPeople([...snapshot.entries()]);
             setPlayerCount(snapshot.size);
           }
+          clientRuntimeMetrics.recordStateApply(performance.now() - applyStartedAtMs, snapshot.size);
         };
         room.onMessage("blaster-shot", (payload: unknown) => {
           if (typeof payload !== "object" || payload === null || !("shooterSessionId" in payload) || !("start" in payload) || !("end" in payload)) return;

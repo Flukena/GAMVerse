@@ -17,7 +17,7 @@ function fixture() {
   const discovery = new PublicConversations("office","incarnation");
   const messages = new PublicConversationMessages(state,discovery,()=>nowMs);
   const client = {sessionId:"session",send:(event:string,payload:unknown)=>{sent.push({event,payload});}};
-  return {messages,client,commits,sent,participant,geometry,deny:()=>{authorized=false;},remove:()=>{conversation=undefined;},advance:()=>{nowMs+=1000;},authorize:(read:()=>Promise<boolean>)=>{authorize=read;}};
+  return {messages,client,commits,sent,participant,geometry,deny:()=>{authorized=false;},remove:()=>{conversation=undefined;},advance:()=>{nowMs+=1000;},authorize:(read:()=>Promise<boolean>)=>{authorize=read;},search:(read: NonNullable<PublicConversationState["searchApproach"]>)=>{state.searchApproach=read;}};
 }
 test("Approach navigates Busy using server destination and never changes media membership",async()=>{
   const f=fixture();await f.messages.approach(f.client,{conversationId:"conversation",requestId:"request"});
@@ -47,4 +47,44 @@ test("latest geometry blocks routes and inactive requesters cannot read discover
   await f.messages.approach(f.client,{conversationId:"conversation",requestId:"request"});
   assert.equal(f.commits.length,0);
   f.participant.active=false;const count=f.sent.length;f.messages.sync(f.client,{});assert.equal(f.sent.length,count);
+});
+
+test("worker approach is fenced by geometry, intent, and fresh authorization before commit",async()=>{
+  for (const change of ["geometry","intent","authorization"] as const) {
+    const f=fixture(); let release!:()=>void; let authorized=true;
+    f.authorize(async()=>authorized);
+    f.search(async()=>new Promise(resolve=>{release=()=>resolve({sessionId:"session",points:[{x:0,z:0}],destination:{x:0,z:0}});}));
+    const pending=f.messages.approach(f.client,{conversationId:"conversation",requestId:"worker"});
+    await new Promise<void>(resolve=>setImmediate(resolve));
+    if(change==="geometry")f.geometry.revision+=1;
+    if(change==="intent")f.messages.invalidate(f.client.sessionId);
+    if(change==="authorization")authorized=false;
+    release(); await pending;
+    assert.equal(f.commits.length,0,change);
+  }
+});
+
+test("invalidated worker approach suppresses even a late null-result failure",async()=>{
+  const f=fixture(); let release!:()=>void;
+  f.search(async()=>new Promise(resolve=>{release=()=>resolve(null);}));
+  const pending=f.messages.approach(f.client,{conversationId:"conversation",requestId:"late-null"});
+  await new Promise<void>(resolve=>setImmediate(resolve));
+  f.messages.invalidate(f.client.sessionId); release(); await pending;
+  assert.equal(f.commits.length,0);
+  assert.equal(f.sent.some(event=>event.event==="auto-move-status"),false);
+});
+
+test("public approach rejects vehicle participants before dispatch and after worker completion",async()=>{
+  const f=fixture(); let calls=0; let release!:()=>void;
+  f.search(async()=>{calls+=1;return new Promise(resolve=>{release=()=>resolve({sessionId:"session",points:[{x:0,z:0}],destination:{x:0,z:0}});});});
+  f.participant.vehicleId="car";
+  await f.messages.approach(f.client,{conversationId:"conversation",requestId:"mounted"});
+  assert.equal(calls,0,"mounted user never dispatches a route");
+  f.participant.vehicleId="";
+  f.advance();
+  const pending=f.messages.approach(f.client,{conversationId:"conversation",requestId:"becomes-mounted"});
+  await new Promise<void>(resolve=>setImmediate(resolve));
+  f.participant.vehicleId="car";
+  release(); await pending;
+  assert.equal(f.commits.length,0,"vehicle state is rechecked after the worker await");
 });

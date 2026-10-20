@@ -3,7 +3,8 @@ import { getSession } from "../auth/service.js";
 import { getOfficeRole } from "./repository.js";
 import { readReconnectAccess, type SessionSecurity } from "./sessionSecurity.js";
 import { MeetMessages, registerMeetMessages } from "./meetMessages.js";
-import type { MeetGeometry, MeetRoutePlan, MeetTravelParticipant } from "./meetRoutePlanner.js";
+import type { MeetGeometry, MeetRoutePlan, MeetTravelParticipant, MeetWalkingRoute } from "./meetRoutePlanner.js";
+import type { Position, RoomLayoutZone } from "@gammyverse/shared";
 import { PublicConversations, publicConversationSummaries } from "./publicConversations.js";
 import { PublicConversationMessages, registerPublicConversationMessages } from "./publicConversationMessages.js";
 import type { SpatialConversations } from "./spatialConversations.js";
@@ -15,6 +16,8 @@ export type ConversationActionState = {
   editingSessionId(): string | null;
   conversations: SpatialConversations;
   geometry(): MeetGeometry;
+  searchPublicApproach?(participant: MeetTravelParticipant, target: Position, geometry: MeetGeometry, targetMeetingZoneId?: string): Promise<MeetWalkingRoute | null>;
+  searchMeetingRoom?(from: MeetTravelParticipant, to: MeetTravelParticipant, geometry: MeetGeometry, zone: RoomLayoutZone): Promise<MeetRoutePlan | null>;
   commit(plan: MeetRoutePlan, zoneId?: string): void;
   send(sessionId: string, event: string, payload: unknown): void;
   broadcast(event: string, payload: unknown): void;
@@ -26,22 +29,28 @@ export class ConversationActions {
   private readonly meet: MeetMessages;
   private readonly disposeMeet: () => void;
   private lastRefreshAtMs = -PUBLIC_DISCOVERY_REFRESH_INTERVAL_MS;
+  private readonly discoveryTimer: ReturnType<typeof setInterval>;
   constructor(private readonly officeId: string, room: ActionRoom, private readonly state: ConversationActionState) {
     this.discovery = new PublicConversations(officeId,state.conversations.roomIncarnationId);
-    const navigation = {participant: (id: string) => this.participant(id), participants: () => [...state.players.keys()].map(id => this.participant(id)).filter((person): person is MeetTravelParticipant => Boolean(person)), geometry: state.geometry, commit: state.commit,send: state.send};
+    const navigation = {participant: (id: string) => this.participant(id), participants: () => [...state.players.keys()].map(id => this.participant(id)).filter((person): person is MeetTravelParticipant => Boolean(person)), geometry: state.geometry, commit: state.commit,send: state.send, searchMeetingRoom: state.searchMeetingRoom};
     this.meet = new MeetMessages(officeId,state.conversations.roomIncarnationId,navigation,{
       role: async username => {const id=state.security.activeSession(username);return id && await this.authorize(id,username) ? "user" : null;},
     });
     this.disposeMeet = registerMeetMessages(room,this.meet);
     this.publicMessages = new PublicConversationMessages({...navigation,authorize:(id,username)=>this.authorize(id,username),
-      conversation:id=>this.resolve(id),navigationIntent:id=>this.navigationIntent(id)},this.discovery);
+      conversation:id=>this.resolve(id),navigationIntent:id=>this.navigationIntent(id),searchApproach:state.searchPublicApproach},this.discovery);
     registerPublicConversationMessages(room,this.publicMessages);
+    this.discoveryTimer = setInterval(() => this.refresh(true), PUBLIC_DISCOVERY_REFRESH_INTERVAL_MS);
+    this.discoveryTimer.unref();
   }
   participant(sessionId: string): MeetTravelParticipant | undefined {
     const player = this.state.players.get(sessionId);
     if (!player) return undefined;
     return {username:player.username,sessionId,displayName:player.displayName || player.username,x:player.x,z:player.z,status:player.status,
       presence:player.presence,vehicleId:player.vehicleId,active:sessionId !== this.state.editingSessionId() && !this.state.security.isRevoked(sessionId) && this.state.security.activeSession(player.username)===sessionId};
+  }
+  participants(): MeetTravelParticipant[] {
+    return [...this.state.players.keys()].map(id => this.participant(id)).filter((person): person is MeetTravelParticipant => Boolean(person));
   }
   private async authorize(sessionId: string, username: string): Promise<boolean> {
     const access = await readReconnectAccess(username,this.state.security.token(sessionId),this.officeId,{account:getSession,officeRole:getOfficeRole});
@@ -51,7 +60,7 @@ export class ConversationActions {
   invalidateApproach(sessionId: string) {this.publicMessages.invalidate(sessionId);}
   removeSession(sessionId: string) {this.meet.removeSession(sessionId);this.publicMessages.removeSession(sessionId);}
   mapChanged() {this.meet.mapChanged();for(const id of this.state.players.keys())this.publicMessages.invalidate(id);}
-  dispose() {this.disposeMeet();for(const id of this.state.players.keys())this.publicMessages.removeSession(id);}
+  dispose() {clearInterval(this.discoveryTimer);this.disposeMeet();for(const id of this.state.players.keys())this.publicMessages.removeSession(id);}
   private summaries() {
     const positions = new Map([...this.state.players].filter(([id,player])=>player.presence==="online" && !this.state.security.isRevoked(id) && this.state.security.activeSession(player.username)===id));
     const geometry=this.state.geometry();

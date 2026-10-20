@@ -48,6 +48,15 @@ export class PrivateZoneAccess {
   zoneForSession(id: string) { return this.frame.zoneBySession.get(id); }
   audienceSessions(nowMs:number){return new Set([...this.frame.zoneBySession].filter(([sessionId,zoneId])=>this.mayHear(sessionId,zoneId,nowMs)).map(([sessionId])=>sessionId));}
   zoneIds() { return [...this.zones.keys()]; }
+  nextDeadlineAtMs(): number | null {
+    let next = Infinity;
+    for (const zone of this.zones.values()) {
+      if (zone.retainEmptyUntilMs !== null) next = Math.min(next, zone.retainEmptyUntilMs);
+      for (const admission of zone.admissions.values()) if (admission.expiresAtMs !== null) next = Math.min(next, admission.expiresAtMs);
+    }
+    for (const knock of this.knocks.values()) if (knock.state === "pending") next = Math.min(next, knock.expiresAtMs);
+    return Number.isFinite(next) ? next : null;
+  }
   lockedIds() { return new Set([...this.zones].filter(([, zone]) => zone.locked).map(([id]) => id)); }
   lockForMeeting(zoneId: string, sessionIds: readonly string[], nowMs: number) {
     const zone = this.requireZone(zoneId);

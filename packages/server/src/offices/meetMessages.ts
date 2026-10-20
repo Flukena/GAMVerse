@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { isMeetActionCommand, isMeetCreateCommand, isMeetSyncCommand, isValidStatusRequestId, type MeetActionCommand, type MeetCreateCommand, type MeetOffer, type MeetParty } from "@gammyverse/shared";
+import type { RoomLayoutZone } from "@gammyverse/shared";
 import { getOfficeRole } from "./repository.js";
 import { MeetRequests } from "./meetRequests.js";
 import { isPublicMeetPoint, meetingZoneIsEmpty, meetParticipantAvailable, planMeetRoomRoutes, type MeetGeometry, type MeetRoutePlan, type MeetTravelParticipant } from "./meetRoutePlanner.js";
@@ -10,6 +11,7 @@ export type MeetState = {
   geometry(): MeetGeometry;
   commit(plan: MeetRoutePlan, zoneId?: string): void;
   send(sessionId: string, event: string, payload: unknown): void;
+  searchMeetingRoom?(from: MeetTravelParticipant, to: MeetTravelParticipant, geometry: MeetGeometry, zone: RoomLayoutZone): Promise<MeetRoutePlan | null>;
 };
 type MeetOptions = { role?: (username: string, officeId: string) => Promise<string | null>; nowMs?: () => number; id?: () => string };
 type MeetClient = { sessionId: string };
@@ -87,7 +89,9 @@ export class MeetMessages {
   private current(snapshot: AcceptanceSnapshot) {
     const next = this.snapshot(snapshot.from.sessionId, snapshot.to.sessionId);
     return !this.disposed && next !== null && next.from.username === snapshot.from.username && next.to.username === snapshot.to.username
-      && next.fromEpoch === snapshot.fromEpoch && next.toEpoch === snapshot.toEpoch && next.geometryRevision === snapshot.geometryRevision;
+      && next.fromEpoch === snapshot.fromEpoch && next.toEpoch === snapshot.toEpoch && next.geometryRevision === snapshot.geometryRevision
+      && Math.hypot(next.from.x - snapshot.from.x, next.from.z - snapshot.from.z) <= 0.25
+      && Math.hypot(next.to.x - snapshot.to.x, next.to.z - snapshot.to.z) <= 0.25;
   }
   private async authorized(snapshot: AcceptanceSnapshot) {
     const roles = await Promise.all([this.role(snapshot.from.username, this.officeId), this.role(snapshot.to.username, this.officeId)]);
@@ -148,11 +152,21 @@ export class MeetMessages {
       this.assertAcceptCurrent(offer, command, snapshot);
       const current = this.snapshot(offer.from.sessionId, offer.to.sessionId)!;
       const geometry = this.state.geometry();
-      const zone = geometry.layout.zones.find(candidate => meetingZoneIsEmpty(candidate, this.state.participants())
-        && planMeetRoomRoutes(current.from, current.to, geometry, candidate));
-      if (!zone) throw new Error(UNAVAILABLE_LABEL);
-      const plan = planMeetRoomRoutes(current.from, current.to, geometry, zone);
-      if (!plan) throw new Error(UNAVAILABLE_LABEL);
+      let zone: RoomLayoutZone | undefined;
+      let plan: MeetRoutePlan | null = null;
+      for (const candidate of geometry.layout.zones.filter(zone => meetingZoneIsEmpty(zone, this.state.participants()))) {
+        const candidatePlan = this.state.searchMeetingRoom
+          ? await this.state.searchMeetingRoom(current.from, current.to, geometry, candidate)
+          : planMeetRoomRoutes(current.from, current.to, geometry, candidate);
+        await this.authorized(snapshot);
+        this.assertAcceptCurrent(offer, command, snapshot);
+        const liveGeometry = this.state.geometry();
+        const liveZone = liveGeometry.layout.zones.find(item => item.id === candidate.id);
+        if (!liveZone || liveZone.kind !== "meeting" || liveGeometry.lockedZoneIds.has(liveZone.id)
+            || !meetingZoneIsEmpty(liveZone, this.state.participants())) continue;
+        if (candidatePlan && candidatePlan.geometryRevision === liveGeometry.revision) { zone = liveZone; plan = candidatePlan; break; }
+      }
+      if (!zone || !plan) throw new Error(UNAVAILABLE_LABEL);
       this.state.commit(plan, zone.id);
       this.intentChanged(offer.from.sessionId); this.intentChanged(offer.to.sessionId);
       this.requests.finish(offer, "accepted");
@@ -168,7 +182,7 @@ export function registerMeetMessages(room: MeetRoom, messages: MeetMessages) {
   room.onMessage("meet-create", (client, payload) => { void messages.create(client, payload); });
   room.onMessage("meet-action", (client, payload) => { void messages.action(client, payload); });
   room.onMessage("meet-sync", (client, payload) => { if (isMeetSyncCommand(payload)) messages.sync(client.sessionId); });
-  const timer = setInterval(() => messages.expire(), MEET_EXPIRY_CHECK_INTERVAL_MS);
+  const timer = setInterval(() => { messages.enforceAvailability(); messages.expire(); }, MEET_EXPIRY_CHECK_INTERVAL_MS);
   timer.unref();
   return () => { clearInterval(timer); messages.dispose(); };
 }

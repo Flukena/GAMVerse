@@ -35,6 +35,7 @@ import { applyCameraView } from "./camera/cameraView";
 import { locateMap2d, type Map2dLocateRequest } from "./map2d/map2dInput";
 import type { Map2dDecoration } from "./map2d/map2dDynamicLayer";
 import { campusOverviewMapScalePxPerM } from "./map2d/map2dProjection";
+import { clientRuntimeMetrics } from "./clientRuntimeMetrics";
 import { civicRoomFloorColor, makeCivicParkGround, makeEastFootballFieldVisual, makeWestPublicParkVisual } from "./civicParkSurface";
 import { PROP_MODEL_LOAD_BATCH_SIZE, PROP_RENDER_CULL_INTERVAL_MS, shouldLoadPropModel, shouldRenderDistanceCulledProp } from "./propDistanceCulling";
 
@@ -2867,6 +2868,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
 
     const render = (now: number) => {
       if (document.visibilityState !== "visible") return;
+      const frameStartedAtMs = performance.now();
       const remoteShots = blasterEventsRef?.current.splice(0, 12) ?? [];
       for (const shot of remoteShots) {
         const beam = makeLaserBeam(new THREE.Vector3(shot.start.x, shot.start.y, shot.start.z), new THREE.Vector3(shot.end.x, shot.end.y, shot.end.z));
@@ -3768,7 +3770,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: travelFeedbackRef.current?.destination ?? null }) ?? map2dCenterRef.current;
       socialOverlay.frame({ camera, players: playersRef.current, decorations: map2dDecorationsRef?.current ?? [], localId, layout: roomLayout, offsetX: campusOverviewRef.current ? mapWorld.width / 2 : 0, offsetZ: campusOverviewRef.current ? mapWorld.depth / 2 : 0, visible: !showMap2d, nowMs: performance.now() });
       if (!showMap2d) renderer.render(scene, camera);
-      if (document.visibilityState === "visible") animationFrame = requestAnimationFrame(render);
+      if (document.visibilityState === "visible") {
+        clientRuntimeMetrics.recordFrame(performance.now() - frameStartedAtMs);
+        animationFrame = requestAnimationFrame(render);
+      }
     };
     const onDocumentVisibilityChange = () => {
       if (document.visibilityState === "visible") {

@@ -13,7 +13,6 @@ type VehicleExitRoom = {
   mapLayout: RoomLayout;
   mapConfig: unknown;
   lockedZoneIds: Set<string>;
-  vehicleWorldsBySessionId: Map<string, WorldConfig>;
   exitVehicle(sessionId: string, player: PlayerState): void;
 };
 function fixture(zone: RoomLayoutZone) {
@@ -23,7 +22,6 @@ function fixture(zone: RoomLayoutZone) {
   internal.mapLayout = { version: 1, props: [CAR], zones: [zone], walls: [], doors: [], dimensions: { width: BASE_WORLD.width, depth: BASE_WORLD.depth } };
   internal.mapConfig = { version: 1, layout: internal.mapLayout };
   internal.lockedZoneIds.add(zone.id);
-  internal.vehicleWorldsBySessionId.set(SESSION_ID, BASE_WORLD);
   const player = new PlayerState();
   player.username = "guest";
   player.x = 0;

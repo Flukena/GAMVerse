@@ -1,4 +1,5 @@
 import { PrivateAccessDeniedError, privateAccessFailure } from "./privateAccessErrors.js";
+import { PrivateDeadlines } from "./privateDeadlines.js";
 import { randomUUID } from "node:crypto";
 import { PRIVATE_ACTION_INTERVAL_MS, PRIVATE_MEDIA_RETRY_INTERVAL_MS, PRIVATE_TERMINAL_KNOCKS_MAX_COUNT, PRIVATE_ZONE_ACCESS_EVENT, PRIVATE_ZONE_RESULT_EVENT, isValidPrivateZoneAccessRequest, isValidPrivateZoneCommand, isValidLegacyZoneLock, type DeskAssignmentFence, type PrivateZoneCommand, type PrivateZoneResult } from "@gammyverse/shared";
 import { PrivateMediaEpochs, type ZoneEpochKey, type ZoneMediaDescriptor, type ZoneMediaTransition } from "../media/privateMediaEpoch.js";
@@ -15,6 +16,8 @@ type Options = {
   queries?: PrivateAccessQueries;
   nowMs?: () => number;
   id?: () => string;
+  onDeadline?: () => void;
+  onChange?: () => void;
 };
 const PRIVATE_ACCESS_PENDING_MAX_COUNT = 256;
 const ACCESS_DENIED_LABEL = "Room access is unavailable. Refresh and try again.";
@@ -40,16 +43,27 @@ export class PrivateConversations {
   private disposed = false;
   private readonly assignmentZones = new Map<string, string>();
   private readonly assignmentPreparations = new Map<string, Promise<boolean>>();
+  private readonly deadlines: PrivateDeadlines;
+  private frame?: PrivateAccessFrame;
+  private readonly onChange?: () => void;
   constructor(readonly officeId: string, readonly roomIncarnationId: string, options: Options = {}) {
     this.access = new PrivateZoneAccess(officeId, roomIncarnationId);
     this.epochs = options.epochs ?? new PrivateMediaEpochs();
     this.queries = options.queries ?? privateAccessQueries;
     this.nowMs = options.nowMs ?? Date.now;
     this.id = options.id ?? randomUUID;
+    this.onChange = options.onChange;
+    this.deadlines = new PrivateDeadlines(this.nowMs, () => {
+      if (this.disposed || !this.frame) return;
+      this.reconcile(this.frame);
+      options.onDeadline?.();
+    });
   }
+  deadlineDue() { const deadline = this.access.nextDeadlineAtMs(); return deadline !== null && deadline <= this.nowMs(); }
   reconcile(frame: PrivateAccessFrame) {
     if (this.disposed)
       return;
+    this.frame = frame;
     const previousKeys = new Map(this.access.zoneIds().map(id => [id, this.key(id)]));
     const changed = this.access.reconcile(frame, this.nowMs());
     for (const id of changed) {
@@ -64,6 +78,7 @@ export class PrivateConversations {
     this.publishChanges();
   }
   mapChanged(frame: PrivateAccessFrame) {
+    this.deadlines.clear();
     this.reconcile(frame);
     for (const zone of frame.zones) {
       if(zone.kind==="restroom"||!this.access.zone(zone.id))continue;
@@ -131,15 +146,19 @@ export class PrivateConversations {
     });
   }
   private publishChanges() {
+    if (!this.disposed) this.deadlines.schedule(this.access.nextDeadlineAtMs());
+    let changed = false;
     for (const zoneId of this.access.zoneIds()) {
       const revision = this.access.revision(zoneId);
       if (this.revisions.get(zoneId) === revision)
         continue;
       this.revisions.set(zoneId, revision);
+      changed = true;
       for (const [sessionId, watch] of this.watches)
         if (watch === zoneId)
           this.queueSnapshot(sessionId, zoneId);
     }
+    if (changed && !this.disposed) this.onChange?.();
   }
   private snapshot(sessionId: string, zoneId: string) { return this.access.snapshot(sessionId, zoneId, this.descriptor(zoneId).state, this.nowMs()); }
   private queueSnapshot(sessionId: string, zoneId: string) {
@@ -284,6 +303,8 @@ export class PrivateConversations {
   }
   async dispose() {
     this.disposed=true;
+    this.deadlines.clear();
+    this.frame = undefined;
     for(const read of this.reads.values())read.valid=false;
     for(const action of this.pending.values())action.valid=false;
     this.lastReadAt.clear();this.lastActionAt.clear();this.results.clear();

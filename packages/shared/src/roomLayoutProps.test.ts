@@ -35,3 +35,14 @@ test("shower catalog height renders a full-size shower instead of normalizing it
   assert.equal(shower.width, 1);
   assert.equal(shower.depth, 1);
 });
+
+test("campus trees are scaled fifty percent above their previous size", () => {
+  for (const [asset, sourceHeight] of [
+    ["kit-mini-forest-tree", 1.684],
+    ["kit-mini-forest-tree-high", 2.284],
+  ] as const) {
+    const tree = ROOM_PROP_CATALOG.find((item) => item.asset === asset);
+    assert.ok(tree);
+    assert.ok(Math.abs(tree.height - sourceHeight * 1.9 * 1.5) < 1e-9);
+  }
+});
