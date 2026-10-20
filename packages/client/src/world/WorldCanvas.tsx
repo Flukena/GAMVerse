@@ -1,3 +1,5 @@
+import { StaticSceneGroup } from "./staticSceneGroup";
+import { OfficeMapSceneLayers } from "./officeMapSceneLayers";
 import { playerName } from "../identity/playerName";
 import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, JUMP_DURATION_MS, jumpHeightAt, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, parseRoomPropSeatReference, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone, type UserStatus } from "@gammyverse/shared";
 import type { MutableRefObject } from "react";
@@ -1252,6 +1254,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     // One clean 200 × 250 shared floor with no placed room content.
     const campusRoot = new THREE.Group();
     const campusMapProps = new THREE.Group();
+    const mapSceneLayers = new OfficeMapSceneLayers(campusMapProps);
     const mapEditOverlay = new THREE.Group();
     mapEditOverlay.name = "In-world map edit dimensions and grid";
     mapEditOverlay.visible = false;
@@ -1265,7 +1268,6 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     zoneDraftPreview.visible = false;
     zoneDraftPreview.renderOrder = 4;
     campusRoot.add(zoneDraftPreview);
-    const mapCollisionOverlays: THREE.Object3D[] = [];
     // Only visible mesh roots are culled. Collision, interaction and the
     // authoritative server map remain complete even when their model is far away.
     const distanceCulledPropVisuals: THREE.Object3D[] = [];
@@ -1312,9 +1314,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     let placementGhostPosition = { x: mapWorld.width / 2, z: mapWorld.depth / 2 };
     let placementGhostElevation = 0;
     let hasPlacementPointer = false;
-    const campusFloorGroups = new Map<number, THREE.Group>();
+    const campusFloorGroups = new Map<number, StaticSceneGroup>();
     for (const floor of [activeFloor]) {
-      const floorGroup = new THREE.Group();
+      const floorGroup = new StaticSceneGroup();
       floorGroup.name = `Campus floor ${floor.id}`;
       floorGroup.userData.blasterSurface = "floor";
       floorGroup.visible = true;
@@ -1472,6 +1474,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
         fallback.visible = false;
         view.add(props);
+        campusFloorGroups.get(room.floor)?.invalidate();
       }
     });
     const campusSun = new THREE.DirectionalLight(0xfff0d5, 2.3);
@@ -1486,7 +1489,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     campusRoot.add(new THREE.HemisphereLight(0xf5fbff, 0x706757, 1.25), campusSun);
     scene.add(campusRoot);
 
-    const kenneyFloor = new THREE.Group();
+    const kenneyFloor = new StaticSceneGroup();
     scene.add(kenneyFloor);
     const fallbackFloor = new THREE.Mesh(
       new THREE.PlaneGeometry(WORLD.width, WORLD.depth),
@@ -1528,7 +1531,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     grid.position.y = 0.012;
     scene.add(grid);
 
-    const kenneyWalls = new THREE.Group();
+    const kenneyWalls = new StaticSceneGroup();
     scene.add(kenneyWalls);
     const wallPlacements = [
       { x: 0, z: -4, rotation: Math.PI / 2, count: 6 },
@@ -1707,7 +1710,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               // Keep the fit helper's local recentering and floor alignment.
               // Positioning the model directly here overwrote those offsets,
               // which made assets with non-centered origins drift into nearby rooms.
-              const wallAnchor = new THREE.Group();
+              const wallAnchor = new StaticSceneGroup();
               wallAnchor.position.set(moduleCenterX, 0, moduleCenterZ);
               wallAnchor.userData.officeMapWallId = wall.id;
               model.userData.officeMapWallId = wall.id;
@@ -1871,7 +1874,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             supportPlane.userData.officeMapPropId = prop.id;
             supportPlane.userData.mapPropSupportSurface = true;
             supportSurface.add(supportPlane);
-            campusMapProps.add(supportSurface);
+            mapSceneLayers.pickTargets.add(supportSurface);
           }
           // The saved collision shape is axis-aligned after rotating the prop.
           // Use that exact footprint for selection feedback so the orange frame
@@ -1896,7 +1899,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           selectedBounds.position.y = Math.max(0.18, catalog.height) / 2;
           selectedBounds.renderOrder = 6;
           selection.add(selectedFootprint, selectedBounds);
-          campusMapProps.add(selection);
+          mapSceneLayers.selections.add(selection);
           mapPropSelectionHighlights.set(prop.id, selection);
           // Give Move mode a generous, invisible hit target matching the
           // prop's actual footprint. Many models (chairs, screens, plants)
@@ -1914,7 +1917,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           dragTarget.userData.officeMapPropId = prop.id;
           dragTarget.userData.mapPropDragHitTarget = true;
           if (catalog.vehicleId) trackMovableVehicleHandle(prop.id, dragTarget);
-          campusMapProps.add(dragTarget);
+          mapSceneLayers.pickTargets.add(dragTarget);
         }
         // Driveable props are rendered by the vehicle layer so they can be
         // hidden while occupied and reappear at their last parked position.
@@ -1934,7 +1937,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               // position. Applying rotation to the same object that carries the
               // offset rotates around its shifted origin and makes chairs/sofas
               // drift away from their collision footprint when rotated.
-              const propPivot = new THREE.Group();
+              const propPivot = new StaticSceneGroup();
               propPivot.position.copy(position);
               propPivot.rotation.y = prop.rotation;
               propPivot.userData.roomPropId = prop.id;
@@ -1965,8 +1968,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           proxy.userData.mapCollisionOverlay = true;
           proxy.userData.collision = true;
           if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, proxy);
-          campusMapProps.add(proxy);
-          mapCollisionOverlays.push(proxy);
+          mapSceneLayers.collisionOverlays.add(proxy);
           const outline = new THREE.LineSegments(
             new THREE.EdgesGeometry(new THREE.BoxGeometry(blockerWidth, 0.02, blockerDepth)),
             new THREE.LineBasicMaterial({ color: "#26b866" }),
@@ -1975,8 +1977,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           outline.userData.officeMapPropId = prop.id;
           outline.userData.mapCollisionOverlay = true;
           if (catalog?.vehicleId) trackMovableVehicleHandle(prop.id, outline);
-          campusMapProps.add(outline);
-          mapCollisionOverlays.push(outline);
+          mapSceneLayers.collisionOverlays.add(outline);
         }
       }
       // Vegetation and rocks often account for thousands of copies of a small
@@ -1993,7 +1994,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           template.updateMatrixWorld(true);
           const meshes: THREE.Mesh[] = [];
           template.traverse((object) => { if (object instanceof THREE.Mesh) meshes.push(object); });
-          const batch = new THREE.Group();
+          const batch = new StaticSceneGroup();
           batch.name = `Instanced scenery ${asset}`;
           const rootMatrix = new THREE.Matrix4();
           const instanceMatrix = new THREE.Matrix4();
@@ -2277,7 +2278,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       return hit?.point ?? null;
     };
     const getOfficePropActionPosition = (id: string, fallbackX: number, fallbackY: number) => {
-      const propObject = campusMapProps.children.find((child) => child.userData.officeMapPropId === id);
+      const propObject = Array.from(mapSceneLayers.propRoots(campusMapProps)).find((child) => child.userData.officeMapPropId === id);
       if (!propObject) return { x: Math.min(fallbackX + 12, window.innerWidth - 174), y: Math.min(fallbackY + 12, window.innerHeight - 142) };
       const prop = roomLayout?.props.find((item) => item.id === id);
       const definition = prop && ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
@@ -2567,9 +2568,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         if (Math.hypot(rawPoint.x - draggingMapProp.startPointer.x, rawPoint.z - draggingMapProp.startPointer.z) > 0.08) draggingMapProp.moved = true;
         draggingMapProp.preview.position.x += dx;
         draggingMapProp.preview.position.z += dz;
-        for (const child of campusMapProps.children) {
-          if (child.userData.officeMapPropId === draggingMapProp.id) { child.position.x += dx; child.position.z += dz; }
-        }
+        mapSceneLayers.moveProp(campusMapProps, draggingMapProp.id, { x: dx, y: 0, z: dz });
         const draggedVehicle = parkedVehicleGroups.get(draggingMapProp.id);
         if (draggedVehicle) {
           draggedVehicle.position.x = point.x;
@@ -2578,7 +2577,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         if (prop) {
           const elevation = roomPropPlacementSupport(roomLayout?.props.filter((item) => item.id !== prop.id) ?? [], prop.asset, point.x - mapWorld.width / 2, point.z - mapWorld.depth / 2, prop.rotation)?.elevation ?? 0;
           const elevationDelta = elevation - draggingMapProp!.elevation;
-          if (elevationDelta) for (const child of campusMapProps.children) if (child.userData.officeMapPropId === draggingMapProp!.id) child.position.y += elevationDelta;
+          if (elevationDelta) mapSceneLayers.moveProp(campusMapProps, draggingMapProp.id, { x: 0, y: elevationDelta, z: 0 });
           draggingMapProp!.elevation = elevation;
         }
         draggingMapProp.center = point;
@@ -3007,10 +3006,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         if (vehicleState) {
           const worldX = vehicleState.vehiclePropX ?? prop.x;
           const worldZ = vehicleState.vehiclePropZ ?? prop.z;
-          for (const handle of movableVehicleEditHandles.get(prop.id) ?? []) {
-            handle.position.x = worldX + mapWorld.width / 2;
-            handle.position.z = worldZ + mapWorld.depth / 2;
-          }
+          mapSceneLayers.syncVehicleHandles(movableVehicleEditHandles.get(prop.id) ?? [], {
+            x: worldX + mapWorld.width / 2, z: worldZ + mapWorld.depth / 2,
+          });
         }
         let parked = parkedVehicleGroups.get(prop.id);
         if (occupant || (occupiedVehiclePropIds.has(prop.id) && !parkedAt)) {
@@ -3434,7 +3432,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       for (const entry of roomPortalMeshes.values()) {
         entry.label.visible = lobbyRoomNamesVisible && isWithinRoomLabelRadius(entry.root.position.x, entry.root.position.z);
       }
-      for (const overlay of mapCollisionOverlays) overlay.visible = buildModeRef.current;
+      mapSceneLayers.setEditing(buildModeRef.current);
       for (const [id, highlight] of mapPropSelectionHighlights) highlight.visible = buildModeRef.current && selectedMapItemIdRef.current === id;
       for (const [id, highlight] of mapZoneSelectionHighlights) highlight.visible = mapEditModeRef.current && selectedMapZoneIdRef.current === id;
       mapEditOverlay.visible = campusOverviewRef.current && (mapEditModeRef.current || buildModeRef.current);
@@ -3552,7 +3550,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         if (!buildModeRef.current || !campusOverviewRef.current || !actionMenu) {
           actionMenuElement.style.visibility = "hidden";
         } else {
-          const propObject = campusMapProps.children.find((child) => child.userData.officeMapPropId === actionMenu.id);
+          const propObject = Array.from(mapSceneLayers.propRoots(campusMapProps)).find((child) => child.userData.officeMapPropId === actionMenu.id);
           const prop = roomLayout?.props.find((item) => item.id === actionMenu.id);
           const definition = prop && ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
           if (!propObject || !prop) {
