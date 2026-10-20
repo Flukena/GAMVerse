@@ -570,3 +570,4 @@ export * from "./desks.js";
 
 
 export * from "./deskAssignmentFences.js";
+export { CIVIC_PARK_ASSETS, campusCivicParkSurfaces, type CivicParkSurface } from "./campusCivicPark.js";

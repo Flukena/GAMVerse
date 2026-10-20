@@ -51,7 +51,7 @@ export function CreateOfficeDialog(props: CreateOfficeDialogProps) {
         </fieldset>
         {props.error && <p role="alert">{props.error}</p>}
       </div>
-      <footer><button type="button" disabled={props.busy} onClick={close}>{CANCEL_LABEL}</button><button type="submit" disabled={props.busy || !props.inputsValid}>{props.busy ? CREATING_LABEL : SUBMIT_LABEL}</button></footer>
+      <footer><button type="button" disabled={props.busy} onClick={close}>{CANCEL_LABEL}</button><button className="office-creation-submit" type="submit" disabled={props.busy || !props.inputsValid}>{props.busy ? CREATING_LABEL : SUBMIT_LABEL}</button></footer>
     </form>
   </WorkspaceDialog>;
 }

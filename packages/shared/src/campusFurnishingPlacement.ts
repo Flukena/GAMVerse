@@ -1,8 +1,10 @@
 import { campusStarterPlacements, type StarterPlacement } from "./campusFurnishingTemplates.js";
+import { TEAM_MEETING_PROP_BUDGET_COUNT } from "./campusTeamMeetingTemplate.js";
+import { CIVIC_TOWNHALL_PROP_BUDGET_COUNT } from "./campusCivicRoomTemplates.js";
 import { MAX_OFFICE_PROPS } from "./officePropLimits.js";
 import { ROOM_PROP_CATALOG, roomPropPlacementSupport, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone } from "./roomLayout.js";
 
-const MAX_STARTER_ROOM_PROPS_COUNT = 32;
+const MAX_STARTER_ROOM_PROPS_COUNT = 72;
 const DEFAULT_ROTATION_RAD = 0;
 const PROP_LIMIT_LABEL = "This furnished starter exceeds the office prop limit. Choose fewer people or Empty interiors.";
 const ROOM_BUDGET_LABEL = "The starter room exceeds its furnishing budget.";
@@ -40,7 +42,9 @@ export function appendCampusStarterProps(layout: RoomLayout): RoomLayoutProp[] {
   const props = [...layout.props];
   for (const zone of layout.zones) {
     const placements = campusStarterPlacements(zone);
-    if (placements.length > MAX_STARTER_ROOM_PROPS_COUNT) throw new Error(ROOM_BUDGET_LABEL);
+    const roomBudget = zone.id === "shared-townhall" ? CIVIC_TOWNHALL_PROP_BUDGET_COUNT
+      : /^meeting-(north|south)-/.test(zone.id) && zone.width >= 40 && zone.depth >= 20 ? TEAM_MEETING_PROP_BUDGET_COUNT : MAX_STARTER_ROOM_PROPS_COUNT;
+    if (placements.length > roomBudget) throw new Error(ROOM_BUDGET_LABEL);
     if (props.length + placements.length > MAX_OFFICE_PROPS) throw new Error(PROP_LIMIT_LABEL);
     const roomProps: RoomLayoutProp[] = [];
     for (const placement of placements) roomProps.push(starterProp(zone, placement, roomProps));

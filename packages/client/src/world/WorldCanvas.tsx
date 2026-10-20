@@ -35,6 +35,7 @@ import { applyCameraView } from "./camera/cameraView";
 import { locateMap2d, type Map2dLocateRequest } from "./map2d/map2dInput";
 import type { Map2dDecoration } from "./map2d/map2dDynamicLayer";
 import { campusOverviewMapScalePxPerM } from "./map2d/map2dProjection";
+import { civicRoomFloorColor, makeCivicParkGround, makeEastFootballFieldVisual, makeWestPublicParkVisual } from "./civicParkSurface";
 
 type CharacterModelId = KenneyCharacterId | `custom-${string}`;
 type PlayerStatus = UserStatus;
@@ -316,11 +317,11 @@ function makeCampusRoom(room: CampusRoom, floor: CampusFloorId) {
   return group;
 }
 
-function makeCampusFloor(floor: { id: number; name: string; width: number; depth: number }) {
+function makeCampusFloor(floor: { id: number; name: string; width: number; depth: number }, outdoorGroundColor = 0xe9e8df) {
   const group = new THREE.Group();
   const base = new THREE.Mesh(
     new THREE.BoxGeometry(floor.width, 0.22, floor.depth),
-    new THREE.MeshStandardMaterial({ color: 0xe9e8df, roughness: 0.92 }),
+    new THREE.MeshStandardMaterial({ color: outdoorGroundColor, roughness: 0.92 }),
   );
   base.position.set(floor.width / 2, -0.12, floor.depth / 2);
   base.receiveShadow = true;
@@ -1306,9 +1307,17 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       floorGroup.visible = true;
       campusFloorGroups.set(floor.id, floorGroup);
       campusRoot.add(floorGroup);
-      const campusFloor = makeCampusFloor(floor);
+      const campusFloor = makeCampusFloor(floor, roomLayout?.roadways?.length ? 0xb8d2a5 : 0xe9e8df);
       floorGroup.add(campusFloor.group);
       campusFloor.boundaryWalls.forEach((wall) => cameraOcclusion.register(wall));
+    }
+    if (roomLayout) {
+      const civicParkGround = makeCivicParkGround(roomLayout, mapWorld);
+      if (civicParkGround) campusRoot.add(civicParkGround);
+      const westPublicPark = makeWestPublicParkVisual(roomLayout, mapWorld);
+      if (westPublicPark) campusRoot.add(westPublicPark);
+      const eastFootballField = makeEastFootballFieldVisual(roomLayout, mapWorld);
+      if (eastFootballField) campusRoot.add(eastFootballField);
     }
     const roadwayGroup = new THREE.Group();
     roadwayGroup.name = "Generated office roads";
@@ -1574,9 +1583,12 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     }, (error) => console.warn("Could not load the Kenney plant.", error));
     if (roomLayout) {
       for (const zone of roomLayout.zones) {
+        const civicFloorColor = civicRoomFloorColor(zone);
         const zoneMesh = new THREE.Mesh(
           new THREE.BoxGeometry(zone.width, 0.018, zone.depth),
-          new THREE.MeshStandardMaterial({ color: zone.color, transparent: true, opacity: 0.22, roughness: 1 }),
+          new THREE.MeshStandardMaterial(civicFloorColor === null
+            ? { color: zone.color, transparent: true, opacity: 0.22, roughness: 1 }
+            : { color: civicFloorColor, roughness: 0.96 }),
         );
         zoneMesh.position.set(zone.x + mapWorld.width / 2, 0.018, zone.z + mapWorld.depth / 2);
         zoneMesh.receiveShadow = true;

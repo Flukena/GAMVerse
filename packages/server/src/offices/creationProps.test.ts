@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Pool } from "pg";
-import { generateCampusMap, type RoomLayoutProp } from "@gammyverse/shared";
+import { createCampusOfficeDraft, generateCampusMap, type RoomLayoutProp } from "@gammyverse/shared";
 import { saveOfficeProps } from "./repository.js";
 
 const OFFICE_ID = "new-office";
@@ -40,6 +40,18 @@ function seamForDraft() {
   // Map and props persist separately: the map row never carries the props copy.
   return new CreationSeam({ version: 1, layout: { ...draft, props: [] } });
 }
+
+test("creation saves every furnished campus prop through the office props validator", async () => {
+  const furnished = createCampusOfficeDraft({ totalPeople: 150, peoplePerTeam: 15, teamCount: 10, seed: 12345 }, "furnished").layout;
+  const seam = new CreationSeam({ version: 1, layout: { ...furnished, props: [] } });
+  const saved = await saveOfficeProps(
+    USERNAME, OFFICE_ID, { configVersion: FIRST_VERSION, props: furnished.props }, false, seam.dependencies(),
+  );
+  assert.equal(saved.props.length, furnished.props.length);
+  assert.equal(saved.props.filter(prop => prop.asset === "civic-park-water").length, 4);
+  assert.equal(saved.props.filter(prop => prop.asset === "kit:chair" && prop.id.startsWith("shared-townhall-starter-")).length, 200);
+  assert.equal(saved.props.filter(prop => prop.asset === "office-civic-screen" || prop.asset === "office-townhall-screen").length, 4);
+});
 
 test("a generated campus draft places wall-mounted restroom mirrors above the floor", () => {
   const mirrors = draft.props.filter((prop) => prop.asset === "kit:bathroommirror");

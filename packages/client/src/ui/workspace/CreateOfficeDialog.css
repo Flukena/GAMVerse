@@ -13,6 +13,9 @@
 .office-creation-dialog input:not([type="radio"]) { width: 100%; }
 .office-creation-dialog button { cursor: pointer; font-size: 12px; }
 .office-creation-dialog button:disabled { opacity: .55; cursor: default; }
+.office-creation-dialog footer .office-creation-submit:not(:disabled) { border-color: var(--workspace-action); background: var(--workspace-action); color: var(--workspace-on-action); font-weight: 700; box-shadow: 0 3px 8px color-mix(in srgb, var(--workspace-action) 24%, transparent); }
+.office-creation-dialog footer .office-creation-submit:hover:not(:disabled) { border-color: color-mix(in srgb, var(--workspace-action) 85%, var(--workspace-ink)); background: color-mix(in srgb, var(--workspace-action) 85%, var(--workspace-ink)); }
+.office-creation-dialog footer .office-creation-submit:active:not(:disabled) { transform: translateY(1px); }
 .office-creation-dialog :focus-visible { outline: 2px solid var(--workspace-accent); outline-offset: 2px; }
 .office-creation-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .office-creation-counts label { display: flex; flex-direction: column; gap: 7px; min-width: 0; }

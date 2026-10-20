@@ -46,7 +46,7 @@ function gridValues(min: number, max: number) {
 export const CAMPUS_FINISHED_BUILDING_LIMIT = MAX_FINISHED_BUILDINGS;
 
 /** Pick finished-building placements that fit free outdoor space in the generated map. */
-export function placeCampusFinishedBuildings(layout: RoomLayout, random: () => number): RoomLayoutProp[] {
+export function placeCampusFinishedBuildings(layout: RoomLayout, random: () => number, reservedAreas: readonly Footprint[] = []): RoomLayoutProp[] {
   if (!layout.dimensions) return [];
   const bounds = layout.dimensions;
   const definitions = shuffled(ROOM_PROP_CATALOG.filter((item) => item.editorRole === "building-prefab"), random)
@@ -76,6 +76,7 @@ export function placeCampusFinishedBuildings(layout: RoomLayout, random: () => n
 
       for (const point of candidates) {
         const footprint = { ...point, ...size };
+        if (reservedAreas.some(area => overlaps(footprint, area))) continue;
         if (occupiedRoads.some((area) => overlaps(footprint, area)) || occupiedZones.some((area) => overlaps(footprint, area))) continue;
         if (!facesRoad(footprint)) continue;
         if (occupiedProps.some((prop) => overlaps(footprint, prop))) continue;

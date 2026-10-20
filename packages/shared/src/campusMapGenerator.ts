@@ -1,7 +1,10 @@
+import { appendCampusCityBlocks } from "./campusCityBlocks.js";
 import { MAX_OFFICE_PROPS } from "./officePropLimits.js";
 import { placeCampusFinishedBuildings } from "./campusFinishedBuildings.js";
 import { campusRestroomFixtures } from "./campusFurnishingTemplates.js";
-import { planRoadConnectors, roadsideVergePoints } from "./campusRoadNetwork.js";
+import { roadsideVergePoints } from "./campusRoadNetwork.js";
+import { campusLoopRoads } from "./campusLoopRoads.js";
+import { appendCampusCivicParkProps } from "./campusCivicPark.js";
 import { ROOM_PROP_CATALOG, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "./roomLayout.js";
 
 export interface CampusMapGeneratorInputs {
@@ -20,18 +23,30 @@ export interface GeneratedCampusMap {
 }
 
 const ROOM_SIZE = 8;
-const TEAM_WIDTH = ROOM_SIZE * 4;
 const TEAM_GAP = 4;
 const CENTRAL_ROAD = 8;
+const CITY_GAP_M = 48;
+const CITY_CENTER_GAP_M = 48;
+const COMPACT_CITY_GAP_M = 56;
+const MAX_SAVED_MAP_WIDTH_M = 1000;
 const MAP_DEPTH = 260;
 const TOP_TEAM_START_Z = -104;
 const BOTTOM_TEAM_START_Z = 60;
 const MEETING_EDGE_ROAD_Z = 108;
+// Reserve the perimeter road and its roadside verge outside the room blocks.
+const PERIMETER_RESERVE_M = 32;
 // Meeting rooms fit a team around two table groups; anything larger wastes
 // outdoor space that the street network and finished buildings now use.
 const MEETING_ROOM_WIDTH_M = 24;
 const MEETING_ROOM_DEPTH_M = 14;
+const TEAM_MEETING_MAX_WIDTH_M = 48;
+const TEAM_MEETING_GAP_M = 4;
+const PERIMETER_ROAD_INSET_M = 8;
+const TEAM_MEETING_GAP_DECOR_ASSET = "external-city-park-and-playground-33682";
 const SMALL_MEETING_WIDTH_M = 20;
+const GENERIC_ROOM_COLUMNS = 3;
+const LARGE_TEAM_ROOM_COLUMNS = 4;
+const MAX_THREE_COLUMN_TEAM_PEOPLE = 12;
 const SMALL_MEETING_DEPTH_M = 16;
 const OUTDOOR_FLOOR_COVERAGE = 0.09;
 // Street furniture rhythm along the kerb, in metres.
@@ -179,27 +194,36 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
   const rightBottom = bottomTeams - leftBottom;
   const leftCount = Math.max(leftTop, leftBottom);
   const rightCount = Math.max(rightTop, rightBottom);
-  const leftSpan = leftCount * TEAM_WIDTH + Math.max(0, leftCount - 1) * TEAM_GAP;
-  const rightSpan = rightCount * TEAM_WIDTH + Math.max(0, rightCount - 1) * TEAM_GAP;
+  // At most four rows keep every room between the two team avenues. Small
+  // teams reserve their populated columns rather than a full 32 m block.
+  const genericColumns = Math.min(peoplePerTeam, peoplePerTeam <= MAX_THREE_COLUMN_TEAM_PEOPLE ? GENERIC_ROOM_COLUMNS : LARGE_TEAM_ROOM_COLUMNS);
+  const teamWidthM = ROOM_SIZE * genericColumns;
+  const largestSideCount = Math.max(leftCount, rightCount);
+  const availableSideSpanM = (MAX_SAVED_MAP_WIDTH_M - PERIMETER_RESERVE_M - CITY_CENTER_GAP_M) / 2;
+  const cityGapM = Math.max(TEAM_GAP, Math.min(CITY_GAP_M, Math.floor((availableSideSpanM - largestSideCount * teamWidthM) / Math.max(1, largestSideCount - 1))));
+  const leftSpan = leftCount * teamWidthM + Math.max(0, leftCount - 1) * cityGapM;
+  const rightSpan = rightCount * teamWidthM + Math.max(0, rightCount - 1) * cityGapM;
   // Ten-team campuses use five teams in each band. Keep each team block
   // compact at 3 columns × 5 rows (15 private rooms), and align the two bands.
-  const compactFivePerHalf = topTeams === 5 && bottomTeams === 5;
-  const compactTeamStarts = [-95, -67, -12, 43, 71] as const;
-  const width = compactFivePerHalf ? 260 : Math.max(224, leftSpan + CENTRAL_ROAD + rightSpan + 8);
-  const depth = compactFivePerHalf ? 280 : MAP_DEPTH;
-  const leftStart = -CENTRAL_ROAD / 2 - leftSpan;
-  const rightStart = CENTRAL_ROAD / 2;
+  const compactFivePerHalf = topTeams === 5 && bottomTeams === 5 && peoplePerTeam <= 15;
+  const compactBandWidthM = 5 * ROOM_SIZE * GENERIC_ROOM_COLUMNS + 4 * COMPACT_CITY_GAP_M;
+  const compactTeamStarts = Array.from({ length: 5 }, (_, index) => -compactBandWidthM / 2 + index * (ROOM_SIZE * GENERIC_ROOM_COLUMNS + COMPACT_CITY_GAP_M));
+  const width = (compactFivePerHalf ? compactBandWidthM + 32 : Math.max(224, 2 * Math.max(leftSpan, rightSpan) + CITY_CENTER_GAP_M)) + PERIMETER_RESERVE_M;
+  const depth = (compactFivePerHalf ? 280 : MAP_DEPTH) + PERIMETER_RESERVE_M;
+  const leftStart = -CITY_CENTER_GAP_M / 2 - leftSpan;
+  const rightStart = CITY_CENTER_GAP_M / 2;
   const layout: RoomLayout = { version: 1, props: [], zones: [], walls: [], doors: [], roadways: [], dimensions: { width, depth }, spawnPoint: { x: -79, z: 20 } };
 
   const createTeam = (teamNumber: number, side: "left" | "right", column: number, half: "top" | "bottom") => {
     const compactIndex = half === "top" ? teamNumber - 1 : teamNumber - topTeams - 1;
     const startX = compactFivePerHalf
       ? compactTeamStarts[compactIndex]!
-      : side === "left" ? leftStart + column * (TEAM_WIDTH + TEAM_GAP) : rightStart + column * (TEAM_WIDTH + TEAM_GAP);
+      : side === "left" ? leftStart + column * (teamWidthM + cityGapM) : rightStart + column * (teamWidthM + cityGapM);
     const startZ = half === "top" ? TOP_TEAM_START_Z : compactFivePerHalf ? 48 : BOTTOM_TEAM_START_Z;
     for (let index = 0; index < peoplePerTeam; index += 1) {
-      const col = index % 3;
-      const row = Math.floor(index / 3);
+      const columns = compactFivePerHalf ? GENERIC_ROOM_COLUMNS : genericColumns;
+      const col = index % columns;
+      const row = Math.floor(index / columns);
       const rowZ = startZ + 4 + row * (ROOM_SIZE + TEAM_GAP);
       const roomLabel = String(index + 1).padStart(2, "0");
       addZone(layout, {
@@ -221,18 +245,43 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
     createTeam(teamNumber, index < leftBottom ? "left" : "right", index < leftBottom ? index : index - leftBottom, "bottom");
   }
 
-  // Five meeting rooms along both edges, mirrored around the main road.
-  const meetingXs = compactFivePerHalf
-    // Five equal 48 m bays with 4 m gaps span 256 m of the 260 m map width.
-    // Their 18 m depth remains between the map edge and the 8 m edge road.
-    ? { north: [-104, -52, 0, 52, 104], south: [-104, -52, 0, 52, 104] } as const
-    : { north: [-82, -46, 22, 58, 94], south: [-94, -58, -22, 46, 82] } as const;
+  // Five equal team meeting rooms fill the strip between the edge avenue and
+  // perimeter road, with no leftover verge between their walls and either curb.
+  const edgeRoadZ = compactFivePerHalf ? 114 : MEETING_EDGE_ROAD_Z;
+  const perimeterRoadZ = depth / 2 - PERIMETER_ROAD_INSET_M;
+  const meetingRoomDepth = perimeterRoadZ - edgeRoadZ - CENTRAL_ROAD;
+  const meetingRoomZ = (perimeterRoadZ + edgeRoadZ) / 2;
+  const meetingRoomWidth = Math.min(TEAM_MEETING_MAX_WIDTH_M, (width - 2 * (PERIMETER_ROAD_INSET_M + CENTRAL_ROAD / 2) - 4 * TEAM_MEETING_GAP_M) / 5);
+  const meetingRoomStep = meetingRoomWidth + TEAM_MEETING_GAP_M;
+  const meetingRoomXs = Array.from({ length: 5 }, (_, index) => (index - 2) * meetingRoomStep);
   for (let index = 0; index < Math.min(5, Math.max(topTeams, bottomTeams, 5)); index += 1) {
-    for (const [edge, z] of [["north", compactFivePerHalf ? -130 : -121], ["south", compactFivePerHalf ? 130 : 121]] as const) {
-      const slotX = meetingXs[edge][index]!;
-      // Meeting rooms are sized for a team, not a hall. The space this frees
-      // along both map edges becomes street frontage and finished buildings.
-      addZone(layout, { id: `meeting-${edge}-${index + 1}`, name: `Meeting ${edge === "north" ? index + 1 : index + 6}`, kind: "meeting", x: slotX, z, width: compactFivePerHalf ? MEETING_ROOM_WIDTH_M : 20, depth: MEETING_ROOM_DEPTH_M, color: "#8ecae6" }, edge === "north" ? "south" : "north");
+    for (const [edge, direction] of [["north", -1], ["south", 1]] as const) {
+      addZone(layout, {
+        id: `meeting-${edge}-${index + 1}`,
+        name: `Meeting ${edge === "north" ? index + 1 : index + 6}`,
+        kind: "meeting",
+        x: meetingRoomXs[index]!,
+        z: direction * meetingRoomZ,
+        width: meetingRoomWidth,
+        depth: meetingRoomDepth,
+        color: "#8ecae6",
+      }, edge === "north" ? "south" : "north");
+    }
+  }
+  const meetingGapDecor = ROOM_PROP_CATALOG.find((item) => item.asset === TEAM_MEETING_GAP_DECOR_ASSET);
+  if (meetingGapDecor) {
+    for (const edge of ["north", "south"] as const) {
+      for (let index = 0; index < meetingRoomXs.length - 1; index += 1) {
+        addProp(
+          layout,
+          `campus-meeting-gap-planter-${edge}-${index + 1}`,
+          meetingGapDecor.asset,
+          (meetingRoomXs[index]! + meetingRoomXs[index + 1]!) / 2,
+          (edge === "north" ? -1 : 1) * meetingRoomZ,
+          0,
+          meetingGapDecor.collision,
+        );
+      }
     }
   }
   if (compactFivePerHalf) {
@@ -275,100 +324,18 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
   // Keep generated office interiors empty so teams can furnish their rooms
   // themselves. Landscaping and street props are added below, outside zones.
 
-  const roads = layout.roadways!;
-  if (compactFivePerHalf) {
-    // Main avenues separate the 2–1–2 team groups, with north/south branches
-    // and a continuous left-side lobby access street.
-    for (const x of [-24, 24]) {
-      roads.push({ id: `road-major-arterial-${x}-north`, x, z: -78, width: CENTRAL_ROAD, depth: 84, kind: "major" });
-      roads.push({ id: `road-major-arterial-${x}-south`, x, z: 78, width: CENTRAL_ROAD, depth: 84, kind: "major" });
-    }
-    roads.push({ id: "road-major-lobby-link", x: -84, z: 0, width: 28, depth: CENTRAL_ROAD, kind: "major" });
-    // The townhall/cafeteria block separates north and south avenues. Join
-    // those halves around both sides of the block so every road is reachable
-    // from the lobby street and the edge/team roads.
-    for (const x of [-84, 84]) {
-      roads.push({ id: `road-major-civic-bypass-${x}`, x, z: 0, width: CENTRAL_ROAD, depth: 72.2, kind: "major" });
-    }
-  } else {
-    roads.push({ id: "road-major-center", x: 0, z: 0, width: CENTRAL_ROAD, depth, kind: "major" });
-  }
-  const majorRoadRows = compactFivePerHalf
-    ? [["north-meeting", -114], ["north-team", -40], ["south-team", 40], ["south-meeting", 114]] as const
-    : [["north-meeting", -MEETING_EDGE_ROAD_Z], ["north-team", -50], ["south-team", 50], ["south-meeting", MEETING_EDGE_ROAD_Z]] as const;
-  for (const [id, z] of majorRoadRows) {
-    roads.push({ id: `road-major-${id}`, x: 0, z, width, depth: CENTRAL_ROAD, kind: "major" });
-  }
-  const smallRoadXs = compactFivePerHalf ? [-69, 69] : [
-    ...Array.from({ length: Math.max(0, leftCount - 1) }, (_, index) => leftStart + TEAM_WIDTH + TEAM_GAP / 2 + index * (TEAM_WIDTH + TEAM_GAP)),
-    ...Array.from({ length: Math.max(0, rightCount - 1) }, (_, index) => rightStart + TEAM_WIDTH + TEAM_GAP / 2 + index * (TEAM_WIDTH + TEAM_GAP)),
-  ];
-  const compactRows = Math.ceil(peoplePerTeam / 3);
-  const upperRows = Math.ceil(Math.ceil(peoplePerTeam / 2) / 4);
-  const lowerRows = Math.ceil(Math.floor(peoplePerTeam / 2) / 4);
-  const teamBandDepth = compactFivePerHalf
-    ? compactRows * ROOM_SIZE + Math.max(0, compactRows - 1) * TEAM_GAP
-    : Math.max(0, (upperRows + lowerRows) * (ROOM_SIZE + TEAM_GAP) - TEAM_GAP);
-  const topTeamEndZ = TOP_TEAM_START_Z + teamBandDepth;
-  const bottomTeamStart = compactFivePerHalf ? 48 : BOTTOM_TEAM_START_Z;
-  const bottomTeamEndZ = bottomTeamStart + teamBandDepth;
-  for (let index = 0; index < smallRoadXs.length; index += 1) {
-    for (const [half, startZ] of [["north", TOP_TEAM_START_Z], ["south", bottomTeamStart]] as const) {
-      roads.push({ id: `road-small-${half}-${index + 1}`, x: smallRoadXs[index]!, z: startZ + teamBandDepth / 2, width: TEAM_GAP, depth: teamBandDepth + 0.2, kind: "small" });
-    }
-    // Join each team separator to the adjacent major team road. Compute only the
-    // actual gap so connectors don't spill into neighboring rooms or facilities.
-    const teamRoadOffset = compactFivePerHalf ? 40 : 50;
-    const northTeamRoadEdge = -teamRoadOffset + CENTRAL_ROAD / 2;
-    const northConnectorDepth = Math.max(0, northTeamRoadEdge - topTeamEndZ);
-    if (northConnectorDepth > 0) roads.push({ id: `road-connector-north-${index + 1}`, x: smallRoadXs[index]!, z: (topTeamEndZ + northTeamRoadEdge) / 2, width: TEAM_GAP, depth: northConnectorDepth + 0.2, kind: "small" });
-    const southTeamRoadEdge = teamRoadOffset - CENTRAL_ROAD / 2;
-    const southConnectorDepth = Math.max(0, bottomTeamStart - southTeamRoadEdge);
-    if (southConnectorDepth > 0) roads.push({ id: `road-connector-south-${index + 1}`, x: smallRoadXs[index]!, z: (southTeamRoadEdge + bottomTeamStart) / 2, width: TEAM_GAP, depth: southConnectorDepth + 0.2, kind: "small" });
-  }
-  for (let team = 0; team < teamCount; team += 1) {
-    const inTopHalf = team < topTeams;
-    const leftSide = inTopHalf ? team < leftTop : team - topTeams < leftBottom;
-    const column = inTopHalf ? (leftSide ? team : team - leftTop) : (leftSide ? team - topTeams : team - topTeams - leftBottom);
-    const compactIndex = inTopHalf ? team : team - topTeams;
-    const teamStartX = compactFivePerHalf
-      ? compactTeamStarts[compactIndex]!
-      : leftSide ? leftStart + column * (TEAM_WIDTH + TEAM_GAP) : rightStart + column * (TEAM_WIDTH + TEAM_GAP);
-    const startZ = inTopHalf ? TOP_TEAM_START_Z : bottomTeamStart;
-    const rows = compactFivePerHalf ? compactRows : upperRows + lowerRows;
-    for (let row = 0; row < rows - 1; row += 1) {
-      if (compactFivePerHalf) {
-        const isCenterTeamBlock = compactIndex === 2;
-        // The center team block borders the central avenue directly on its
-        // east side. Extend its row alleys through the empty verge so every
-        // one joins that avenue instead of leaving isolated road strips.
-        const rowRoadWidth = ROOM_SIZE * 3 + (isCenterTeamBlock ? CENTRAL_ROAD : 0);
-        const rowRoadX = teamStartX + ROOM_SIZE * 1.5 + (isCenterTeamBlock ? CENTRAL_ROAD / 2 : 0);
-        roads.push({ id: `team-${team + 1}-row-road-${row + 1}`, x: rowRoadX, z: startZ + ROOM_SIZE + TEAM_GAP / 2 + row * (ROOM_SIZE + TEAM_GAP), width: rowRoadWidth, depth: TEAM_GAP, kind: "small" });
-        continue;
-      }
-      const roadZ = row < upperRows - 1
-        ? startZ + ROOM_SIZE + TEAM_GAP / 2 + row * (ROOM_SIZE + TEAM_GAP)
-        : startZ + upperRows * (ROOM_SIZE + TEAM_GAP) - TEAM_GAP / 2 + (row - (upperRows - 1)) * (ROOM_SIZE + TEAM_GAP);
-      roads.push({ id: `team-${team + 1}-row-road-${row + 1}`, x: teamStartX + TEAM_WIDTH / 2, z: roadZ, width: TEAM_WIDTH, depth: TEAM_GAP, kind: "small" });
-    }
-  }
-
-  // Team alleys and edge streets are laid out per block, so some of them stop
-  // short of the avenue they should feed. Add the missing link streets here so
-  // the whole campus is one network a vehicle can drive without turning back.
-  roads.push(...planRoadConnectors(roads, {
-    blockers: layout.zones.map((zone) => ({ x: zone.x, z: zone.z, width: zone.width, depth: zone.depth })),
-    bounds: { width, depth },
-  }));
+  const roads = campusLoopRoads(layout.zones, { width, depth }, compactFivePerHalf);
+  layout.roadways = roads;
+  appendCampusCivicParkProps(layout, compactFivePerHalf);
+  appendCampusCityBlocks(layout);
 
   // Cars are parked on the wide roads with enough room between them to drive through.
   // A seeded shuffle gives variety while keeping the saved layout reproducible.
   const random = seededRandom(input.seed ?? (totalPeople * 31 + peoplePerTeam * 17 + teamCount));
   const vehicleAssets = ["vehicle-speedster", "vehicle-racer", "vehicle-suv", "vehicle-monster-truck", "vehicle-truck", "car-sedan", "car-hatchback-sports", "car-taxi", "car-kart-oopi"];
   const vehicleSpots = compactFivePerHalf ? [
-    { x: -24, z: -78, rotation: 0 }, { x: 24, z: -78, rotation: 0 },
-    { x: -24, z: 78, rotation: 0 }, { x: 24, z: 78, rotation: 0 },
+    { x: -140, z: -40, rotation: Math.PI / 2 }, { x: 140, z: -40, rotation: Math.PI / 2 },
+    { x: -140, z: 40, rotation: Math.PI / 2 }, { x: 140, z: 40, rotation: Math.PI / 2 },
     { x: -70, z: -40, rotation: Math.PI / 2 }, { x: 70, z: -40, rotation: Math.PI / 2 },
     { x: -70, z: 40, rotation: Math.PI / 2 }, { x: 70, z: 40, rotation: Math.PI / 2 },
   ] : [
@@ -453,7 +420,8 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
   // Add a few finished buildings only where there is enough clear outdoor
   // space. The placement helper reserves their full rotated footprints before
   // landscaping candidates are generated.
-  layout.props.push(...placeCampusFinishedBuildings(layout, random));
+  const civicParkDepthM = compactFivePerHalf ? 72 : 92;
+  layout.props.push(...placeCampusFinishedBuildings(layout, random, [{ x: 0, z: 0, width, depth: civicParkDepthM }]));
 
   // Keep the middle of open spaces walkable: fill to 8% coverage with
   // landscaping candidates beside road edges only. Rooms and roadways are
@@ -519,6 +487,9 @@ export function generateCampusMap(input: CampusMapGeneratorInputs): GeneratedCam
       const row = Math.floor(key / columns);
       const column = key - row * columns;
       const point = cellPosition(column, row);
+      // The civic garden has a deliberate planting plan; keep generic
+      // roadside infill out of its lawns, approaches and waterfront.
+      if (Math.abs(point.z) < civicParkDepthM / 2) continue;
       const besideRoad = roads.some((road) => {
         const edgeX = Math.max(0, Math.abs(point.x - road.x) - road.width / 2);
         const edgeZ = Math.max(0, Math.abs(point.z - road.z) - road.depth / 2);

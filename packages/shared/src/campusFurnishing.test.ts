@@ -21,6 +21,58 @@ const FLOAT_TOLERANCE_M = 0.001;
 const STARTER_ID_MARKER = "-starter-";
 const NEIGHBORS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
 
+test("civic campus has fifty-seat meeting rooms, a two-hundred-seat townhall and a landscaped waterfront", () => {
+  const { layout } = createCampusOfficeDraft(FIXTURES[2]!, "furnished");
+  const inRoom = (id: string) => layout.props.filter(prop => prop.id.startsWith(`${id}-starter-`));
+  assert.equal(inRoom("shared-townhall").filter(prop => prop.asset === "kit:chair").length, 200);
+  for (const zone of layout.zones.filter(zone => /^meeting-(small|large)-/.test(zone.id))) {
+    assert.equal(inRoom(zone.id).filter(prop => prop.asset === "kit:chair").length, 50, zone.id);
+  }
+  assert.ok(inRoom("shared-lobby").some(prop => prop.id.includes("reception")));
+  assert.equal(layout.props.filter(prop => prop.asset === "civic-park-water").length, 6);
+  assert.ok(layout.props.some(prop => prop.asset === "civic-park-bridge"));
+  assert.ok(layout.props.some(prop => prop.asset === "civic-park-path"));
+  for (const zone of layout.zones.filter(zone => /^meeting-(small|large)-/.test(zone.id) || zone.id === "shared-townhall" || zone.id === "shared-lobby")) {
+    assertNoCollidingFixtures(inRoom(zone.id), zone.id);
+  }
+  for (const fixture of [FIXTURES[0]!, FIXTURES[2]!]) {
+    const parkLayout = generateCampusMap(fixture).layout;
+    const world = campusWorldFromConfig({ version: 1, layout: parkLayout });
+    const westGrove = parkLayout.props.filter(prop => prop.id.includes("civic-park-west-grove-tree-"));
+    assert.ok(westGrove.length >= 18, "the open western lawn becomes a dense, structured grove");
+    assert.ok(new Set(westGrove.map(prop => prop.asset)).size >= 6, "the western grove mixes multiple tree varieties");
+    assert.ok(parkLayout.props.filter(prop => prop.id.includes("civic-park-pond-rock-")).length >= 4, "pond edges receive rock clusters");
+    assert.ok(parkLayout.props.filter(prop => prop.id.includes("civic-park-west-garden-bench-")).length >= 3, "the park has seating along its western lawn");
+    if (fixture.teamCount === 10) {
+      const westPark = parkLayout.props.filter(prop => prop.id.includes("west-public-park-"));
+      assert.ok(westPark.filter(prop => prop.id.includes("tree-")).length >= 16, "the lobby-side public park gets its own dense grove");
+      assert.ok(westPark.filter(prop => prop.id.includes("bench-")).length >= 4, "the lobby-side public park includes seating");
+      assert.ok(westPark.filter(prop => prop.id.includes("rock-")).length >= 6, "the lobby-side public park includes rock groupings");
+      assert.equal(parkLayout.props.filter(prop => prop.id.includes("civic-park-pond-3-")).length, 2, "the lobby-side public park has a pond");
+      assert.ok(parkLayout.props.some(prop => prop.id.includes("civic-park-surface--150,0")), "the lobby-side public pond has its visible bridge crossing");
+      for (const prop of westPark) {
+        for (const area of [...parkLayout.zones, ...(parkLayout.roadways ?? [])]) {
+          assert.ok(Math.abs(prop.x - area.x) >= (prop.width + area.width) / 2 - FLOAT_TOLERANCE_M
+            || Math.abs(prop.z - area.z) >= (prop.depth + area.depth) / 2 - FLOAT_TOLERANCE_M, `${prop.id} clears ${area.id}`);
+        }
+      }
+    }
+    const surfaces = parkLayout.props.filter(prop => /^civic-park-/.test(prop.asset));
+    assert.equal(surfaces.filter(prop => prop.asset === "civic-park-water").length, fixture.teamCount === 10 ? 6 : 4);
+    for (const prop of surfaces) {
+      for (const area of [...parkLayout.zones, ...(parkLayout.roadways ?? [])]) {
+        assert.ok(Math.abs(prop.x - area.x) >= (prop.width + area.width) / 2 - FLOAT_TOLERANCE_M
+          || Math.abs(prop.z - area.z) >= (prop.depth + area.depth) / 2 - FLOAT_TOLERANCE_M, `${prop.id} clears ${area.id}`);
+      }
+      assert.equal(isPositionWalkable(prop, world), prop.asset !== "civic-park-water", `${prop.id} has matching visual and shared collision`);
+    }
+    for (const crossing of surfaces.filter(prop => prop.asset === "civic-park-bridge")) {
+      assert.ok(surfaces.some(prop => prop.id !== crossing.id && prop.asset !== "civic-park-water" && Math.hypot(prop.x - crossing.x, prop.z - crossing.z) <= 2.01), `${crossing.id} connects to another crossing or path tile`);
+    }
+    assert.ok(parkLayout.props.filter(prop => prop.id.startsWith("campus-finished-building-")).every(prop => Math.abs(prop.z) - (Math.abs(Math.sin(prop.rotation)) * prop.width + Math.abs(Math.cos(prop.rotation)) * prop.depth) / 2 >= (fixture.teamCount === 10 ? 36 : 46)), "building infill preserves the civic garden");
+  }
+});
+
 function reachableRoomPoints(world: WorldConfig, zone: RoomLayoutZone) {
   const points = [{ x: zone.x, z: zone.z }];
   assert.ok(isPositionWalkable(points[0], world), `${zone.id} central aisle is open`);
@@ -63,7 +115,7 @@ function assertCatalogPlacement(prop: RoomLayoutProp, layout: RoomLayout) {
   assert.ok(Math.abs(support.elevation - prop.elevation) < FLOAT_TOLERANCE_M);
 }
 
-function assertNoCollidingRestroomFixtures(props: RoomLayoutProp[], zoneId: string) {
+function assertNoCollidingFixtures(props: RoomLayoutProp[], zoneId: string) {
   const collidable = props.filter((prop) => prop.collision);
   const bounds = roomPropCollisionFootprint;
   for (let index = 0; index < collidable.length; index += 1) {
@@ -261,6 +313,83 @@ test("furnished restrooms have the requested fixture counts and empty restrooms 
       assert.ok(Math.hypot(partition.x - toilet.x, partition.z - toilet.z) < 0.2, `${toilet.id} sits inside its divider`);
       assert.ok(Math.cos(partition.rotation - toilet.rotation) < -0.999, `${toilet.id} faces the open side of its divider`);
     }
-    assertNoCollidingRestroomFixtures(restroomProps, zone.id);
+    assertNoCollidingFixtures(restroomProps, zone.id);
+  }
+});
+
+test("team meeting rooms start with exactly twenty chairs and a usable decoration layout", () => {
+  const layouts = [FIXTURES[2]!, FIXTURES[3]!].map(fixture => createCampusOfficeDraft(fixture, "furnished").layout);
+  const compact = { ...layouts[0]!, zones: layouts[0]!.zones.filter(zone => /^meeting-(north|south)-/.test(zone.id)).map(zone => ({ ...zone, width: 43.2, depth: 22 })), props: [] as RoomLayoutProp[] };
+  compact.props = appendCampusStarterProps(compact);
+  layouts.push(compact);
+  for (const layout of layouts) {
+    const meetingZones = layout.zones.filter((zone) => /^meeting-(north|south)-/.test(zone.id));
+    assert.equal(meetingZones.length, 10);
+    for (const zone of meetingZones) {
+      const starterProps = layout.props.filter((prop) => prop.id.startsWith(`${zone.id}-starter-`));
+      const chairs = starterProps.filter((prop) => prop.asset === "kit:chair");
+      assert.equal(chairs.length, 20, `${zone.id} has twenty meeting chairs`);
+      for (const asset of [
+        "table",
+        "kit:televisionmodern",
+        "office-townhall-podium",
+        "external-cozy-home-interiors-cozy-home-interiors-sofa-three-seat-8d2d33f9",
+        "kit:kitchencoffeemachine",
+        "external-pixel-modern-office-pixel-modern-office-bookshelf-binders-33ed7a74",
+      ]) assert.ok(starterProps.some((prop) => prop.asset === asset), `${zone.id} includes ${asset}`);
+      assert.ok(starterProps.some(prop => prop.id.includes("-carpet-conference-")), `${zone.id} defines coherent carpeted conference islands`);
+      assert.ok(starterProps.length <= 160, `${zone.id} stays within the starter prop budget`);
+      assert.equal(starterProps.filter((prop) => prop.asset === "external-cozy-home-interiors-cozy-home-interiors-sofa-three-seat-8d2d33f9").length, 8, `${zone.id} has two facing lounge groups`);
+      assert.ok(starterProps.some((prop) => prop.asset === "kit:laptop"));
+      assert.ok(starterProps.some((prop) => prop.asset === "kit-food-kit-cup-coffee"));
+      assert.ok(starterProps.some((prop) => prop.asset === "kit:kitchencabinet"));
+      const refreshmentProps = starterProps.filter(prop => prop.id.includes("-refreshment-"));
+      assert.equal(refreshmentProps.length, 6, "one complete refreshment group");
+      assert.ok(refreshmentProps.every(prop => Math.abs(prop.z - refreshmentProps[0]!.z) < FLOAT_TOLERANCE_M), "refreshments align along one counter wall");
+      const machine = refreshmentProps.find(prop => prop.asset === "kit:kitchencoffeemachine")!;
+      assert.ok(refreshmentProps.some(prop => prop.asset === "kit:kitchencabinet" && Math.abs(prop.x - machine.x) <= 1.5), "floor coffee unit is integrated beside the cabinet run");
+      const floorProps = starterProps.filter(prop => !prop.elevation);
+      const rectangles = floorProps.map(prop => {
+        const width = Math.abs(Math.cos(prop.rotation)) * prop.width + Math.abs(Math.sin(prop.rotation)) * prop.depth;
+        const depth = Math.abs(Math.sin(prop.rotation)) * prop.width + Math.abs(Math.cos(prop.rotation)) * prop.depth;
+        return { left: prop.x - width / 2, right: prop.x + width / 2, top: prop.z - depth / 2, bottom: prop.z + depth / 2 };
+      });
+      const cuts = [...new Set(rectangles.flatMap(rect => [rect.left, rect.right]))].sort((a, b) => a - b);
+      let occupiedAreaM2 = 0;
+      for (let index = 1; index < cuts.length; index++) {
+        const left = cuts[index - 1]!;
+        const right = cuts[index]!;
+        const intervals = rectangles.filter(rect => rect.left < right && rect.right > left).map(rect => [rect.top, rect.bottom] as const).sort((a, b) => a[0] - b[0]);
+        let coveredDepthM = 0;
+        let endM = -Infinity;
+        for (const [top, bottom] of intervals) {
+          coveredDepthM += Math.max(0, bottom - Math.max(top, endM));
+          endM = Math.max(endM, bottom);
+        }
+        occupiedAreaM2 += (right - left) * coveredDepthM;
+      }
+      const coverage = occupiedAreaM2 / (zone.width * zone.depth);
+      assert.ok(coverage >= 0.25 && coverage <= 0.36, `${zone.id} carpet and furniture ground coverage is ${coverage}`);
+      for (const chair of chairs) {
+        const tableX = zone.x + Math.sign(chair.x - zone.x) * 6.5;
+        assert.ok((tableX - chair.x) * -Math.sin(chair.rotation) > 0, `${chair.id} faces its table`);
+      }
+      for (const prop of starterProps.filter(prop => prop.id.includes("-carpet-"))) {
+        assert.equal(prop.collision, false, "carpets preserve walkability");
+        assert.ok(Math.abs(prop.x - zone.x) - prop.width / 2 >= 2.4, "carpet leaves the entrance axis open");
+      }
+      for (const prop of starterProps) assertCatalogPlacement(prop, layout);
+      const blockers = starterProps.filter((prop) => prop.collision);
+      for (let index = 0; index < blockers.length; index += 1) {
+        const first = blockers[index]!;
+        const firstFootprint = roomPropCollisionFootprint(first);
+        for (const second of blockers.slice(index + 1)) {
+          const secondFootprint = roomPropCollisionFootprint(second);
+          const overlapsX = Math.abs(first.x - second.x) < (firstFootprint.width + secondFootprint.width) / 2 - FLOAT_TOLERANCE_M;
+          const overlapsZ = Math.abs(first.z - second.z) < (firstFootprint.depth + secondFootprint.depth) / 2 - FLOAT_TOLERANCE_M;
+          assert.ok(!(overlapsX && overlapsZ), `${first.id} does not block ${second.id}`);
+        }
+      }
+    }
   }
 });

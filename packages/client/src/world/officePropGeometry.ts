@@ -27,6 +27,36 @@ export function createOfficePropGeometry(kind: string): THREE.Group | null {
     box(5.6, 0.06, 2.7, materials.blue, 0, 0.35, 0);
     box(0.18, 0.12, 3, materials.navy, -2.91, 0.38, 0);
     box(0.18, 0.12, 3, materials.navy, 2.91, 0.38, 0);
+  } else if (kind === "civic-park-water") {
+    const water = new THREE.Mesh(
+      new THREE.BoxGeometry(6, 0.045, 8),
+      new THREE.MeshPhysicalMaterial({ color: "#329ec2", roughness: 0.22, metalness: 0.08, clearcoat: 0.72, clearcoatRoughness: 0.18 }),
+    );
+    water.position.y = 0.028;
+    water.receiveShadow = true;
+    root.add(water);
+    const shore = new THREE.MeshStandardMaterial({ color: "#c9d2b2", roughness: 0.9 });
+    box(6, 0.08, 0.16, shore, 0, 0.04, -3.94);
+    box(6, 0.08, 0.16, shore, 0, 0.04, 3.94);
+    box(0.16, 0.08, 7.68, shore, -2.92, 0.04, 0);
+    box(0.16, 0.08, 7.68, shore, 2.92, 0.04, 0);
+  } else if (kind === "civic-park-path") {
+    const paving = new THREE.MeshStandardMaterial({ color: "#e8dfc8", roughness: 0.94 });
+    box(2, 0.035, 2, paving, 0, 0.018, 0);
+  } else if (kind === "civic-park-bridge") {
+    const deck = new THREE.MeshStandardMaterial({ color: "#ba9771", roughness: 0.83 });
+    box(2, 0.085, 2, deck, 0, 0.08, 0);
+    for (const side of [-1, 1]) box(0.1, 0.24, 2, materials.wood, side * 0.94, 0.2, 0);
+  } else if (kind === "civic-room-screen") {
+    const frame = new THREE.MeshStandardMaterial({ color: "#263d49", roughness: 0.66 });
+    const display = new THREE.MeshStandardMaterial({ color: "#e7f2ec", roughness: 0.55, emissive: "#38545d", emissiveIntensity: 0.12 });
+    box(6, 2.65, 0.18, frame, 0, 2.15, 0);
+    box(5.65, 2.32, 0.025, display, 0, 2.18, 0.105);
+    box(4.4, 0.055, 0.03, materials.blue, 0, 1.25, 0.127);
+    for (const side of [-1, 1]) {
+      box(0.12, 0.84, 0.12, frame, side * 2.15, 0.42, 0);
+      box(0.7, 0.08, 0.72, frame, side * 2.15, 0.04, 0);
+    }
   } else if (kind === "townhall-podium") {
     box(0.48, 0.78, 0.42, materials.wood, 0, 0.39, 0.08);
     box(0.82, 0.12, 0.66, materials.navy, 0, 0.06, 0.08);

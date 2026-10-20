@@ -2,6 +2,8 @@ import type { RoomLayoutProp, RoomPropDefinition, RoomPropEditorRole } from "./r
 import { readRoomLayoutProps, roomPropBlockFootprint } from "./roomLayoutProps.js";
 import { EXTERNAL_ROOM_PROP_CATALOG, EXTERNAL_WALL_ASSET_IDS } from "./externalRoomProps.js";
 import { NATURE_ROOM_PROP_CATALOG } from "./natureRoomProps.js";
+import { CIVIC_PARK_PROP_CATALOG } from "./campusCivicParkCatalog.js";
+import { CIVIC_ROOM_PROP_CATALOG } from "./campusCivicRoomCatalog.js";
 /** Office-owned shared props snapshot; configVersion is independent from the admin map version. */
 export type { RoomLayoutProp, RoomPropDefinition, RoomPropEditorRole } from "./roomPropTypes.js";
 export { ROOM_PROP_BLOCK_SIZE_M, roomPropBlockFootprint } from "./roomLayoutProps.js";
@@ -132,6 +134,8 @@ const ROOM_PROP_CATALOG_BASE: ReadonlyArray<RoomPropDefinition> = [
   ...CITY_ROAD_PROPS,
   ...SUBURBAN_PATH_PROPS,
   ...OFFICE_GEOMETRY_PROPS,
+  ...CIVIC_PARK_PROP_CATALOG,
+  ...CIVIC_ROOM_PROP_CATALOG,
   { asset: "vehicle-speedster", label: "Speedster", height: 1.1, width: 2.4, depth: 4.2, collision: true, group: "Vehicles", preview: "/assets/kenney/toy-car-kit/Previews/vehicle-speedster.png", vehicleId: "vehicle-speedster" },
   { asset: "vehicle-racer", label: "Racer", height: 1.1, width: 2.4, depth: 4.2, collision: true, group: "Vehicles", preview: "/assets/kenney/toy-car-kit/Previews/vehicle-racer.png", vehicleId: "vehicle-racer" },
   { asset: "vehicle-suv", label: "SUV", height: 1.6, width: 2.7, depth: 4.8, collision: true, group: "Vehicles", preview: "/assets/kenney/toy-car-kit/Previews/vehicle-suv.png", vehicleId: "vehicle-suv" },
@@ -834,10 +838,13 @@ const ENVIRONMENT_PROP_SCALE: Readonly<Record<string, number>> = {
   "kenney-city-kit-suburban-tree-large": 1.4,
 };
 const INDUSTRIAL_BUILDING_PREFAB_SCALE = 3.375;
+const FINISHED_BUILDING_SCALE_BOOST = 1.5;
 
 /** Shared behavioral hints for the prop library. Placement/interaction support can be enabled progressively. */
 export const ROOM_PROP_CATALOG: ReadonlyArray<RoomPropDefinition> = [...ROOM_PROP_CATALOG_BASE, ...EXTERNAL_ROOM_PROP_CATALOG, ...NATURE_ROOM_PROP_CATALOG].map((item) => {
-  const scale = ENVIRONMENT_PROP_SCALE[item.asset] ?? (/^kit-city-kit-industrial-building-[a-t]$/.test(item.asset) ? INDUSTRIAL_BUILDING_PREFAB_SCALE : 1);
+  const isFinishedBuilding = FINISHED_BUILDING_PROP_ASSETS.has(item.asset);
+  const baseScale = ENVIRONMENT_PROP_SCALE[item.asset] ?? (/^kit-city-kit-industrial-building-[a-t]$/.test(item.asset) ? INDUSTRIAL_BUILDING_PREFAB_SCALE : 1);
+  const scale = baseScale * (isFinishedBuilding ? FINISHED_BUILDING_SCALE_BOOST : 1);
   const sizedItem = scale === 1 ? item : {
     ...item,
     width: item.width * scale,

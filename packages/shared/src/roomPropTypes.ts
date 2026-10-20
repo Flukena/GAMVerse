@@ -37,7 +37,11 @@ export type RoomPropDefinition = Pick<
     | "restroom-wash-backboard"
     | "wayfinding-sign"
     | "wall-picture"
-    | "wall-shelf";
+    | "wall-shelf"
+    | "civic-park-water"
+    | "civic-park-path"
+    | "civic-park-bridge"
+    | "civic-room-screen";
   /** Wall-mounted props save their vertical offset without needing a tabletop. */
   wallMounted?: boolean;
   /** Natural model footprint used by movement collision when editor cells are larger. */
