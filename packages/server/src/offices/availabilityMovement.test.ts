@@ -79,7 +79,7 @@ test("seat approach uses one bounded worker request and rechecks occupancy befor
       requests.push(request);
       return { admission: { status: "queued", requestId: `seat-${requests.length}`, jobId: `seat-job-${requests.length}` }, result: new Promise(resolve => { complete = resolve; }) };
     },
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {}); mock.method(room, "setFixedTimestep", () => {});
   mock.method(room, "onMessage", () => () => {}); mock.method(room, "broadcast", () => {}); mock.method(console, "info", () => {});
@@ -118,7 +118,7 @@ test("seat approach worker result is discarded after navigation intent changes",
   roomClass.routeSearchPool = {
     setSnapshot: () => true,
     submit: () => ({ admission: { status: "queued", requestId: "seat-stale", jobId: "seat-stale" }, result: new Promise(resolve => { complete = resolve; }) }),
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {}); mock.method(room, "setFixedTimestep", () => {});
   mock.method(room, "onMessage", () => () => {}); mock.method(room, "broadcast", () => {}); mock.method(console, "info", () => {});
@@ -152,7 +152,7 @@ test("actual arrival tick stops after the worker confirms every seat is occupied
       const result = executeRouteSearch(snapshot!, request);
       return { admission: { status: "queued", requestId: request.requestId, jobId: `seat-${searches}` }, result: Promise.resolve(result) };
     },
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {}); mock.method(room, "setFixedTimestep", () => {});
   mock.method(room, "onMessage", () => () => {}); mock.method(room, "broadcast", () => {}); mock.method(console, "info", () => {});
@@ -193,7 +193,7 @@ test("actual arrival ticks cap retries when the route-search adapter rejects", a
       searches += 1;
       return { admission: { status: "queued", requestId: `seat-failed-${searches}`, jobId: `seat-failed-${searches}` }, result: Promise.reject(new Error("worker adapter rejected")) };
     },
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {}); mock.method(room, "setFixedTimestep", () => {});
   mock.method(room, "onMessage", () => () => {}); mock.method(room, "broadcast", () => {}); mock.method(console, "info", () => {});
@@ -234,7 +234,7 @@ test("OfficeRoom conversation planners submit public and paired meeting searches
       modes.push(request.mode);
       return { admission: { status: "queued", requestId: request.requestId, jobId: request.requestId }, result: Promise.resolve(executeRouteSearch(snapshot!, request)) };
     },
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {}); mock.method(room, "setFixedTimestep", () => {});
   mock.method(room, "onMessage", () => () => {}); mock.method(room, "broadcast", () => {}); mock.method(console, "info", () => {});
@@ -312,7 +312,7 @@ test("Busy, meeting and explicit Away accept movement intent in the actual room 
   roomClass.routeSearchPool = {
     setSnapshot: () => true,
     submit: () => ({ admission: { status: "queued", requestId: "test", jobId: "test" }, result: Promise.resolve({ points: [{ x: 2, z: 0 }] }) }),
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {});
   mock.method(room, "setFixedTimestep", () => {});
@@ -351,7 +351,7 @@ test("worker route results are discarded after intent, map, access, or session c
     roomClass.routeSearchPool = {
       setSnapshot: () => true,
       submit: () => ({ admission: { status: "queued", requestId: "pending", jobId: "pending" }, result: new Promise(resolve => { complete = resolve; }) }),
-      cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+      removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
     };
     mock.method(room, "setMetadata", async () => {});
     mock.method(room, "setFixedTimestep", () => {});
@@ -411,7 +411,7 @@ test("worker routes are fenced immediately when access is revoked or the office 
     roomClass.routeSearchPool = {
       setSnapshot: () => true,
       submit: () => ({ admission: { status: "queued", requestId: action, jobId: action }, result: new Promise(resolve => { complete = resolve; }) }),
-      cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+      removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
     };
     mock.method(room, "setMetadata", async () => {}); mock.method(room, "setFixedTimestep", () => {});
     mock.method(room, "onMessage", (event: string, handler: Handler) => { handlers.set(event, handler); return () => {}; });
@@ -442,7 +442,7 @@ test("expired admission fences a pending route through a still-locked zone witho
   roomClass.routeSearchPool = {
     setSnapshot: () => true,
     submit: () => ({ admission: { status: "queued", requestId: "expires", jobId: "expires" }, result: new Promise(resolve => { complete = resolve; }) }),
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {}); mock.method(room, "setFixedTimestep", () => {});
   mock.method(room, "onMessage", (event: string, handler: Handler) => { handlers.set(event, handler); return () => {}; });
@@ -506,7 +506,7 @@ test("move-to-player commits a worker route only after rechecking the live targe
   roomClass.routeSearchPool = {
     setSnapshot: () => true,
     submit: () => ({ admission: { status: "queued", requestId: "move-target", jobId: "move-target" }, result: Promise.resolve({ points: [{ x: 3, z: 0 }] }) }),
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {});
   mock.method(room, "setFixedTimestep", () => {});
@@ -541,7 +541,7 @@ test("unrelated dynamic vehicle refreshes preserve pending routes and reuse the 
   roomClass.routeSearchPool = {
     setSnapshot: () => { snapshotInstalls += 1; return true; },
     submit: () => ({ admission: { status: "queued", requestId: `request-${pending.length}`, jobId: `job-${pending.length}` }, result: new Promise(resolve => { pending.push(resolve); }) }),
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {});
   mock.method(room, "setFixedTimestep", () => {});
@@ -594,7 +594,7 @@ test("first no-vehicle route is revalidated against a live car entering its path
   roomClass.routeSearchPool = {
     setSnapshot: () => true,
     submit: () => ({ admission: { status: "queued", requestId: "first-drive", jobId: "first-drive" }, result: new Promise(resolve => { complete = resolve; }) }),
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {}); mock.method(room, "setFixedTimestep", () => {});
   mock.method(room, "onMessage", (event: string, handler: Handler) => { handlers.set(event, handler); return () => {}; });
@@ -628,7 +628,7 @@ test("move-to-player discards a result when the target moves or is replaced whil
     roomClass.routeSearchPool = {
       setSnapshot: () => true,
       submit: () => ({ admission: { status: "queued", requestId: change, jobId: change }, result: new Promise(resolve => { complete = resolve; }) }),
-      cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+      removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
     };
     mock.method(room, "setMetadata", async () => {}); mock.method(room, "setFixedTimestep", () => {});
     mock.method(room, "onMessage", (event: string, handler: Handler) => { handlers.set(event, handler); return () => {}; });
@@ -662,7 +662,7 @@ test("initial follow uses a worker route, tick repaths stay unique, and stop fen
       admission: { status: "queued", requestId: `follow-${pending.length}`, jobId: `follow-${pending.length}` },
       result: new Promise(resolve => { pending.push({ request, resolve }); }),
     }),
-    cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+    removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
   };
   mock.method(room, "setMetadata", async () => {});
   mock.method(room, "setFixedTimestep", () => {});
@@ -721,7 +721,7 @@ test("initial follow discards results after target movement or departure", async
     roomClass.routeSearchPool = {
       setSnapshot: () => true,
       submit: () => ({ admission: { status: "queued", requestId: "follow", jobId: "follow" }, result: new Promise(resolve => { complete = resolve; }) }),
-      cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
+      removeSnapshot: () => true, cancelRoom: () => {}, cancelSession: () => {}, cancel: () => false, dispose: async () => {},
     };
     mock.method(room, "setMetadata", async () => {});
     mock.method(room, "setFixedTimestep", () => {});

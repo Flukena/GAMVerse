@@ -40,6 +40,31 @@ test("route geometry treats a locked room as an obstacle", () => {
   }
 });
 
+test("walkability cache keeps signed coordinate columns and per-search access separate", () => {
+  const openWorld = { ...WORLD, width: 30, depth: 30, playerRadius: 0.48, walls: [], obstacles: [], collisionGrid: undefined };
+  const barrier = { x: 0, z: 0, width: 2, depth: 12 };
+  for (const direction of [-1, 1]) {
+    const start = { x: -10 * direction, z: -2 * direction };
+    const destination = { x: 10 * direction, z: 2 * direction };
+    const restricted = { ...openWorld, accessOverlay: [barrier] };
+    const route = findAutoRoute(start, destination, restricted);
+    assert.ok(route);
+    assert.deepEqual(route.at(-1), destination);
+    assert.ok(route.some(point => Math.abs(point.z) > 6), "opposite-sign cache keys must not bypass the barrier");
+    let previous = start;
+    for (const point of route) {
+      const samples = Math.ceil(Math.hypot(point.x - previous.x, point.z - previous.z) / 0.1);
+      for (let index = 0; index <= samples; index++) {
+        const fraction = samples ? index / samples : 0;
+        assert.ok(isPositionWalkable({ x: previous.x + (point.x - previous.x) * fraction, z: previous.z + (point.z - previous.z) * fraction }, restricted));
+      }
+      previous = point;
+    }
+    assert.deepEqual(findAutoRoute(start, destination, openWorld), [destination], "another caller's access must not remain cached");
+    assert.equal(findAutoRoute(start, destination, { ...openWorld, accessOverlay: [{ ...barrier, depth: 40 }] }), null);
+  }
+});
+
 function assertRouteWalkable(start: Position, route: Position[]) {
   let previous = start;
   for (const point of route) {

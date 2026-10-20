@@ -38,6 +38,8 @@ test("editor moves update models, support targets, highlights and collision laye
   const collision = makeProp("desk");
   const selection = makeProp("desk");
   const neighbor = makeProp("neighbor");
+  model.updateMatrix();
+  model.matrixAutoUpdate = false;
   parent.add(model, neighbor);
   layers.pickTargets.add(support);
   layers.collisionOverlays.add(collision);

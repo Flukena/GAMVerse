@@ -227,3 +227,22 @@ test("dispose drains queued/active promises and terminates bounded workers", asy
   assert.equal(await first.result, null); assert.equal(await second.result, null); assert.equal(await queued.result, null);
   assert.equal(workers.length, 2); assert.ok(workers.every((worker) => worker.terminated));
 });
+
+test("real worker resolves a bounded route burst and releases all jobs on shutdown", async () => {
+  const pool = new RouteSearchPool({ workerCount: 2 });
+  try {
+    pool.setSnapshot(snapshot);
+    const jobs = Array.from({ length: 12 }, (_, index) => pool.submit(request(`real-${index}`, `session-${index}`)));
+    assert.ok(jobs.every(job => job.admission.status === "queued"));
+    assert.ok(pool.activeCount <= 2);
+    const results = await Promise.all(jobs.map(job => job.result));
+    for (const result of results) {
+      assert.deepEqual(result?.points, [{ x: 3, z: 0 }]);
+    }
+    assert.equal(pool.activeCount, 0);
+    assert.equal(pool.pendingCount, 0);
+  } finally {
+    await pool.dispose();
+  }
+  assert.equal(pool.submit(request("after-dispose", "session")).admission.status, "busy");
+});

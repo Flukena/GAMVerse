@@ -53,10 +53,36 @@ flowchart LR
 | `/join/:token` | Accept an office invitation after sign-in |
 | `/reset/:token` | One-use password reset |
 | `/maintainer` | Maintainer sign-in and management |
+| `/maintainer/diagnostics` | Dedicated platform-maintainer incident history |
 
 Before joining a realtime room, the client requests the account's accessible office list and the server rechecks the authenticated session. The server enforces office-scoped owner, admin, and member permissions; active maintainers can list and enter every active office without office membership. The office creator is the owner; maintainer permission is application-wide. Realtime presence carries an `isMaintainer` flag derived from server authorization, and the client adds `(MAINTAINER)` to that user's displayed name. Browser route state and client-supplied role fields are never an access grant. In-world zone locks retain their existing authorization and movement restrictions.
 
 Maintainers can manage platform accounts from the lobby: grant or remove maintainer access, issue one-time password reset links, suspend/reactivate accounts, review recent office/account changes in a bounded audit history, and inspect aggregate service health. Role changes are audited, revoke persisted sessions and ask realtime to disconnect the target account from active offices, cannot change the acting maintainer's own role, and cannot demote the last active maintainer. If realtime control is unavailable, the UI reports that the role changed but active connections may still need disconnecting. Suspension revokes persisted sessions and asks the realtime process to disconnect existing sessions; if realtime control is unavailable, the UI reports that the account was suspended but existing connections may still need disconnecting. The audit table retains the newest 10,000 entries and excludes reset tokens, session IDs, passwords, and request bodies. The system overview contains aggregate counts only; realtime/error metrics are process-local and are not durable monitoring.
+
+The lobby links platform maintainers to a dedicated Runtime diagnostics page at
+`/maintainer/diagnostics`, rather than embedding incident history in System overview.
+The full-width scrolling page provides current-page source/event/office filters,
+expandable event details (UTC timestamp, event ID, technical measurements and
+evidence origin) and numbered 10-event pages with Previous/Next controls over
+bounded 50-event cursor batches. Page numbers cover the loaded batch; Next fetches
+the next batch when needed. Reloading this route does not
+auto-resume a remembered office. Ordinary authenticated accounts see an access
+denial without being logged out; the API independently enforces maintainer access.
+Runtime diagnostics is separate durable, sampled incident history.
+Migration `030` adds `app_runtime_diagnostics`, retaining seven days (API cleanup
+hourly and retention filtering on reads). `GET /maintainer/diagnostics` checks the
+current platform role and uses bounded numeric-ID cursor pagination; office
+ownership/admin permission grants no access. Authenticated browsers submit only
+shared-validated event codes, nullable office UUIDs and allowlisted numeric
+measurements through `POST /auth/diagnostics`; office attribution requires current
+server-checked membership or maintainer access. Caller-supplied roles, severity,
+timestamps, source, messages, URLs and arbitrary metadata are not accepted.
+Browser reports remain unverified observations. Their bounded memory queue and
+per-code cooldown complement per-account/global API-process admission limits.
+API and realtime record five-second process CPU/event-loop threshold crossings
+and sampled structured server errors through bounded queues. No raw error
+payloads or user identity are copied into the incident table. This is lightweight
+diagnostics, not crash-proof external monitoring or proof of production capacity.
 
 ### Persistence and map contract
 
@@ -67,6 +93,16 @@ PostgreSQL migrations are in `packages/server/migrations/` and applied by `initi
 The server validates map dimensions, counts, allowlisted assets, entrances, spawn walkability, and editor role. The client displays map drafts and placement previews, but the saved server config is authoritative for collision and live rooms. The 2D renderer includes subtly textured outdoor ground, wood floors in meeting/common areas, carpet in private workspaces, tiled restrooms, labelled room zones, road curbs, and light wall caps with doorway-aware shadows. Recognized catalog furniture and foliage use shaded top-down vector details fitted to the saved prop footprints and rotation; unsupported props retain cached catalog preview icons. Floor patterns and prop details are suppressed at small scales and stay in the existing static bitmap cache. Smoothed 2D avatars use cached full-body sprites rendered from the selected licensed character model, with eight facing directions, eight walking poses and idle/seated frames. The gait uses a 1.6 m full stride and caps cadence at 1.5 cycles per second so fast travel does not accelerate the limbs without bound. The existing snapshot queue builds each atlas in idle slices and releases its temporary WebGL context after draining; a 32 MiB RGBA canvas budget, including pending snapshots, admits up to 20 atlases (31.25 MiB at the current resolution). Active atlases remain pinned; overflow uses animated vector characters until an inactive slot is available. Characters scale with the world projection without clamping: a 2.1 m image frame contains the 1.6 m model, so zooming grows or shrinks the full body together with its indicators and selection bounds. Names remain at 11 CSS pixels for readability, independently of device pixel ratio. Full-body vector fallbacks retain walking limbs while loading or if a model cannot load. Name obstacles and picking use the same sprite bounds, while ground-position facing/status/speaking indicators remain separate. Its follow camera uses the same smoothed local pose as the avatar; manual pan and locate retain their selected centre. Allocation-free numeric and per-player dirty checks replace full-player frame serialization. Its static cache uses layout content and prop revision rather than the layout format version. Prop interactions survive the separate versioned props path; invalid raw interaction metadata rejects a save.
 
 ### Realtime and media
+
+The 3D client caches fitted static model local matrices and uses focused static
+prop/wall `StaticSceneGroup` roots to skip unchanged descendant world-matrix traversal. Identity
+scene/campus ancestors do not force updates each frame. Editor translations
+update cached pivot matrices through `OfficeMapSceneLayers.moveProp`, including
+hidden editor layers. Root/parent world-matrix changes propagate; nested content
+changes require explicit `invalidate()` (a forced scene update alone is not an
+invalidation). This optimization is limited to fully loaded non-animated
+subtrees, not doors, avatars, pets, vehicles or the camera. Visibility, projection,
+shadow passes and authoritative collision remain unchanged.
 
 The browser sends movement intent. The server simulates movement at a fixed interval, validates paths and collision, and broadcasts player state. Office zones and proximity groups are computed from server-owned positions. Automatic travel can route to room destinations and seats; vehicles and walk fallback are handled in the realtime room.
 
@@ -1617,4 +1653,3 @@ The original Poly Pizza GLB archive is `../poly-pizza-ultimate-house-interior-pa
 - Blaster Kit's official archive is retained under `packages/client/assets/kenney/`; its CC0 `blaster-a.glb` is copied to `packages/client/public/assets/kenney/blaster-kit/` for the local-only toy blaster viewmodel. Click-to-fire creates client-only paint splats, sparks, a tracer, and a synthesized zap; there is no damage or network event.
 - City Kit Roads and City Kit Suburban models, preview thumbnails, textures, and CC0 licenses are available under `packages/client/public/assets/kenney/`. Their GLBs are loaded by office prop entries with explicit model URLs because the archive places them in a `GLB format` source folder.
 - Office-only Town Hall stage/podium, restroom privacy divider, and blank wayfinding sign props use lightweight procedural geometry in `packages/client/src/world/officePropGeometry.ts`; they require no external asset download.
-

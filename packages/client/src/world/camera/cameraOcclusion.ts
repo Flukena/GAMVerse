@@ -20,13 +20,18 @@ function bindMesh(mesh: Mesh): MeshBinding {
 
 function applyOpacity(binding: MeshBinding, opacityRatio: number): void {
   const fading = opacityRatio < FULL_OPACITY_RATIO;
-  binding.mesh.castShadow = fading ? false : binding.castShadow;
+  const castShadow = fading ? false : binding.castShadow;
+  if (binding.mesh.castShadow !== castShadow) binding.mesh.castShadow = castShadow;
   for (const { original, faded } of binding.materials) {
     const transparent = fading || original.transparent;
-    if (faded.transparent !== transparent) faded.needsUpdate = true;
-    faded.opacity = original.opacity * opacityRatio;
-    faded.transparent = transparent;
-    faded.depthWrite = fading ? false : original.depthWrite;
+    if (faded.transparent !== transparent) {
+      faded.transparent = transparent;
+      faded.needsUpdate = true;
+    }
+    const opacity = original.opacity * opacityRatio;
+    const depthWrite = fading ? false : original.depthWrite;
+    if (faded.opacity !== opacity) faded.opacity = opacity;
+    if (faded.depthWrite !== depthWrite) faded.depthWrite = depthWrite;
   }
 }
 
@@ -64,11 +69,12 @@ class FadingOccluder {
     return hit !== null && hit.distanceTo(ray.origin) <= distanceM;
   }
 
-  update(blocked: boolean, deltaSec: number, snap: boolean): void {
+  update(blocked: boolean, blend: number): void {
     const targetRatio = blocked ? OCCLUDED_OPACITY_RATIO : FULL_OPACITY_RATIO;
-    const blend = snap ? FULL_OPACITY_RATIO : -Math.expm1(-Math.max(0, deltaSec) / FADE_TIME_SEC);
-    this.opacityRatio = MathUtils.lerp(this.opacityRatio, targetRatio, blend);
-    if (Math.abs(this.opacityRatio - targetRatio) < OPACITY_SNAP_TOLERANCE_RATIO) this.opacityRatio = targetRatio;
+    if (this.opacityRatio !== targetRatio) {
+      this.opacityRatio = MathUtils.lerp(this.opacityRatio, targetRatio, blend);
+      if (Math.abs(this.opacityRatio - targetRatio) < OPACITY_SNAP_TOLERANCE_RATIO) this.opacityRatio = targetRatio;
+    }
     for (const binding of this.bindings) applyOpacity(binding, this.opacityRatio);
   }
 
@@ -96,8 +102,9 @@ export class CameraOcclusion {
     const distanceM = this.direction.length();
     this.ray.set(pose.lookAt, this.direction.normalize());
     const active = mode === "tpp" && distanceM > 0;
+    const blend = snap || !active ? FULL_OPACITY_RATIO : -Math.expm1(-Math.max(0, deltaSec) / FADE_TIME_SEC);
     for (const occluder of this.occluders) {
-      occluder.update(active && occluder.intersects(this.ray, distanceM), deltaSec, snap || !active);
+      occluder.update(active && occluder.intersects(this.ray, distanceM), blend);
     }
     return pose;
   }

@@ -41,6 +41,7 @@ export class OfficeMapSceneLayers {
       root.position.x += offset.x;
       root.position.y += offset.y;
       root.position.z += offset.z;
+      if (!root.matrixAutoUpdate) root.updateMatrix();
     }
     this.pickTargets.invalidate();
     this.collisionOverlays.invalidate();

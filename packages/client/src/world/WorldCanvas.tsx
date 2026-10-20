@@ -13,6 +13,8 @@ import { loadGltfAsset, loadRoomPropAsset } from "../assets/loaders";
 import { roomPropAssetPaths } from "../assets/roomPropPaths";
 import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { createOfficePropGeometry } from "./officePropGeometry";
+import { createMapPropHitTarget } from "./mapPropHitTargets";
+import { cacheLocalMatrix, cacheStaticModelLocalMatrices } from "./staticModelTransforms";
 import { abbreviateRoomName } from "./roomLabel";
 import { createPetModelInstance, disposePetAsset, type PetModelInstance } from "./petModelInstance";
 import { createProceduralHumanoidRig, updateProceduralHumanoidRig, type ProceduralHumanoidRig } from "./proceduralHumanoidMotion";
@@ -952,6 +954,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
 
     const cameraOcclusion = new CameraOcclusion();
     const scene = new THREE.Scene();
+    cacheLocalMatrix(scene);
     scene.background = new THREE.Color("#d8e5df");
     scene.fog = null;
     const camera = new THREE.PerspectiveCamera(TPP_FOV_DEG, 1, CAMERA_NEAR_MAX_M, CAMERA_FAR_MIN_M);
@@ -1255,6 +1258,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const campusRoot = new THREE.Group();
     const campusMapProps = new THREE.Group();
     const mapSceneLayers = new OfficeMapSceneLayers(campusMapProps);
+    cacheLocalMatrix(campusRoot);
+    cacheLocalMatrix(campusMapProps);
     const mapEditOverlay = new THREE.Group();
     mapEditOverlay.name = "In-world map edit dimensions and grid";
     mapEditOverlay.visible = false;
@@ -1716,6 +1721,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               model.userData.officeMapWallId = wall.id;
               model.traverse((child) => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
               wallAnchor.add(model);
+              cacheStaticModelLocalMatrices(model);
+              cacheLocalMatrix(wallAnchor);
               campusMapProps.add(wallAnchor);
               cameraOcclusion.register(wallAnchor);
               furniturePieces.push(wallAnchor);
@@ -1866,13 +1873,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             );
             supportSurface.rotation.y = prop.rotation;
             supportSurface.userData.officeMapPropId = prop.id;
-            const supportPlane = new THREE.Mesh(
+            const supportPlane = createMapPropHitTarget(
               new THREE.PlaneGeometry(prop.width, prop.depth),
-              new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0, colorWrite: false, depthWrite: false }),
+              prop.id, "support",
             );
             supportPlane.rotation.x = -Math.PI / 2;
-            supportPlane.userData.officeMapPropId = prop.id;
-            supportPlane.userData.mapPropSupportSurface = true;
             supportSurface.add(supportPlane);
             mapSceneLayers.pickTargets.add(supportSurface);
           }
@@ -1905,17 +1910,15 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           // prop's actual footprint. Many models (chairs, screens, plants)
           // have sparse geometry, so raycasting only the visible mesh makes
           // it feel like the prop jumps or refuses to follow the cursor.
-          const dragTarget = new THREE.Mesh(
+          const dragTarget = createMapPropHitTarget(
             new THREE.BoxGeometry(collisionFootprint.width, Math.max(0.25, catalog.height), collisionFootprint.depth),
-            new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }),
+            prop.id, "drag",
           );
           dragTarget.position.set(
             prop.x + mapWorld.width / 2,
             (prop.elevation ?? 0) + Math.max(0.25, catalog.height) / 2,
             prop.z + mapWorld.depth / 2,
           );
-          dragTarget.userData.officeMapPropId = prop.id;
-          dragTarget.userData.mapPropDragHitTarget = true;
           if (catalog.vehicleId) trackMovableVehicleHandle(prop.id, dragTarget);
           mapSceneLayers.pickTargets.add(dragTarget);
         }
@@ -1947,6 +1950,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               object.userData.officeMapPropId = prop.id;
               object.userData.collision = prop.collision;
               propPivot.add(object);
+              cacheStaticModelLocalMatrices(object);
+              cacheLocalMatrix(propPivot);
               campusMapProps.add(propPivot);
               distanceCulledPropVisuals.push(propPivot);
               if (prop.collision) cameraOcclusion.register(propPivot);
@@ -3926,4 +3931,3 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     </>
   );
 }
-

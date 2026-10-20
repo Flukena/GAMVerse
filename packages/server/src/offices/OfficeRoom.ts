@@ -1,4 +1,4 @@
-import { realtimeRuntimeMetrics } from "../infra/realtimeRuntimeMetrics.js";
+import { REALTIME_TICK_RATE_HZ, realtimeRuntimeMetrics } from "../infra/realtimeRuntimeMetrics.js";
 import { proximityNeighbors } from "./proximityNeighbors.js";
 import { affectedDeskOwners, sendDeskAssignmentNotices } from "./deskAssignmentNotices.js";
 import { RoomSeatIndex, propDefinitionByAsset } from "./roomSeatIndex.js";
@@ -559,7 +559,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       const latest = await readOfficeMapProjection(database, this.officeId);
       this.applyMapConfig(latest.config, latest.configVersion);
     }
-    this.setFixedTimestep((context) => this.step(context.dt), 20);
+    this.setFixedTimestep((context) => this.step(context.dt), REALTIME_TICK_RATE_HZ);
   }
 
   async onAuth(client: Client, options: { officeId?: string }, context: AuthContext) {
@@ -900,7 +900,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   onDispose() {
-    OfficeRoom.routeSearchPool?.cancelRoom(this.roomId);
+    OfficeRoom.routeSearchPool?.removeSnapshot(this.roomId);
     for (const sessionId of this.routeIntentRevisionBySessionId.keys()) this.invalidateRouteIntent(sessionId);
     this.routeIntentRevisionBySessionId.clear();
     for (const pending of this.pendingAutoMovesBySessionId.values()) clearTimeout(pending.timer);
@@ -1977,6 +1977,10 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   }
 
   private stepWork(deltaSeconds: number) {
+    if (this.state.players.size === 0 && !this.privacy?.deadlineDue()) {
+      realtimeRuntimeMetrics.increment("emptyRoomTickSkips");
+      return;
+    }
     const now = performance.now();
     const budget = new RouteSearchBudget();
     for (const [followerSessionId, follow] of this.activeFollowsBySessionId) {

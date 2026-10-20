@@ -3,6 +3,8 @@ import test, { type TestContext } from "node:test";
 import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Vector3 } from "three";
 import { CameraOcclusion } from "./cameraOcclusion";
 import type { CameraPose } from "./cameraPose";
+import { cacheLocalMatrix, cacheStaticModelLocalMatrices } from "../staticModelTransforms";
+import { StaticSceneGroup } from "../staticSceneGroup";
 
 const STEP_SEC = 1 / 60;
 const RAY_LENGTH_M = 8;
@@ -170,4 +172,81 @@ test("fade speed is independent of frame rate", (t) => {
   second.occlusion.apply(rayPose(), "tpp", HALF_STEP_SEC, false);
   second.occlusion.apply(rayPose(), "tpp", HALF_STEP_SEC, false);
   assert.ok(Math.abs(whole.material.opacity - half.material.opacity) < OPACITY_TOLERANCE_RATIO);
+});
+
+test("settled fades avoid redundant render-property writes but reflect source material changes", (t) => {
+  const { occlusion, makeWall, originalMaterial } = fixture(t);
+  const wall = makeWall();
+  occlusion.register(wall);
+  const faded = wall.material;
+  let writes = 0;
+  for (const key of ["opacity", "transparent", "depthWrite"] as const) {
+    let value = faded[key];
+    Object.defineProperty(faded, key, {
+      configurable: true,
+      get: () => value,
+      set: next => { writes++; value = next; },
+    });
+  }
+  for (const blocked of [false, true, false]) {
+    const pose = rayPose(blocked ? 0 : CLEAR_POSITION_X_M);
+    occlusion.apply(pose, "tpp", STEP_SEC, true);
+    writes = 0;
+    const version = faded.version;
+    for (let frame = 0; frame < 10; frame++) occlusion.apply(pose, "tpp", STEP_SEC, false);
+    assert.equal(writes, 0);
+    assert.equal(faded.version, version);
+  }
+  originalMaterial.opacity = BASE_OPACITY_RATIO;
+  originalMaterial.transparent = true;
+  originalMaterial.depthWrite = false;
+  occlusion.apply(rayPose(CLEAR_POSITION_X_M), "tpp", STEP_SEC, false);
+  assert.equal(faded.opacity, BASE_OPACITY_RATIO);
+  assert.equal(faded.transparent, true);
+  assert.equal(faded.depthWrite, false);
+  assert.equal(writes, 3);
+});
+
+test("one frame computes fade blending once for multiple occluders", (t) => {
+  const { occlusion, makeWall } = fixture(t);
+  for (let index = 0; index < 12; index++) occlusion.register(makeWall());
+  const original = Math.expm1;
+  let evaluations = 0;
+  Math.expm1 = value => { evaluations++; return original(value); };
+  try {
+    occlusion.apply(rayPose(), "tpp", STEP_SEC, false);
+    assert.equal(evaluations, 1);
+    occlusion.apply(rayPose(), "fpp", STEP_SEC, false);
+    assert.equal(evaluations, 1);
+  } finally {
+    Math.expm1 = original;
+  }
+});
+
+test("cached static prop bounds and render matrices both follow an editor pivot move", (t) => {
+  const { occlusion, makeWall } = fixture(t);
+  const parent = new Group();
+  const pivot = new StaticSceneGroup();
+  const wall = makeWall();
+  pivot.add(wall);
+  parent.add(pivot);
+  cacheLocalMatrix(parent);
+  cacheStaticModelLocalMatrices(pivot);
+  occlusion.register(pivot);
+  parent.updateMatrixWorld();
+  occlusion.apply(rayPose(), "tpp", STEP_SEC, true);
+  assert.ok(wall.material.opacity < 1);
+  pivot.position.x = CLEAR_POSITION_X_M;
+  pivot.updateMatrix();
+  // Occlusion updates the pivot's world matrix before the renderer visits it.
+  occlusion.apply(rayPose(), "tpp", STEP_SEC, true);
+  parent.updateMatrixWorld();
+  assert.equal(wall.material.opacity, 1);
+  assert.equal(wall.matrixWorld.elements[12], CLEAR_POSITION_X_M);
+  pivot.position.x = 0;
+  pivot.updateMatrix();
+  occlusion.apply(rayPose(), "tpp", STEP_SEC, true);
+  parent.updateMatrixWorld();
+  assert.ok(wall.material.opacity < 1);
+  assert.equal(wall.matrixWorld.elements[12], 0);
 });

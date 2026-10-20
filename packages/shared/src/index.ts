@@ -1,4 +1,5 @@
 export * from "./officeShareLinks.js";
+export * from "./diagnostics.js";
 export { isValidAutoMoveInput, isValidTargetPlayerInput } from "./routeInputs.js";
 export * from "./privateConversations.js";
 export * from "./mediaModeration.js";
@@ -445,16 +446,20 @@ export function makeBlockerGrid(blockers: readonly Blocker[], cellSize = 8): Blo
   return { cellSize, cells };
 }
 
-function blockersNear(position: Position, world: WorldConfig): readonly Blocker[] {
-  const radius = world.playerRadius;
-  const seen = new Set<Blocker>();
-  const grids = [world.collisionGrid, world.dynamicCollisionGrid];
-  if (!world.collisionGrid) {
-    for (const blocker of [...world.walls, ...world.obstacles]) {
-      if (!world.excludedVehiclePropId || blocker.vehiclePropId !== world.excludedVehiclePropId) seen.add(blocker);
-    }
+function overlapsAnyBlocker(position: Position, blockers: readonly Blocker[], world: WorldConfig): boolean {
+  for (const blocker of blockers) {
+    if (world.excludedVehiclePropId && blocker.vehiclePropId === world.excludedVehiclePropId) continue;
+    if (overlapsBlocker(position.x, position.z, blocker, world.playerRadius)) return true;
   }
-  for (const grid of grids) {
+  return false;
+}
+
+function hasNearbyBlocker(position: Position, world: WorldConfig): boolean {
+  const radius = world.playerRadius;
+  if (!world.collisionGrid) {
+    if (overlapsAnyBlocker(position, world.walls, world) || overlapsAnyBlocker(position, world.obstacles, world)) return true;
+  }
+  for (const grid of [world.collisionGrid, world.dynamicCollisionGrid]) {
     if (!grid) continue;
     const gridMinX = Math.floor((position.x - radius) / grid.cellSize);
     const gridMaxX = Math.floor((position.x + radius) / grid.cellSize);
@@ -462,16 +467,12 @@ function blockersNear(position: Position, world: WorldConfig): readonly Blocker[
     const gridMaxZ = Math.floor((position.z + radius) / grid.cellSize);
     for (let cellX = gridMinX; cellX <= gridMaxX; cellX += 1) {
       for (let cellZ = gridMinZ; cellZ <= gridMaxZ; cellZ += 1) {
-        for (const blocker of grid.cells.get(`${cellX},${cellZ}`) ?? []) {
-          if (!world.excludedVehiclePropId || blocker.vehiclePropId !== world.excludedVehiclePropId) seen.add(blocker);
-        }
+        const blockers = grid.cells.get(`${cellX},${cellZ}`);
+        if (blockers && overlapsAnyBlocker(position, blockers, world)) return true;
       }
     }
   }
-  for (const blocker of world.accessOverlay ?? []) {
-    if (!world.excludedVehiclePropId || blocker.vehiclePropId !== world.excludedVehiclePropId) seen.add(blocker);
-  }
-  return [...seen];
+  return world.accessOverlay ? overlapsAnyBlocker(position, world.accessOverlay, world) : false;
 }
 
 function overlapsBlocker(x: number, z: number, wall: Blocker, radius: number): boolean {
@@ -488,11 +489,10 @@ function overlapsBlocker(x: number, z: number, wall: Blocker, radius: number): b
 export function isPositionWalkable(position: Position, world: WorldConfig = WORLD): boolean {
   const limitX = world.width / 2 - world.playerRadius;
   const limitZ = world.depth / 2 - world.playerRadius;
-  const blockers = blockersNear(position, world);
   return (
     Math.abs(position.x) <= limitX &&
     Math.abs(position.z) <= limitZ &&
-    blockers.every((wall) => !overlapsBlocker(position.x, position.z, wall, world.playerRadius))
+    !hasNearbyBlocker(position, world)
   );
 }
 

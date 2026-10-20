@@ -3,6 +3,12 @@ type LogFields = Record<string, string | number | boolean | null | undefined>;
 const ERROR_METRIC_BUCKET_MS = 60_000;
 const ERROR_METRIC_BUCKET_COUNT = 15;
 const recentErrorBuckets = Array.from({ length: ERROR_METRIC_BUCKET_COUNT }, () => ({ minute: -1, count: 0 }));
+const errorObservers = new Set<(service: "api" | "realtime") => void>();
+
+export function observeServerErrors(observer: (service: "api" | "realtime") => void): () => void {
+  errorObservers.add(observer);
+  return () => { errorObservers.delete(observer); };
+}
 
 /** Count structured errors in a bounded 15-minute rolling window, without labels or error content. */
 export function getRecentServerErrorCount(now = Date.now()) {
@@ -31,4 +37,5 @@ export function logServerEvent(service: "api" | "realtime", event: string, field
 export function logServerError(service: "api" | "realtime", event: string, error: unknown, fields: LogFields = {}) {
   recordErrorMetric();
   console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: "error", service, event, ...fields, error: errorDetails(error) }));
+  for (const observer of errorObservers) observer(service);
 }
