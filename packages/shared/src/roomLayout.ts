@@ -837,13 +837,23 @@ const ENVIRONMENT_PROP_SCALE: Readonly<Record<string, number>> = {
   "kit-city-kit-industrial-chimney-small": 2,
   "kenney-city-kit-suburban-tree-large": 1.4,
 };
+// The low-poly nature packs are authored for much smaller scenes. At their
+// source dimensions they read like shrubs beside an avatar and city buildings.
+const CAMPUS_TREE_SCALE = 1.9;
+function isCampusTreeAsset(asset: string) {
+  return asset.startsWith("nature-kenney-nature-kit-tree-")
+    || asset.startsWith("kit-mini-forest-tree")
+    || asset === "kenney-city-kit-suburban-tree-small"
+    || asset === "kenney-city-kit-suburban-tree-large";
+}
 const INDUSTRIAL_BUILDING_PREFAB_SCALE = 3.375;
 const FINISHED_BUILDING_SCALE_BOOST = 1.5;
 
 /** Shared behavioral hints for the prop library. Placement/interaction support can be enabled progressively. */
 export const ROOM_PROP_CATALOG: ReadonlyArray<RoomPropDefinition> = [...ROOM_PROP_CATALOG_BASE, ...EXTERNAL_ROOM_PROP_CATALOG, ...NATURE_ROOM_PROP_CATALOG].map((item) => {
   const isFinishedBuilding = FINISHED_BUILDING_PROP_ASSETS.has(item.asset);
-  const baseScale = ENVIRONMENT_PROP_SCALE[item.asset] ?? (/^kit-city-kit-industrial-building-[a-t]$/.test(item.asset) ? INDUSTRIAL_BUILDING_PREFAB_SCALE : 1);
+  const environmentScale = ENVIRONMENT_PROP_SCALE[item.asset] ?? (/^kit-city-kit-industrial-building-[a-t]$/.test(item.asset) ? INDUSTRIAL_BUILDING_PREFAB_SCALE : 1);
+  const baseScale = environmentScale * (isCampusTreeAsset(item.asset) ? CAMPUS_TREE_SCALE : 1);
   const scale = baseScale * (isFinishedBuilding ? FINISHED_BUILDING_SCALE_BOOST : 1);
   const sizedItem = scale === 1 ? item : {
     ...item,
