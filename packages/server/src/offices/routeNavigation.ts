@@ -52,13 +52,20 @@ export function findAutoRoute(start: Position, requestedTarget: Position, world:
   const step = 1;
   const keyOf = (x: number, z: number) => `${x},${z}`;
   const positionOf = (x: number, z: number): Position => ({ x: x * step, z: z * step });
-  const walkabilityCache = new Map<string, boolean>();
+  const walkabilityCache = new Map<number, Map<number, boolean>>();
+  let walkabilityCacheEntries = 0;
   const isWalkable = (position: Position) => {
-    const key = `${Math.round(position.x * 1000)},${Math.round(position.z * 1000)}`;
-    const cached = walkabilityCache.get(key);
+    const x = Math.round(position.x * 1000);
+    const z = Math.round(position.z * 1000);
+    let column = walkabilityCache.get(x);
+    const cached = column?.get(z);
     if (cached !== undefined) return cached;
     const walkable = isPositionWalkable(position, world);
-    if (walkabilityCache.size < AUTO_ROUTE_WALKABILITY_CACHE_MAX_ENTRIES) walkabilityCache.set(key, walkable);
+    if (walkabilityCacheEntries < AUTO_ROUTE_WALKABILITY_CACHE_MAX_ENTRIES) {
+      if (!column) { column = new Map(); walkabilityCache.set(x, column); }
+      column.set(z, walkable);
+      walkabilityCacheEntries++;
+    }
     return walkable;
   };
   // Straight unobstructed trips are the common case. Resolve them before grid

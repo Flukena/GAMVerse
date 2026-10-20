@@ -76,6 +76,28 @@ The maintainer portal is at `/maintainer`. To grant the first maintainer role to
 docker compose exec postgres-dev psql -U gammyverse -d gammyverse -c "UPDATE app_users SET is_maintainer = TRUE WHERE username = 'your_username';"
 ```
 
+Platform maintainers can select the **Runtime diagnostics** card from the lobby to open
+the dedicated `/maintainer/diagnostics` page, with source/event/office filters,
+expandable event details and numbered pagination with Previous/Next controls.
+Each visible page contains up to 10 events, fetched in bounded 50-event cursor batches.
+Filters apply to the current visible page; Refresh returns to the newest events. The page shows technical incidents across all offices
+for platform maintainers only (office owners/admins cannot read it). PostgreSQL
+migration `030` adds seven-day persistence; the API prunes expired events hourly.
+Authenticated browsers automatically report visible frame stalls/slow frames,
+long tasks, uncaught/resource errors, failed realtime joins/connections and
+exhausted voice retries. API/realtime sample process CPU and event-loop stalls.
+No chat, error messages/stacks, URLs, usernames, session tokens or form contents
+are included in these diagnostic records. Browser CPU percentages are not measured.
+
+Collection is deliberately sampled and rate-limited: one browser event per kind
+per minute, at most six submissions per account and 120 total per API process per
+minute. Offline queues/retries are bounded and may lose events during outages or
+browser closure; an empty panel is not proof of an error-free system. Refresh
+the panel to load new events. Server CPU uses one-core units (100% = one core,
+including worker threads), not container-wide CPU. See the
+[diagnostics implementation and verification record](docs/REALTIME_WORKLOAD_SEPARATION_PLAN.md#maintainer-runtime-diagnostics)
+for thresholds and remaining verification limits.
+
 Stop the local stack with `docker compose down`. PostgreSQL and Caddy state remain in named volumes unless those volumes are explicitly removed.
 
 ### Workspace commands

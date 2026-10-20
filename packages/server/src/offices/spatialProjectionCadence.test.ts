@@ -6,6 +6,7 @@ import { PrivateConversations } from "./privateConversations.js";
 import { PrivateMediaEpochs } from "../media/privateMediaEpoch.js";
 import type { SpatialConversations } from "./spatialConversations.js";
 import type { SessionSecurity } from "./sessionSecurity.js";
+import { realtimeRuntimeMetrics } from "../infra/realtimeRuntimeMetrics.js";
 
 type Internals = {
   step(dt: number): void; applyMapConfig(config: unknown, version: number): void;
@@ -49,6 +50,39 @@ test("stationary ticks batch projections, but movement crossing a zone boundary 
     internal.step(0.02);
     assert.equal(internal.mediaZoneBySessionId.get("alice")?.id, "room");
     assert.equal(proximity.mock.callCount(), 3, "zone transition bypasses stationary cadence");
+  } finally { room.onDispose(); room.clock.stop(); mock.restoreAll(); }
+});
+
+test("empty room ticks skip projections without disabling deadlines or retained-player work", async () => {
+  const { room, internal } = await fixture();
+  try {
+    assert.equal(room.autoDispose, true, "keep framework disposal and reserved reconnect seats");
+    const alice = room.state.players.get("alice")!;
+    room.state.players.clear();
+    const membership = mock.method(internal, "updateMeetingMembership", () => {});
+    const proximity = mock.method(internal, "updateProximity", () => {});
+    const deadline = mock.method(internal.privacy, "deadlineDue", () => false);
+    const before = realtimeRuntimeMetrics.snapshot().counters;
+    for (let i = 0; i < 20; i++) internal.step(0.05);
+    const after = realtimeRuntimeMetrics.snapshot().counters;
+    assert.equal(after.emptyRoomTickSkips - before.emptyRoomTickSkips, 20);
+    assert.equal(after.mapParses, before.mapParses);
+    assert.equal(after.vehicleWorldRebuilds, before.vehicleWorldRebuilds);
+    assert.equal(membership.mock.callCount(), 0);
+    assert.equal(proximity.mock.callCount(), 0);
+    deadline.mock.mockImplementation(() => true);
+    internal.step(0.05);
+    assert.equal(membership.mock.callCount(), 1, "due deadlines bypass empty-room skipping");
+    assert.equal(proximity.mock.callCount(), 1);
+    deadline.mock.mockImplementation(() => false);
+    alice.x = 0; alice.z = 0; alice.rotation = 0;
+    room.state.players.set("alice", alice);
+    const now = performance.now();
+    internal.movementInputs.set("alice", { x: 1, z: 0, sprint: false, receivedAt: now });
+    const previousX = alice.x;
+    internal.step(0.05);
+    assert.notEqual(alice.x, previousX, "a retained player is not skipped merely because no clients are connected");
+    assert.equal(realtimeRuntimeMetrics.snapshot().counters.emptyRoomTickSkips, after.emptyRoomTickSkips);
   } finally { room.onDispose(); room.clock.stop(); mock.restoreAll(); }
 });
 

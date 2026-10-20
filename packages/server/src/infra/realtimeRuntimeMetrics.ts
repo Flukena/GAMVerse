@@ -1,12 +1,13 @@
 import { monitorEventLoopDelay } from "node:perf_hooks";
 
-export const REALTIME_TICK_INTERVAL_MS = 20;
+export const REALTIME_TICK_RATE_HZ = 20;
+export const REALTIME_TICK_INTERVAL_MS = 1000 / REALTIME_TICK_RATE_HZ;
 export const RUNTIME_SAMPLE_CAPACITY = 4096;
 export const EVENT_LOOP_RESOLUTION_MS = 10;
 const EVENT_LOOP_SAMPLE_INTERVAL_MS = 5000;
 const NS_PER_MS = 1_000_000;
 const PROCESS_STARTED_AT_ISO = new Date(Date.now() - process.uptime() * 1000).toISOString();
-type Counter = "mapParses" | "mapApplies" | "vehicleWorldRebuilds" | "vehicleCollisionUpdates" | "seatCandidates" | "proximityPairChecks" | "proximityPossiblePairs" | "stationaryTickSkips";
+type Counter = "mapParses" | "mapApplies" | "vehicleWorldRebuilds" | "vehicleCollisionUpdates" | "seatCandidates" | "proximityPairChecks" | "proximityPossiblePairs" | "stationaryTickSkips" | "emptyRoomTickSkips";
 
 class BoundedDurations {
   private readonly samples = new Float64Array(RUNTIME_SAMPLE_CAPACITY);
@@ -33,7 +34,7 @@ export class RealtimeRuntimeMetrics {
   private patchCycleCount = 0;
   private estimatedMissedIntervals = 0;
   private readonly outbound = { applicationFrameBytes: 0, frames: 0, statePatchBytes: 0, statePatchFrames: 0, stateSnapshotBytes: 0, stateSnapshotFrames: 0 };
-  private readonly counters: Record<Counter, number> = { mapParses: 0, mapApplies: 0, vehicleWorldRebuilds: 0, vehicleCollisionUpdates: 0, seatCandidates: 0, proximityPairChecks: 0, proximityPossiblePairs: 0, stationaryTickSkips: 0 };
+  private readonly counters: Record<Counter, number> = { mapParses: 0, mapApplies: 0, vehicleWorldRebuilds: 0, vehicleCollisionUpdates: 0, seatCandidates: 0, proximityPairChecks: 0, proximityPossiblePairs: 0, stationaryTickSkips: 0, emptyRoomTickSkips: 0 };
   private eventLoop: { p50Ms: number; p95Ms: number; p99Ms: number; maxMs: number; sampleWindowMs: number; resolutionMs: number } | null = null;
   private stopSampling?: () => void;
 
@@ -74,7 +75,7 @@ export class RealtimeRuntimeMetrics {
   stop() { this.stopSampling?.(); this.stopSampling = undefined; }
   snapshot() {
     return {
-      instrumentationVersion: 2,
+      instrumentationVersion: 3,
       processStartedAtIso: PROCESS_STARTED_AT_ISO,
       tick: { count: this.ticks, duration: this.durations.snapshot(), startGap: this.gaps.snapshot(), estimatedMissedIntervals: this.estimatedMissedIntervals, expectedIntervalMs: REALTIME_TICK_INTERVAL_MS, sampleCapacity: RUNTIME_SAMPLE_CAPACITY },
       replication: { patchCycleCount: this.patchCycleCount, patchCycleDurationMs: this.patchCycles.snapshot(), ...this.outbound },

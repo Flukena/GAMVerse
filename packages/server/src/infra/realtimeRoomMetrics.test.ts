@@ -3,12 +3,13 @@ import test, { mock } from "node:test";
 import { PlayerState, ROOM_PROP_CATALOG, type RoomLayout } from "@gammyverse/shared";
 import { OfficeRoom } from "../offices/OfficeRoom.js";
 import { RoomSeatIndex } from "../offices/roomSeatIndex.js";
-import { realtimeRuntimeMetrics } from "./realtimeRuntimeMetrics.js";
+import { REALTIME_TICK_RATE_HZ, realtimeRuntimeMetrics } from "./realtimeRuntimeMetrics.js";
+import { RouteSearchPool } from "../offices/routeSearchPool.js";
 
 test("real room ticks, map applications, seats and proximity populate runtime diagnostics", async () => {
   const room = new OfficeRoom();
   mock.method(room, "setMetadata", async () => {});
-  mock.method(room, "setFixedTimestep", () => {});
+  const timestep = mock.method(room, "setFixedTimestep", () => {});
   mock.method(room, "onMessage", () => () => {});
   mock.method(console, "info", () => {});
   const internals = room as unknown as {
@@ -18,6 +19,8 @@ test("real room ticks, map applications, seats and proximity populate runtime di
   };
   try {
     await room.onCreate({ officeId: "00000000-0000-4000-8000-000000000057" });
+    assert.equal(timestep.mock.calls[0].arguments[1], REALTIME_TICK_RATE_HZ);
+    assert.equal(1000 / timestep.mock.calls[0].arguments[1]!, realtimeRuntimeMetrics.snapshot().tick.expectedIntervalMs);
     const definition = ROOM_PROP_CATALOG.find(prop => prop.interaction === "sit")!;
     const layout: RoomLayout = { version: 1, walls: [], doors: [], zones: [], props: [{ id: "metrics-chair", asset: definition.asset, x: 0, z: 0, width: 1, depth: 1, rotation: 0, collision: false }] };
     const beforeMap = realtimeRuntimeMetrics.snapshot().counters;
@@ -46,4 +49,36 @@ test("real room ticks, map applications, seats and proximity populate runtime di
     assert.throws(() => internals.step(0.02), /deliberate diagnostic failure/);
     assert.equal(realtimeRuntimeMetrics.snapshot().tick.count, beforeTick + 2, "finally records failed steps too");
   } finally { room.onDispose(); room.clock.stop(); mock.restoreAll(); }
+});
+
+test("disposing one room removes its route snapshot without shutting down other rooms", async () => {
+  const rooms = [new OfficeRoom(), new OfficeRoom()];
+  const pool = new RouteSearchPool({ workerCount: 1 });
+  const owner = OfficeRoom as unknown as { routeSearchPool: RouteSearchPool | undefined };
+  const previousPool = owner.routeSearchPool;
+  try {
+    for (const [index, room] of rooms.entries()) {
+      mock.method(room, "setMetadata", async () => {});
+      mock.method(room, "setFixedTimestep", () => {});
+      mock.method(room, "onMessage", () => () => {});
+      room.roomId = `dispose-metrics-${index}`;
+      await room.onCreate({ officeId: `00000000-0000-4000-8000-00000000005${index}` });
+    }
+    owner.routeSearchPool = pool;
+    const remove = mock.method(pool, "removeSnapshot");
+    const dispose = mock.method(pool, "dispose");
+    rooms[0]!.onDispose();
+    assert.equal(remove.mock.calls[0].arguments[0], rooms[0]!.roomId);
+    assert.equal(dispose.mock.callCount(), 0, "the other room retains its shared pool");
+    assert.equal(owner.routeSearchPool, pool);
+    rooms[1]!.onDispose();
+    assert.equal(remove.mock.calls[1].arguments[0], rooms[1]!.roomId);
+    assert.equal(dispose.mock.callCount(), 1);
+    assert.equal(owner.routeSearchPool, undefined);
+  } finally {
+    owner.routeSearchPool = previousPool;
+    for (const room of rooms) { room.onDispose(); room.clock.stop(); }
+    await pool.dispose();
+    mock.restoreAll();
+  }
 });

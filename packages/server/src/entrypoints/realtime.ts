@@ -1,4 +1,5 @@
 import { realtimeMetricsEndpoint } from "./realtimeMetricsEndpoint.js";
+import { startDiagnostics } from "../infra/diagnostics.js";
 import { realtimeRuntimeMetrics } from "../infra/realtimeRuntimeMetrics.js";
 import { mediaModerationEndpoint } from "./mediaModerationEndpoint.js";
 import { deskAssignmentControl } from "../http/deskAssignmentControl.js";
@@ -22,7 +23,7 @@ const server = defineServer({
   transport: new WebSocketTransport(),
   rooms: { office: officeRoomDefinition },
   devMode: process.env.NODE_ENV !== "production",
-  beforeListen: async () => { await initializeDatabase(); await databaseIsReady(); },
+  beforeListen: async () => { await initializeDatabase(); await databaseIsReady(); startDiagnostics("realtime"); },
   express: (app: any) => {
     app.use(originGuard(clientOrigins, ["/auth", "/offices", "/office-invites", "/maintainer", "/media"], ["GET", "POST", "OPTIONS"]));
     app.use(["/media", "/internal"], jsonBodyParser({ methods: ["POST"], maxBytes: 8_192 }));

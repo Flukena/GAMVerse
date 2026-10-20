@@ -1,4 +1,7 @@
 import { playerName } from "../identity/playerName";
+import { useClientDiagnostics } from "./diagnostics/useClientDiagnostics";
+import { MaintainerDiagnosticsPage } from "./diagnostics/MaintainerDiagnosticsPage";
+import { reportClientDiagnostic } from "./diagnostics/clientDiagnostics";
 import { createOfficeMediaSession } from "./media/officeMediaSession";
 import { voiceParticipantUsername } from "./media/mediaIdentity";
 import { type ChatTransport } from "./social/ChatPanel";
@@ -325,7 +328,8 @@ export function OfficeApp() {
   const [meetingEntry, setMeetingEntry] = useState(() => Boolean(getMeetingRouteOfficeId(window.location.pathname)));
   const routePathRef = useRef(routePath);
   routePathRef.current = routePath;
-  const maintainerPortal = routePath === "/maintainer";
+  const diagnosticsPage = routePath.replace(/\/+$/, "") === "/maintainer/diagnostics";
+  const maintainerPortal = routePath === "/maintainer" || diagnosticsPage;
   const inviteLinkToken = getInviteRouteToken(routePath);
   const resetLinkToken = getResetRouteToken(routePath);
   const meetingLinkOfficeId = getMeetingRouteOfficeId(routePath);
@@ -602,6 +606,7 @@ export function OfficeApp() {
   const [availabilityEditorOpen, setAvailabilityEditorOpen] = useState(false);
   const availability = useAvailabilityStatus(status === "connected" ? roomRef.current : null);
   const officeDesks = useOfficeDesks({ endpoint, officeId: activeOffice?.id ?? null, username: authUser?.username ?? null, sessionKey: status === "connected" ? roomRef.current?.sessionId ?? null : null, configVersion: mapServerVersion });
+  useClientDiagnostics(endpoint, authUser?.username ?? null, activeOffice?.id ?? null, voiceRetryExhausted);
   const deskAssignmentNotice = useDeskAssignmentNotice({ room: status === "connected" ? roomRef.current : null,
     officeId: activeOffice?.id ?? null, sessionKey: status === "connected" ? roomRef.current?.sessionId ?? null : null,
     username: authUser?.username ?? null, desks: officeDesks.desks, configVersion: officeDesks.configVersion, onRefresh: officeDesks.refresh });
@@ -774,7 +779,7 @@ export function OfficeApp() {
         // Maintainers may also open office URLs. Only reject regular accounts
         // on the dedicated maintainer sign-in route; refreshing an office URL
         // must not revoke a valid maintainer session.
-        if (maintainerPortal && result.user.role !== "maintainer") {
+        if (maintainerPortal && !diagnosticsPage && result.user.role !== "maintainer") {
           await fetch(`${endpoint}/auth/logout`, { method: "POST", credentials: "include" });
           setAuthError("This account is not a maintainer account.");
           return;
@@ -1510,7 +1515,7 @@ export function OfficeApp() {
             window.history.replaceState(null, "", "/");
             setRoutePath("/");
             setMeetingEntry(false);
-          } else {
+          } else if (currentPath.replace(/\/+$/, "") !== "/maintainer/diagnostics") {
             const savedOfficeId = localStorage.getItem("gammyverse.activeOfficeId");
             const destination = (result.offices ?? []).find((office) => office.id === savedOfficeId);
             if (destination) selectOffice(destination);
@@ -2522,6 +2527,7 @@ export function OfficeApp() {
         room.onDrop((code, reason) => {
           console.info(DROP_EVENT_LABEL, { roomId: room.roomId, sessionId: room.sessionId, code, reason });
           if (disposed) return;
+          reportClientDiagnostic("connection_drop", { closeCode: code });
           reconnectingRef.current = true;
           meetingZoneActiveRef.current = false;
           privateZoneIdRef.current = null;
@@ -2546,6 +2552,9 @@ export function OfficeApp() {
         room.onLeave((code, reason) => {
           console.info(LEAVE_EVENT_LABEL, { roomId: room.roomId, sessionId: room.sessionId, code, reason });
           if (disposed) return;
+          if (![CONSENTED_CLOSE_CODE, REPLACED_CLOSE_CODE, REMOVED_CLOSE_CODE].includes(code)) {
+            reportClientDiagnostic("connection_drop", { closeCode: code });
+          }
           if ([CONSENTED_CLOSE_CODE, REPLACED_CLOSE_CODE, REMOVED_CLOSE_CODE].includes(code)) voiceSessionRef.current?.dispose();
           else voiceSessionRef.current?.suspend("realtime");
           const shouldRejoin = shouldFreshJoin(code, reconnectingRef.current) && !intentionalLeaveRef.current;
@@ -2580,6 +2589,7 @@ export function OfficeApp() {
         });
         room.onError((_code, message) => {
           if (!disposed) {
+            reportClientDiagnostic("connection_error", { closeCode: Math.max(0, Math.min(_code, 3_600_000)) });
             if (/authentication required|session (expired|invalid)|unauthori[sz]ed/i.test(message ?? "")) {
               returnToSignIn();
               return;
@@ -2595,6 +2605,7 @@ export function OfficeApp() {
         }, INPUT_HEARTBEAT_INTERVAL_MS);
       } catch (cause) {
         if (!disposed) {
+          reportClientDiagnostic("join_error");
           const reason = cause instanceof Error ? cause.message : String(cause);
           if (/authentication required|session (expired|invalid)|unauthori[sz]ed/i.test(reason)) {
             returnToSignIn();
@@ -2708,6 +2719,8 @@ export function OfficeApp() {
         </div>
       </OfficeSettingsDialog>;
 
+  if (diagnosticsPage) return <MaintainerDiagnosticsPage endpoint={endpoint} allowed={authUser.role === "maintainer"} />;
+
   if (!activeOffice) {
     return (
       <>
@@ -2729,7 +2742,14 @@ export function OfficeApp() {
         </aside>}
         <section className="lobby-content">
           <div className="lobby-intro"><span className="eyebrow">YOUR WORKSPACE</span><div className="lobby-intro-heading"><h1>{authUser.role === "maintainer" ? "Manage offices" : "Choose an office"}</h1><button data-tutorial-target="lobby-create-office" className="lobby-button primary" type="button" onClick={() => { setLobbyError(null); setCreateOfficeDialogOpen(true); }}>＋ Create office</button></div><p>Enter an office you belong to, accept an invitation, or start a new office.</p></div>
-          {authUser.role === "maintainer" && <MaintainerSystemPanel endpoint={endpoint} />}
+          {authUser.role === "maintainer" && <>
+            <a className="lobby-diagnostics-entry" href="/maintainer/diagnostics">
+              <span className="lobby-diagnostics-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4" /></svg></span>
+              <span><strong>Runtime diagnostics</strong><small>Performance, connection issues & error history</small></span>
+              <span className="lobby-diagnostics-open" aria-hidden="true">View diagnostics →</span>
+            </a>
+            <MaintainerSystemPanel endpoint={endpoint} />
+          </>}
           {lobbyError && <p className="auth-error" role="alert">{lobbyError}</p>}
           {accountError && <p className="auth-error" role="alert">{accountError}</p>}
           {createOfficeDialogOpen && <CreateOfficeDialog name={officeName} totalPeople={generatorTotalPeople} teamCount={generatorTeamCount}
@@ -3135,5 +3155,3 @@ export function OfficeApp() {
     </main>
   );
 }
-
-

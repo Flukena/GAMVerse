@@ -46,7 +46,16 @@
 .lobby-collection-pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--color-border); color: var(--color-muted); font-size: 12px; }
 .lobby-collection-pagination > div { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .lobby-collection-error { display: flex; align-items: center; gap: 12px; }
+.lobby-diagnostics-entry { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); color: var(--color-ink); text-decoration: none; transition: border-color .15s, background .15s; }
+.lobby-diagnostics-entry:hover { border-color: var(--color-primary); background: var(--color-surface-soft); }
+.lobby-diagnostics-entry:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.lobby-diagnostics-icon { display: grid; flex-shrink: 0; place-items: center; width: 42px; height: 42px; border-radius: 11px; background: var(--color-surface-soft); color: var(--color-primary); }
+.lobby-diagnostics-entry strong { display: block; font-size: 13px; font-weight: 750; }
+.lobby-diagnostics-entry small { display: block; margin-top: 5px; color: var(--color-muted); font-size: 11px; line-height: 1.5; }
+.lobby-diagnostics-open { margin-left: auto; color: var(--color-primary); font-size: 11px; font-weight: 700; white-space: nowrap; }
 @media (max-width: 600px) {
+  .lobby-diagnostics-entry { flex-wrap: wrap; padding: 16px; }
+  .lobby-diagnostics-open { margin-left: 56px; }
   :root .lobby-shell .lobby-content { padding: 24px 12px 32px; }
   :root .lobby-shell .lobby-panel { padding: 20px; }
   :root .lobby-shell .lobby-intro-heading .lobby-button { width: 100%; }
