@@ -3,6 +3,11 @@
   --workspace-glass: linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 88%, transparent), color-mix(in srgb, var(--color-surface-soft) 78%, transparent));
   --workspace-glass-edge: color-mix(in srgb, var(--color-border) 82%, transparent);
   --workspace-glass-shadow: 0 16px 42px color-mix(in srgb, var(--color-ink) 15%, transparent);
+  --workspace-chrome-surface: var(--workspace-glass);
+  --workspace-chrome-solid: var(--workspace-surface);
+  --workspace-chrome-edge: var(--workspace-glass-edge);
+  --workspace-chrome-shadow: var(--workspace-glass-shadow);
+  --workspace-chrome-filter: blur(14px) saturate(135%);
   --workspace-surface: var(--color-surface);
   --workspace-subtle: var(--color-surface-soft);
   --workspace-hover: color-mix(in srgb, var(--color-secondary) 14%, var(--color-surface));
@@ -24,30 +29,25 @@
   --office-accent: var(--workspace-accent);
   color: var(--workspace-ink);
 }
-:root .office-experience .office-rail { background: var(--workspace-glass); border-color: var(--workspace-glass-edge); }
-:root .office-experience .office-header,
-:root .office-experience .office-sidebar,
-:root .office-experience .character-drawer,
-:root .office-experience .bottom-dock,
-:root .office-experience .user-status-menu,
-:root .office-experience .reaction-picker-popover { background: var(--workspace-surface); color: var(--workspace-ink); border-color: var(--workspace-edge); }
-:root .office-experience .office-header,
-:root .office-experience .office-sidebar,
-:root .office-experience .character-drawer {
-  background: var(--workspace-glass);
+:root .office-experience :is(.office-rail, .office-header, .office-sidebar, .character-drawer,
+  .bottom-dock, .user-status-menu, .reaction-picker-popover) {
+  background: var(--workspace-chrome-surface);
   color: var(--workspace-ink);
-  border-color: var(--workspace-glass-edge);
-  box-shadow: var(--workspace-glass-shadow), inset 0 1px 0 color-mix(in srgb, var(--color-ink) 10%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(155%);
-  backdrop-filter: blur(24px) saturate(155%);
+  border-color: var(--workspace-chrome-edge);
+  box-shadow: var(--workspace-chrome-shadow);
+  -webkit-backdrop-filter: var(--workspace-chrome-filter);
+  backdrop-filter: var(--workspace-chrome-filter);
 }
+:root .office-experience .office-rail { border-right-color: var(--workspace-chrome-edge); }
+:root .office-experience .office-header { border-bottom-color: var(--workspace-chrome-edge); }
+:root .office-experience .office-sidebar { border-right-color: var(--workspace-chrome-edge); }
 :root .office-experience .office-rail-item,
 :root .office-experience .dock-button { color: var(--workspace-muted); }
 :root .office-experience .office-rail-item:hover,
 :root .office-experience .office-panel-header > button:hover,
 :root .office-experience .dock-button:hover:not(:disabled) { background: var(--workspace-hover); color: var(--workspace-ink); }
 :root .office-experience .office-rail-item.is-active,
-:root .office-experience .dock-button.active { background: var(--workspace-selected); color: var(--workspace-accent); }
+:root .office-experience .dock-button.active { background: var(--workspace-selected); color: var(--workspace-ink); }
 :root .office-experience .office-space-card { background: transparent; color: var(--workspace-ink); }
 :root .office-experience .office-rail-brand { color: var(--workspace-accent); }
 :root .office-experience .settings-character-summary,
@@ -139,6 +139,28 @@
 .office-theme-choice-copy strong { color: var(--workspace-ink); font-size: 12px; }
 .office-theme-choice-copy small { color: var(--workspace-muted); font-size: 10px; }
 .office-theme-selected-mark { color: var(--workspace-accent); font-size: 16px; }
+@media (max-width: 720px) {
+  .workspace-dialog.settings-dialog .settings-dialog-body { grid-template-columns: minmax(0, 1fr); }
+  .workspace-dialog.settings-dialog .settings-section-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .workspace-dialog.settings-dialog .settings-section-nav button { min-width: 0; padding-inline: 4px; white-space: nowrap; }
+  .workspace-dialog.settings-dialog .settings-section-content { box-sizing: border-box; width: 100%; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root .office-experience :is(.office-rail, .office-header, .office-sidebar, .character-drawer,
+    .bottom-dock, .user-status-menu, .reaction-picker-popover) {
+    background: var(--workspace-chrome-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root .office-experience :is(.office-rail, .office-header, .office-sidebar, .character-drawer,
+    .bottom-dock, .user-status-menu, .reaction-picker-popover) {
+    background: var(--workspace-chrome-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .workspace-dialog, .workspace-dialog *, .office-rail *, .office-header * { scroll-behavior: auto; transition: none; animation: none; }
 }
