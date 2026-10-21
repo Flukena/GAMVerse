@@ -138,3 +138,26 @@ test("name clearance and foreground indicators track the scaled character at bot
     assert.ok(Number(label.args[1]) + Number(label.args[3]) < characterTopPx, "name stays above the scaled full body");
   }
 });
+
+test("covered occupants lose only their individual names; open/local names and indicators stay", () => {
+  const alice = player();
+  const bob = { ...player(), x: 10, username: "bob", displayName: "Bob", handRaised: true };
+  const players = new Map([["alice", alice], ["bob", bob]]);
+  for (const presentation of ["simplified", "immersive"] as const) {
+    const draw = (hiddenNameIds: ReadonlySet<string>) => {
+      const drawing = drawingContext();
+      drawMap2dDynamic(drawing.ctx, projection, players, "alice", new Set(["bob"]),
+        [{ sessionId: "bob", text: "Hello", expiresAtMs: 100 }], 0, undefined, presentation, [], hiddenNameIds);
+      return drawing.calls;
+    };
+    const open = draw(new Set());
+    const covered = draw(new Set(["bob"]));
+    const text = covered.filter(call => call.method === "fillText").map(call => call.args[0]);
+    assert.ok(text.includes("Alice"));
+    assert.equal(text.includes("Bob"), false);
+    assert.ok(text.includes("✋"));
+    assert.ok(text.includes("Hello"));
+    assert.deepEqual(covered.filter(call => call.method === "arc"), open.filter(call => call.method === "arc"), "status/speaking/avatar indicators remain intact");
+    assert.ok(open.some(call => call.method === "fillText" && call.args[0] === "Bob"), "name returns when room opens");
+  }
+});

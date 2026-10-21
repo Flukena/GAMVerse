@@ -1,3 +1,5 @@
+import { coveredZones, isCoveredPosition, ZoneVisibleLayout } from "../zoneVisibility";
+import { drawMap2dZoneRoofs } from "./map2dZoneRoofs";
 import type { Map2dPresentation } from "./map2dPresentation";
 import { drawMap2dRoomLabels } from "./map2dRoomLabels";
 import type { RoomLayout, RoomLayoutProp } from "@gammyverse/shared";
@@ -33,6 +35,7 @@ export interface Map2dListener {
 }
 export type Map2dFrame = {
   presentation?: Map2dPresentation;
+  editing?: boolean;
   visible: boolean;
   view: "2d" | "3d";
   layout: RoomLayout | null;
@@ -69,6 +72,8 @@ export class Map2dRenderer {
   private state: Map2dFrame | null = null;
   private readonly playerFrames = new Map2dPlayerFrames();
   private readonly changes = new Map2dFrameChanges();
+  private readonly zoneLayout = new ZoneVisibleLayout();
+  private previousEditing = false;
   private staticLayoutSource: RoomLayout | null | undefined;
   private staticVehicleIds = "";
   private staticLayout: RoomLayout | null = null;
@@ -193,6 +198,8 @@ export class Map2dRenderer {
       this.changes.invalidate();
       return;
     }
+    if (this.previousEditing !== Boolean(state.editing)) this.changes.invalidate();
+    this.previousEditing = Boolean(state.editing);
     const playersChanged = this.playerFrames.update(state.players, state.localId, state.deltaS);
     writeMap2dFollowProjection(this.projection, state.projection, Boolean(state.following),
       state.localId ? this.playerFrames.players.get(state.localId) : undefined);
@@ -209,6 +216,8 @@ export class Map2dRenderer {
     ctx.setTransform(p.dpr, 0, 0, p.dpr, 0, 0);
     ctx.fillStyle = MAP2D_COLORS.outside;
     ctx.fillRect(0, 0, p.widthPx, p.heightPx);
+    const roofZones = coveredZones(state.layout?.zones ?? [], state.localId ? state.players.get(state.localId) : undefined, state.editing);
+    const visibleLayout = this.zoneLayout.update(state.layout, roofZones);
     const movingVehicleProps: RoomLayoutProp[] = [];
     const movingVehicleIds = new Set<string>();
     if (state.layout) {
@@ -219,21 +228,22 @@ export class Map2dRenderer {
         if (!prop) continue;
         movingVehicleIds.add(player.vehiclePropId);
         const driving = Boolean(player.vehicleId);
-        movingVehicleProps.push({
+        const movedProp = {
           ...prop,
           x: driving ? player.x : player.vehiclePropX ?? prop.x,
           z: driving ? player.z : player.vehiclePropZ ?? prop.z,
           rotation: driving ? player.rotation : player.vehiclePropRotation ?? prop.rotation,
-        });
+        };
+        if (!isCoveredPosition(movedProp, roofZones)) movingVehicleProps.push(movedProp);
       }
     }
     const vehicleIds = [...movingVehicleIds].sort().join("|");
-    if (this.staticLayoutSource !== state.layout || this.staticVehicleIds !== vehicleIds) {
-      this.staticLayoutSource = state.layout;
+    if (this.staticLayoutSource !== visibleLayout || this.staticVehicleIds !== vehicleIds) {
+      this.staticLayoutSource = visibleLayout;
       this.staticVehicleIds = vehicleIds;
-      this.staticLayout = state.layout && movingVehicleIds.size
-        ? { ...state.layout, props: state.layout.props.filter(prop => !movingVehicleIds.has(prop.id)) }
-        : state.layout;
+      this.staticLayout = visibleLayout && movingVehicleIds.size
+        ? { ...visibleLayout, props: visibleLayout.props.filter(prop => !movingVehicleIds.has(prop.id)) }
+        : visibleLayout;
     }
     const visibleProps = [...(this.staticLayout?.props ?? []), ...movingVehicleProps];
     this.staticLayer.update(
@@ -245,7 +255,6 @@ export class Map2dRenderer {
       state.presentation,
     );
     this.staticLayer.blit(ctx, p);
-    drawMap2dRoomLabels(ctx, p, state.layout?.zones ?? []);
     if (state.destination) drawMap2dDestination(ctx, p, state.destination);
     drawMap2dInteraction(
       ctx,
@@ -264,7 +273,10 @@ export class Map2dRenderer {
       this.portraits,
       state.presentation,
       movingVehicleProps,
+      new Set([...state.players].filter(([, player]) => isCoveredPosition(player, roofZones)).map(([id]) => id)),
     );
+    drawMap2dZoneRoofs(ctx, p, roofZones, state.players.values());
+    drawMap2dRoomLabels(ctx, p, state.layout?.zones ?? []);
   }
   dispose(): void {
     this.staticLayer.dispose();

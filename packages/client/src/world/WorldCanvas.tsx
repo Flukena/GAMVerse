@@ -41,7 +41,9 @@ import type { Map2dDecoration } from "./map2d/map2dDynamicLayer";
 import { campusOverviewMapScalePxPerM } from "./map2d/map2dProjection";
 import { clientRuntimeMetrics } from "./clientRuntimeMetrics";
 import { civicRoomFloorColor, makeCivicParkGround, makeEastFootballFieldVisual, makeWestPublicParkVisual } from "./civicParkSurface";
-import { PROP_MODEL_LOAD_BATCH_SIZE, PROP_RENDER_CULL_INTERVAL_MS, shouldLoadPropModel, shouldRenderDistanceCulledProp } from "./propDistanceCulling";
+import { PropModelVisibility } from "./propModelVisibility";
+import { coveredZones, isCoveredPosition, isInsideZone } from "./zoneVisibility";
+import { ZoneRoofs } from "./zoneRoofs";
 import { RoadsideSceneryVisibility } from "./roadsideScenery";
 import { createInstancedSceneryBatches, isInstancedScenery } from "./instancedScenery";
 
@@ -1274,9 +1276,13 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     // authoritative server map remain complete even when their model is far away.
     const distanceCulledPropVisuals: THREE.Object3D[] = [];
     const roadsideScenery = new RoadsideSceneryVisibility(roomLayout?.props ?? []);
-    let nextPropCullAtMs = 0;
+    const propModelVisibility = new PropModelVisibility();
+    const mapOffset = { x: mapWorld.width / 2, z: mapWorld.depth / 2 };
+    const zoneRoofs = new ZoneRoofs(roomLayout?.zones ?? [], host, mapOffset, roomLayout?.walls ?? []);
+    campusMapProps.add(zoneRoofs.root);
+    for (const roof of zoneRoofs.root.children) cameraOcclusion.register(roof);
     const deferredPropModelLoads: Array<{ propId: string; position: THREE.Vector3; started: boolean; start: () => void }> = [];
-    let nextPropModelLoadAtMs = 0;
+
     const movableVehicleEditHandles = new Map<string, THREE.Object3D[]>();
     const trackMovableVehicleHandle = (propId: string, object: THREE.Object3D) => {
       const handles = movableVehicleEditHandles.get(propId) ?? [];
@@ -1843,12 +1849,13 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       const sceneryByAsset = new Map<string, RoomLayoutProp[]>();
       for (const prop of roomLayout.props) {
         const catalog = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
-        if (!isInstancedScenery(catalog)) continue;
+        if (!isInstancedScenery(catalog) || roomLayout.zones.some(zone => isInsideZone(prop, zone))) continue;
         const placements = sceneryByAsset.get(prop.asset) ?? [];
         placements.push(prop);
         sceneryByAsset.set(prop.asset, placements);
       }
       const instancedSceneryAssets = new Set([...sceneryByAsset].filter(([, props]) => props.length >= 4).map(([asset]) => asset));
+      const instancedSceneryIds = new Set([...sceneryByAsset].filter(([asset]) => instancedSceneryAssets.has(asset)).flatMap(([, props]) => props.map(prop => prop.id)));
       for (const prop of roomLayout.props) {
         const catalog = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset);
         // Older saved maps may still contain individual road tiles. The
@@ -1922,7 +1929,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
         // Driveable props are rendered by the vehicle layer so they can be
         // hidden while occupied and reappear at their last parked position.
-        if (!catalog?.vehicleId && !instancedSceneryAssets.has(prop.asset)) {
+        if (!catalog?.vehicleId && !instancedSceneryIds.has(prop.id)) {
           const position = new THREE.Vector3(prop.x + mapWorld.width / 2, prop.elevation ?? 0, prop.z + mapWorld.depth / 2);
           const deferredLoad = { propId: prop.id, position, started: false, start: () => {} };
           deferredLoad.start = () => {
@@ -1950,7 +1957,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
               propPivot.add(object);
               cacheStaticModelLocalMatrices(object);
               cacheLocalMatrix(propPivot);
-              propPivot.visible = roadsideScenery.visibilityFor(prop.id) ?? true;
+              propPivot.visible = !isCoveredPosition(prop, coveredZones(roomLayout.zones, localSessionIdRef.current ? playersRef.current.get(localSessionIdRef.current) : undefined, mapEditModeRef.current || buildModeRef.current)) && (roadsideScenery.visibilityFor(prop.id) ?? true);
               campusMapProps.add(propPivot);
               distanceCulledPropVisuals.push(propPivot);
               if (prop.collision) cameraOcclusion.register(propPivot);
@@ -3476,49 +3483,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       camera.position.copy(visiblePose.position);
       camera.lookAt(visiblePose.lookAt);
       camera.updateMatrixWorld(true);
-      if (now >= nextPropModelLoadAtMs) {
-        nextPropModelLoadAtMs = now + PROP_RENDER_CULL_INTERVAL_MS;
-        roadsideScenery.update(localPlayerState, cameraRoomKeyRef.current, editing);
-        let remainingLoads = (mapEditModeRef.current || buildModeRef.current) ? PROP_MODEL_LOAD_BATCH_SIZE * 4 : PROP_MODEL_LOAD_BATCH_SIZE;
-        if (mapEditModeRef.current || buildModeRef.current) {
-          for (const pending of deferredPropModelLoads) {
-            if (remainingLoads === 0) break;
-            if (pending.started) continue;
-            pending.start();
-            remainingLoads -= 1;
-          }
-        } else {
-          // Prioritise the closest props, so the area at the centre of the
-          // screen fills first rather than following the saved props' order.
-          const closest: Array<{ pending: typeof deferredPropModelLoads[number]; distanceSquared: number }> = [];
-          for (const pending of deferredPropModelLoads) {
-            if (pending.started || !(roadsideScenery.visibilityFor(pending.propId) ?? shouldLoadPropModel(pending.position, visiblePose.lookAt))) continue;
-            const dx = pending.position.x - visiblePose.lookAt.x;
-            const dz = pending.position.z - visiblePose.lookAt.z;
-            const candidate = { pending, distanceSquared: dx * dx + dz * dz };
-            const insertAt = closest.findIndex((entry) => candidate.distanceSquared < entry.distanceSquared);
-            if (insertAt === -1) {
-              if (closest.length < remainingLoads) closest.push(candidate);
-            } else {
-              closest.splice(insertAt, 0, candidate);
-              if (closest.length > remainingLoads) closest.pop();
-            }
-          }
-          for (const candidate of closest) candidate.pending.start();
-        }
-      }
-      if (now >= nextPropCullAtMs) {
-        nextPropCullAtMs = now + PROP_RENDER_CULL_INTERVAL_MS;
-        const cullingDisabled = mapEditModeRef.current || buildModeRef.current;
-        for (const visual of distanceCulledPropVisuals) {
-          if (cullingDisabled) {
-            visual.visible = true;
-            continue;
-          }
-          visual.visible = roadsideScenery.visibilityFor(visual.userData.officeMapPropId)
-            ?? shouldRenderDistanceCulledProp(visual.position, visiblePose.lookAt, visual.visible);
-        }
-      }
+      const roofZones = coveredZones(roomLayout?.zones ?? [], localPlayerState, editing);
+      propModelVisibility.update(now, editing, localPlayerState, cameraRoomKeyRef.current, visiblePose.lookAt,
+        roadsideScenery, deferredPropModelLoads, distanceCulledPropVisuals, roofZones, mapOffset);
+      for (const parked of parkedVehicleGroups.values()) parked.visible &&= !isCoveredPosition({ x: parked.position.x - mapOffset.x, z: parked.position.z - mapOffset.z }, roofZones);
       previousCameraPose = pose;
       previousCameraMode = frame.mode;
       previousCameraWorldKey = previousWorldKeyRef.current;
@@ -3685,6 +3653,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         placementGhost.position.set(placementGhostPosition.x, placementGhostElevation, placementGhostPosition.z);
       }
       const showMap2d = cameraStateRef.current.mode === "map2d";
+      zoneRoofs.update(roofZones, players.values(), camera, !showMap2d && campusOverviewRef.current);
       renderer.domElement.style.opacity = showMap2d ? "0" : "1";
       if (map2dViewRef) map2dViewRef.current = showMap2d;
       const locate = locateRequestRef?.current;
@@ -3728,7 +3697,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         const isDriving = Boolean(player.vehicleId);
         const nameAnchor = isDriving ? vehiclePositions.get(id) : avatars.get(id)?.position;
         const nameHeight = isDriving ? VEHICLE_NAME_TAG_HEIGHT_M : CHARACTER_NAME_TAG_HEIGHT_M;
-        if (!nameAnchor || showMap2d || firstPersonViewRef.current) { if (label.style.display !== "none") label.style.display = "none"; continue; }
+        if (!nameAnchor || showMap2d || firstPersonViewRef.current || (campusOverviewRef.current && isCoveredPosition(player, roofZones))) { if (label.style.display !== "none") label.style.display = "none"; continue; }
         const projected = vehicleNameProjection.set(nameAnchor.x, nameAnchor.y + nameHeight, nameAnchor.z).project(camera);
         const visible = projected.z >= -1 && projected.z <= 1 && Math.abs(projected.x) <= 1.05 && Math.abs(projected.y) <= 1.05;
         const display = visible ? "block" : "none";
@@ -3741,7 +3710,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
       }
       for (const [id, label] of vehicleNameLabels) if (!playersRef.current.has(id)) { label.remove(); vehicleNameLabels.delete(id); }
-      map2dCenterRef.current = map2dRenderer.frame({ presentation: mapPresentationRef.current, visible: showMap2d, following: cameraStateRef.current.following, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
+      map2dCenterRef.current = map2dRenderer.frame({ presentation: mapPresentationRef.current, editing, visible: showMap2d, following: cameraStateRef.current.following, view: cameraStateRef.current.view, layout: roomLayout, widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
         projection: { center: map2dCenterRef.current, pxPerM: cameraStateRef.current.map2dScalePxPerM, widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
         players: playersRef.current, localId, speaking: speakingUsernamesRef?.current ?? new Set<string>(), decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs: performance.now(), deltaS: delta, destination: travelFeedbackRef.current?.destination ?? null }) ?? map2dCenterRef.current;
       socialOverlay.frame({ camera, players: playersRef.current, decorations: map2dDecorationsRef?.current ?? [], localId, layout: roomLayout, offsetX: campusOverviewRef.current ? mapWorld.width / 2 : 0, offsetZ: campusOverviewRef.current ? mapWorld.depth / 2 : 0, visible: !showMap2d, nowMs: performance.now() });
@@ -3767,6 +3736,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       draggingMapProp = null;
       cameraPositionRef.current = camera.position.clone();
       cameraOcclusion.dispose();
+      zoneRoofs.dispose();
       disposed = true;
       zoneLockIconsRef.current.clear();
       cancelAnimationFrame(animationFrame);

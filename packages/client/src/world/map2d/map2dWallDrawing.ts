@@ -2,7 +2,7 @@ import { roomWallSolidSegments, type RoomLayout, type RoomLayoutWall, type RoomL
 import { worldToScreen, type Map2dProjection } from "./map2dProjection";
 import { map2dWallFootprint, map2dDoorFootprint, map2dWallThicknessPx } from "./map2dStaticDetail";
 
-const WALL_CAP_COLOR = "#e4e7e2";
+export const WALL_CAP_COLOR = "#e4e7e2";
 const WALL_EDGE_COLOR = "#7e9190";
 const WALL_SHADOW_COLOR = "rgba(36, 56, 55, 0.16)";
 const WALL_SHADOW_OFFSET_PX = 3;
