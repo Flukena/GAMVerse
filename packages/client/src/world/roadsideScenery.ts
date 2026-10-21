@@ -1,8 +1,13 @@
 export const ROADSIDE_CHUNK_SIZE_M = 64;
-export const ROADSIDE_RENDER_DISTANCE_M = 100;
+export const ROADSIDE_FRONT_M = 150;
+export const ROADSIDE_SIDE_M = 100;
+export const ROADSIDE_BACK_M = 50;
+// Added to every semi-axis of the area while a prop is already visible.
 export const ROADSIDE_RENDER_HYSTERESIS_M = 15;
 
 type Position = { x: number; z: number };
+/** `rotation` is the server player facing in radians; forward is (sin, cos) on (x, z). */
+export type RoadsideCharacter = Position & { rotation?: number };
 type RoadsidePlacement = Position & { id: string; width: number; depth: number; rotation: number };
 export type RoadsideBounds = { minX: number; maxX: number; minZ: number; maxZ: number };
 export type RoadsideChunk<Prop> = { key: string; bounds: RoadsideBounds; props: Prop[] };
@@ -30,9 +35,57 @@ export function groupRoadsideProps<Prop extends RoadsidePlacement>(props: readon
   return [...chunks.values()];
 }
 
+/** Smallest value of the area gauge over a segment half; the area is where the gauge is at most 1. */
+function minGaugeOnSegment(fA: number, lA: number, fB: number, lB: number, semiF: number, semiL: number, front: boolean) {
+  const fd = fB - fA;
+  const ld = lB - lA;
+  let lo = 0;
+  let hi = 1;
+  if (fd === 0) {
+    if (front ? fA < 0 : fA > 0) return Infinity;
+  } else {
+    const crossing = -fA / fd;
+    if (front === fd > 0) lo = Math.max(lo, crossing);
+    else hi = Math.min(hi, crossing);
+  }
+  if (lo > hi) return Infinity;
+  const gauge = (t: number) => ((fA + t * fd) / semiF) ** 2 + ((lA + t * ld) / semiL) ** 2;
+  const curvature = (fd / semiF) ** 2 + (ld / semiL) ** 2;
+  if (curvature === 0) return gauge(lo);
+  const vertex = -((fA * fd) / semiF ** 2 + (lA * ld) / semiL ** 2) / curvature;
+  return gauge(Math.min(hi, Math.max(lo, vertex)));
+}
+
+/** True when the footprint bounds touch the front/back half-ellipse area, each semi-axis grown by `growM`. */
+export function intersectsRoadsideArea(bounds: RoadsideBounds, character: RoadsideCharacter, growM: number) {
+  if (bounds.minX <= character.x && character.x <= bounds.maxX && bounds.minZ <= character.z && character.z <= bounds.maxZ) return true;
+  const sine = Math.sin(character.rotation ?? 0);
+  const cosine = Math.cos(character.rotation ?? 0);
+  const corners = [
+    [bounds.minX, bounds.minZ], [bounds.maxX, bounds.minZ], [bounds.maxX, bounds.maxZ], [bounds.minX, bounds.maxZ],
+  ].map(([x, z]) => {
+    const dx = x - character.x;
+    const dz = z - character.z;
+    return { f: dx * sine + dz * cosine, l: dx * cosine - dz * sine };
+  });
+  const semiL = ROADSIDE_SIDE_M + growM;
+  const semiFront = ROADSIDE_FRONT_M + growM;
+  const semiBack = ROADSIDE_BACK_M + growM;
+  for (let index = 0; index < corners.length; index += 1) {
+    const a = corners[index];
+    const b = corners[(index + 1) % corners.length];
+    if (Math.min(
+      minGaugeOnSegment(a.f, a.l, b.f, b.l, semiFront, semiL, true),
+      minGaugeOnSegment(a.f, a.l, b.f, b.l, semiBack, semiL, false),
+    ) <= 1) return true;
+  }
+  return false;
+}
+
+/** Conservative early reject: the circle of the longest reach, so no prop of the directional area is lost. */
 export function shouldRenderRoadsideChunk(
   bounds: RoadsideBounds,
-  character: Position | undefined,
+  character: RoadsideCharacter | undefined,
   wasVisible: boolean,
   cameraRoomKey: string,
   editing: boolean,
@@ -40,8 +93,19 @@ export function shouldRenderRoadsideChunk(
   if (editing || cameraRoomKey !== "lobby" || !character) return true;
   const dx = Math.max(bounds.minX - character.x, 0, character.x - bounds.maxX);
   const dz = Math.max(bounds.minZ - character.z, 0, character.z - bounds.maxZ);
-  const radius = ROADSIDE_RENDER_DISTANCE_M + (wasVisible ? ROADSIDE_RENDER_HYSTERESIS_M : 0);
+  const radius = ROADSIDE_FRONT_M + (wasVisible ? ROADSIDE_RENDER_HYSTERESIS_M : 0);
   return dx * dx + dz * dz <= radius * radius;
+}
+
+export function shouldRenderRoadsideProp(
+  bounds: RoadsideBounds,
+  character: RoadsideCharacter | undefined,
+  wasVisible: boolean,
+  cameraRoomKey: string,
+  editing: boolean,
+) {
+  if (editing || cameraRoomKey !== "lobby" || !character) return true;
+  return intersectsRoadsideArea(bounds, character, wasVisible ? ROADSIDE_RENDER_HYSTERESIS_M : 0);
 }
 
 export class RoadsideSceneryVisibility {
@@ -57,14 +121,14 @@ export class RoadsideSceneryVisibility {
     for (const chunk of this.chunks) for (const prop of chunk.props) this.propStates.set(prop.id, { bounds: groupRoadsideProps([prop])[0].bounds, visible: false });
   }
 
-  update(character: Position | undefined, cameraRoomKey: string, editing: boolean) {
+  update(character: RoadsideCharacter | undefined, cameraRoomKey: string, editing: boolean) {
     this.active = Boolean(character && cameraRoomKey === "lobby" && !editing);
     for (const chunk of this.chunks) {
       const chunkVisible = shouldRenderRoadsideChunk(chunk.bounds, character, chunk.visible, cameraRoomKey, editing);
       let anyVisible = false;
       for (const prop of chunk.props) {
         const state = this.propStates.get(prop.id)!;
-        state.visible = chunkVisible && shouldRenderRoadsideChunk(state.bounds, character, state.visible, cameraRoomKey, editing);
+        state.visible = chunkVisible && shouldRenderRoadsideProp(state.bounds, character, state.visible, cameraRoomKey, editing);
         anyVisible ||= state.visible;
       }
       chunk.visible = this.active ? anyVisible : chunkVisible;

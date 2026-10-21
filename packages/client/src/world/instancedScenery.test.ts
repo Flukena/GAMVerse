@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as THREE from "three";
 import { createInstancedSceneryBatches, isInstancedScenery } from "./instancedScenery";
-import { ROADSIDE_RENDER_DISTANCE_M as R, RoadsideSceneryVisibility } from "./roadsideScenery";
+import { ROADSIDE_FRONT_M as R, RoadsideSceneryVisibility } from "./roadsideScenery";
 
 for (const farId of ["campus-landscape-3", "campus-city-tree-south-1--1-58", "campus-civic-park-tree-1"]) {
   test(`chunked ${farId} retains instancing, source transforms, resources and far-prop culling`, () => {
@@ -43,18 +43,18 @@ for (const farId of ["campus-landscape-3", "campus-city-tree-south-1--1-58", "ca
   });
 }
 
-test("instances beyond the render distance are dropped individually inside a chunk that is partly in range", () => {
+test("instances outside the directional area are dropped individually inside a chunk that is partly in range", () => {
   const template = new THREE.Group();
   template.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial()));
-  const props = [{ id: "near", x: R - 10, z: 0 }, { id: "far", x: R + 40, z: 0 }]
+  const props = [{ id: "near", x: 0, z: R - 10 }, { id: "far", x: 0, z: R + 40 }, { id: "beside", x: R - 10, z: 0 }]
     .map(prop => ({ ...prop, asset: "tree", width: 2, depth: 2, rotation: 0, collision: true }));
   const roadside = new RoadsideSceneryVisibility(props);
-  roadside.update({ x: 0, z: 0 }, "lobby", false);
+  roadside.update({ x: 0, z: 0, rotation: 0 }, "lobby", false);
   const [batch] = createInstancedSceneryBatches(template, props, { width: 1000, depth: 800 }, roadside);
   assert.equal((batch.children[0] as THREE.InstancedMesh).count, 1);
   const kept = new THREE.Matrix4();
   (batch.children[0] as THREE.InstancedMesh).getMatrixAt(0, kept);
-  assert.equal(kept.elements[12], R - 10 + 500);
+  assert.equal(kept.elements[14], R - 10 + 400);
 });
 
 test("instancing eligibility still excludes interactive furniture and vehicles", () => {

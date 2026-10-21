@@ -8,7 +8,7 @@ export class PropModelVisibility {
   private nextLoadAtMs = 0;
   private nextCullAtMs = 0;
   private coveredKey = "";
-  update(now: number, editing: boolean, local: ZonePosition | undefined, roomKey: string, focus: ZonePosition,
+  update(now: number, editing: boolean, local: (ZonePosition & { rotation?: number }) | undefined, roomKey: string, focus: ZonePosition,
     roadsideScenery: RoadsideSceneryVisibility, deferredPropModelLoads: readonly DeferredPropModel[], distanceCulledPropVisuals: readonly Object3D[],
     covered: readonly RoomLayoutZone[], offset: ZonePosition): void {
     const key = JSON.stringify(covered.map(zone => zone.id));

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { generateCampusMap } from "../../../shared/src/campusMapGenerator.js";
 import {
-  groupRoadsideProps, ROADSIDE_RENDER_DISTANCE_M as R, ROADSIDE_RENDER_HYSTERESIS_M as H,
-  RoadsideSceneryVisibility, shouldRenderRoadsideChunk,
+  groupRoadsideProps, intersectsRoadsideArea, ROADSIDE_BACK_M as BACK, ROADSIDE_FRONT_M as R, ROADSIDE_RENDER_HYSTERESIS_M as H,
+  ROADSIDE_SIDE_M as SIDE, RoadsideSceneryVisibility, shouldRenderRoadsideChunk, shouldRenderRoadsideProp,
 } from "./roadsideScenery";
 import { shouldLoadPropModel, shouldRenderDistanceCulledProp } from "./propDistanceCulling";
 
@@ -95,8 +95,8 @@ test("instanced placements split by spatial cell for any id; unknown ids stay in
   ]);
 });
 
-test("public zone hides every prop family beyond the render distance of the character; other zones use the camera rule", () => {
-  const roadside = new RoadsideSceneryVisibility([prop("campus-civic-park-tree-1", R - 10), prop("desk-1", R + 500), prop("campus-city-building-north-1", R + 50)]);
+test("public zone hides every prop family outside the directional area of the character; other zones use the camera rule", () => {
+  const roadside = new RoadsideSceneryVisibility([prop("campus-civic-park-tree-1", 0, R - 10), prop("desk-1", 0, R + 500), prop("campus-city-building-north-1", R - 10)]);
   roadside.update(observer, "lobby", false);
   assert.equal(roadside.visibilityFor("campus-civic-park-tree-1"), true);
   assert.equal(roadside.visibilityFor("desk-1"), false);
@@ -109,16 +109,108 @@ test("public zone hides every prop family beyond the render distance of the char
   assert.equal(shouldRenderDistanceCulledProp({ x: 190, z: 0 }, observer, false), false);
 });
 
-test("no generated prop of the 560x292 campus stays visible beyond the render distance of a mid-map character", () => {
+test("no generated prop of the 560x292 campus is visible outside the grown directional area, for any facing", () => {
   const { layout } = generateCampusMap({ totalPeople: 150, peoplePerTeam: 10, teamCount: 15 });
-  const roadside = new RoadsideSceneryVisibility(layout.props);
-  roadside.update(observer, "lobby", false);
-  const visible = layout.props.filter(item => roadside.visibilityFor(item.id));
-  assert.ok(visible.length > 0 && visible.length < layout.props.length);
-  for (const item of visible) {
-    const reach = Math.max(item.width, item.depth) / 2 * Math.SQRT2;
-    assert.ok(Math.hypot(item.x, item.z) - reach <= R, item.id);
+  for (const rotation of [0, Math.PI / 2, Math.PI, -Math.PI / 2, 0.7]) {
+    const character = { ...observer, rotation };
+    const roadside = new RoadsideSceneryVisibility(layout.props);
+    roadside.update(character, "lobby", false);
+    const visible = layout.props.filter(item => roadside.visibilityFor(item.id));
+    assert.ok(visible.length > 0 && visible.length < layout.props.length);
+    for (const item of layout.props) {
+      const itemBounds = groupRoadsideProps([item])[0].bounds;
+      assert.equal(roadside.visibilityFor(item.id), intersectsRoadsideArea(itemBounds, character, 0), item.id);
+      const reach = Math.max(item.width, item.depth) / 2 * Math.SQRT2;
+      if (roadside.visibilityFor(item.id)) assert.ok(Math.hypot(item.x, item.z) - reach <= R + H, item.id);
+    }
   }
+});
+
+const at = (x: number, z: number, rotation = 0) => ({ x, z, rotation, bounds: { minX: x - 1, maxX: x + 1, minZ: z - 1, maxZ: z + 1 } });
+const seen = (x: number, z: number, rotation: number, was = false) =>
+  shouldRenderRoadsideProp(at(x, z).bounds, { x: 0, z: 0, rotation }, was, "lobby", false);
+
+test("area constants are 150 front, 100 side, 50 back, with a 15 unit exit margin", () => {
+  assert.deepEqual([R, SIDE, BACK, H], [150, 100, 50, 15]);
+});
+
+test("facing 0 looks along +z: front 150, sides 100, back 50 by footprint edge", () => {
+  assert.equal(seen(0, 151, 0), true);
+  assert.equal(seen(0, 151.01, 0), false);
+  assert.equal(seen(101, 0, 0), true);
+  assert.equal(seen(101.01, 0, 0), false);
+  assert.equal(seen(-101, 0, 0), true);
+  assert.equal(seen(-101.01, 0, 0), false);
+  assert.equal(seen(0, -51, 0), true);
+  assert.equal(seen(0, -51.01, 0), false);
+});
+
+test("area is two half-ellipses: diagonal points use the ellipse of their half", () => {
+  assert.equal(seen(70, 100, 0), true);
+  assert.equal(seen(80, 130, 0), false);
+  assert.equal(seen(70, -30, 0), true);
+  assert.equal(seen(80, -40, 0), false);
+});
+
+test("rotating the character rotates the area; a quarter turn sends the 150 front along +x", () => {
+  const quarter = Math.PI / 2;
+  assert.equal(seen(151, 0, quarter), true);
+  assert.equal(seen(151.01, 0, quarter), false);
+  assert.equal(seen(0, 101, quarter), true);
+  assert.equal(seen(0, 101.01, quarter), false);
+  assert.equal(seen(-51, 0, quarter), true);
+  assert.equal(seen(-51.01, 0, quarter), false);
+  assert.equal(seen(0, -150, Math.PI), true);
+  assert.equal(seen(0, -151.01, Math.PI), false);
+  assert.equal(seen(0, 51.01, Math.PI), false);
+});
+
+test("visible props stay until the area grown by the hysteresis, including after the character turns", () => {
+  assert.equal(seen(0, 151.01 + H - 0.02, 0, true), true);
+  assert.equal(seen(0, 151 + H + 0.01, 0, true), false);
+  assert.equal(seen(0, -51.01 - H + 0.02, 0, true), true);
+  assert.equal(seen(0, -51 - H - 0.01, 0, true), false);
+  assert.equal(seen(0, -60, Math.PI, false), true);
+  assert.equal(seen(0, -120, 0, false), false);
+  const roadside = new RoadsideSceneryVisibility([prop("campus-landscape-1", 0, 100)]);
+  roadside.update({ x: 0, z: 0, rotation: 0 }, "lobby", false);
+  assert.equal(roadside.visibilityFor("campus-landscape-1"), true);
+  roadside.update({ x: 0, z: 0, rotation: Math.PI }, "lobby", false);
+  assert.equal(roadside.visibilityFor("campus-landscape-1"), false);
+  roadside.update({ x: 0, z: 0, rotation: 0 }, "lobby", false);
+  roadside.update({ x: 0, z: -60, rotation: 0 }, "lobby", false);
+  assert.equal(roadside.visibilityFor("campus-landscape-1"), true);
+});
+
+test("a footprint that surrounds or crosses the area without a corner inside it is visible", () => {
+  const character = { x: 0, z: 0, rotation: 0 };
+  assert.equal(intersectsRoadsideArea({ minX: -500, maxX: 500, minZ: -500, maxZ: 500 }, character, 0), true);
+  assert.equal(intersectsRoadsideArea({ minX: -500, maxX: 500, minZ: 100, maxZ: 101 }, character, 0), true);
+  assert.equal(intersectsRoadsideArea({ minX: -500, maxX: 500, minZ: 151, maxZ: 152 }, character, 0), false);
+});
+
+test("chunk rejection never removes a chunk that holds a prop of the area, whatever the facing", () => {
+  for (const rotation of [0, 1, Math.PI / 2, 2.5, Math.PI, -2]) {
+    for (const [x, z] of [[0, 150], [150, 0], [-150, 0], [0, -150], [100, 110], [-80, -40]]) {
+      const forward = { x: Math.sin(rotation), z: Math.cos(rotation) };
+      const lateral = { x: Math.cos(rotation), z: -Math.sin(rotation) };
+      const px = (x * lateral.x + z * forward.x) * 0.99;
+      const pz = (x * lateral.z + z * forward.z) * 0.99;
+      const itemBounds = { minX: px - 1, maxX: px + 1, minZ: pz - 1, maxZ: pz + 1 };
+      const character = { x: 0, z: 0, rotation };
+      if (!intersectsRoadsideArea(itemBounds, character, 0)) continue;
+      assert.equal(shouldRenderRoadsideChunk(itemBounds, character, false, "lobby", false), true);
+    }
+  }
+  assert.equal(shouldRenderRoadsideChunk({ minX: 150.01, maxX: 160, minZ: -1, maxZ: 1 }, observer, false, "lobby", false), false);
+  assert.equal(shouldRenderRoadsideChunk({ minX: 150.01, maxX: 160, minZ: -1, maxZ: 1 }, observer, true, "lobby", false), true);
+});
+
+test("editing, nonpublic zones and a missing character show every prop", () => {
+  const far = at(900, 900).bounds;
+  assert.equal(shouldRenderRoadsideProp(far, { x: 0, z: 0, rotation: 0 }, false, "lobby", true), true);
+  assert.equal(shouldRenderRoadsideProp(far, { x: 0, z: 0, rotation: 0 }, false, "meeting-1", false), true);
+  assert.equal(shouldRenderRoadsideProp(far, undefined, false, "lobby", false), true);
 });
 
 test("negative coordinates use distinct floor-based cells and support props spanning the origin", () => {
