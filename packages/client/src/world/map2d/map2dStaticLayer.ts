@@ -1,4 +1,4 @@
-import { MAP2D_COLORS } from "./constants";
+import { CAMPUS_GRASS_COLOR, CAMPUS_STONE_COLOR } from "../zoneFloorColor";
 import { type RoomLayout } from "@gammyverse/shared";
 import {
   MAP2D_BITMAP_MAX_EDGE_PX,
@@ -73,7 +73,7 @@ export class Map2dStaticLayer {
     ctx.save();
     ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
     if (presentation === "immersive") new Map2dSurfaces(ctx, this.scalePxPerM).fill(this.canvas.width, this.canvas.height, null, Boolean(layout?.roadways?.length));
-    else { ctx.fillStyle = MAP2D_COLORS.floor; ctx.fillRect(-this.canvas.width / 2, -this.canvas.height / 2, this.canvas.width, this.canvas.height); }
+    else { ctx.fillStyle = `#${(layout?.roadways?.length ? CAMPUS_GRASS_COLOR : CAMPUS_STONE_COLOR).toString(16)}`; ctx.fillRect(-this.canvas.width / 2, -this.canvas.height / 2, this.canvas.width, this.canvas.height); }
     ctx.restore();
     if (!layout) return;
     if (presentation === "simplified") drawMap2dSimplified(ctx, p, layout);

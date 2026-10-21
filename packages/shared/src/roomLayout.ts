@@ -797,6 +797,7 @@ const ROOM_PROP_CATALOG_BASE: ReadonlyArray<RoomPropDefinition> = [
 
 const isShelfProp = (item: RoomPropDefinition) => !item.wallMounted && !item.group?.startsWith("Wall ·") && /shelf|bookcase|bookshelf/i.test(`${item.asset} ${item.label}`);
 const isSeatProp = (item: RoomPropDefinition) => /chair|stool|bench|sofa|couch/i.test(`${item.asset} ${item.label}`);
+export const isRoomPropBed = (asset: string) => asset === "kit:bedbunk" || asset === "kit:beddouble" || asset === "kit:bedsingle";
 const isSurfaceProp = (item: RoomPropDefinition) => /desk|table|counter/i.test(`${item.asset} ${item.label}`);
 const FINISHED_BUILDING_PROP_ASSETS = new Set([
   ..."abcdefghijklmnopqrst".split("").map((suffix) => `kit-city-kit-industrial-building-${suffix}`),
@@ -863,6 +864,7 @@ export const ROOM_PROP_CATALOG: ReadonlyArray<RoomPropDefinition> = [...ROOM_PRO
   };
   const shelf = isShelfProp(sizedItem);
   const seat = isSeatProp(sizedItem);
+  const bed = isRoomPropBed(sizedItem.asset);
   const surface = isSurfaceProp(sizedItem);
   const small = isSmallProp(sizedItem);
   const editorRole = roomPropEditorRole(sizedItem);
@@ -879,16 +881,17 @@ export const ROOM_PROP_CATALOG: ReadonlyArray<RoomPropDefinition> = [...ROOM_PRO
     placementClass: shelf ? "shelf" : seat ? "seat" : surface ? "surface" : small ? "small" : "floor",
     ...(shelf ? { supportsPlacement: "shelf-top" as const, stackable: true } : {}),
     ...(surface ? { supportsPlacement: "tabletop" as const } : {}),
-    ...(seat ? {
+    ...(seat || bed ? {
       interaction: "sit" as const,
       collisionWidth: blockFootprint.width,
       collisionDepth: blockFootprint.depth,
-      collisionScale: 0.9,
+      collisionScale: bed ? 1 : 0.9,
       collisionClearanceRadius: 0.2,
       // Seat surfaces sit well below the top of a chair/sofa model. A fixed
       // fraction of the complete model height was putting avatars above the
       // cushions, especially on low couches and benches.
-      seatHeight: /stoolbar/i.test(sizedItem.asset) ? 0.62
+      seatHeight: bed ? sizedItem.height * (sizedItem.asset === "kit:bedbunk" ? 0.27 : 0.69)
+        : /stoolbar/i.test(sizedItem.asset) ? 0.62
         : /sushi-stool/i.test(sizedItem.asset) ? 0.32
           // Kenney Furniture Kit seats are authored low relative to their
           // decorative backrests: e.g. chair.obj's cushion top is at 0.7 of
@@ -914,16 +917,17 @@ export type RoomPropSeatAnchor = { index: number; x: number; z: number; y: numbe
  */
 export function roomPropSeatAnchors(prop: RoomLayoutProp, definition = ROOM_PROP_CATALOG.find((item) => item.asset === prop.asset), renderedScale = 1): RoomPropSeatAnchor[] {
   if (definition?.interaction !== "sit") return [];
+  const bed = isRoomPropBed(prop.asset);
   const useX = prop.width >= prop.depth;
   const length = useX ? prop.width : prop.depth;
-  const capacity = Math.max(1, Math.min(12, Math.round(length)));
-  const spacing = capacity > 1 ? length / capacity : 0;
+  const capacity = bed ? (prop.asset === "kit:beddouble" ? 2 : 1) : Math.max(1, Math.min(12, Math.round(length)));
+  const spacing = capacity > 1 ? (bed ? prop.width / capacity : length / capacity) : 0;
   const cos = Math.cos(prop.rotation);
   const sin = Math.sin(prop.rotation);
   return Array.from({ length: capacity }, (_, index) => {
     const along = (index - (capacity - 1) / 2) * spacing;
-    const localX = useX ? along : 0;
-    const localZ = useX ? 0 : along;
+    const localX = bed || useX ? along : 0;
+    const localZ = bed || useX ? 0 : along;
     return {
       index,
       x: prop.x + localX * cos + localZ * sin,

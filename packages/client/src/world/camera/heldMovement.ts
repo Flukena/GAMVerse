@@ -1,4 +1,4 @@
-import { screenMovementToWorld, type MovementInput } from "@gammyverse/shared";
+import { screenMovementToWorld, shortestAngleDelta, type MovementInput } from "@gammyverse/shared";
 import { MAP2D_SCREEN_YAW_RAD } from "../map2d/constants";
 import { advanceLockedTurn, lockedMovementInput, recentLockedRotation, type LockedTurnState } from "./lockedMovement";
 
@@ -32,11 +32,18 @@ function heldDirection(keys: ReadonlySet<string>): HeldDirection {
 
 function lockedIntent(frame: HeldMovementFrame, direction: HeldDirection) {
   const rotationRad = frame.playerRotationRad ?? frame.cameraYawRad + Math.PI;
-  const lockedTurn = advanceLockedTurn(frame.lockedTurn, direction.right, rotationRad, frame.nowMs);
+  const backwardHeld = direction.forward < 0;
+  let turn = frame.lockedTurn;
+  if (backwardHeld && !turn?.backwardHeld) {
+    const headingRad = recentLockedRotation(turn, frame.nowMs) ?? rotationRad;
+    turn = { rotationRad: shortestAngleDelta(0, headingRad + Math.PI), direction: 0, lastStepAtMs: frame.nowMs, backwardHeld };
+  }
+  const steppedTurn = advanceLockedTurn(turn, direction.right, rotationRad, frame.nowMs);
+  const lockedTurn = steppedTurn ? { ...steppedTurn, backwardHeld } : null;
   const recentTurn = recentLockedRotation(lockedTurn, frame.nowMs);
   const moving = direction.right !== 0 || direction.forward !== 0 || recentTurn !== null;
   const input: MovementInput = moving
-    ? lockedMovementInput(direction.forward, rotationRad, recentTurn, direction.sprint)
+    ? lockedMovementInput(Math.abs(direction.forward), rotationRad, recentTurn, direction.sprint)
     : { x: 0, z: 0, sprint: false };
   return { input, lockedTurn };
 }

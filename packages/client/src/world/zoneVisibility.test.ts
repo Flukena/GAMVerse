@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { RoomLayout, RoomLayoutZone } from "@gammyverse/shared";
-import { coveredZones, isCoveredPosition, zoneOccupantRows, ZoneVisibleLayout, zoneRoofHeightM, DEFAULT_ZONE_ROOF_HEIGHT_M, zoneRoofColor } from "./zoneVisibility";
+import type { RoomLayoutZone } from "@gammyverse/shared";
+import { coveredZones, isCoveredPosition, zoneOccupantRows, zoneRoofHeightM, DEFAULT_ZONE_ROOF_HEIGHT_M, zoneRoofColor } from "./zoneVisibility";
 const room: RoomLayoutZone = { id: "room", name: "Room", kind: "private", x: 0, z: 0, width: 10, depth: 10, color: "#fff" };
 const restroom: RoomLayoutZone = { ...room, id: "wc", kind: "restroom", x: 20 };
 test("outside zones have roofs, local zone including restroom stays open", () => {
@@ -16,17 +16,6 @@ test("boundaries and overlapping zones do not put roofs over the local player", 
 test("editing opens all rooms and missing local presence covers all rooms", () => {
   assert.deepEqual(coveredZones([room], undefined), [room]);
   assert.deepEqual(coveredZones([room], undefined, true), []);
-});
-test("only props inside covered rooms are omitted; static layout is cached and restored", () => {
-  const inside = { id: "inside", x: 0, z: 0 };
-  const outside = { id: "outside", x: 15, z: 0 };
-  const source = { version: 1, zones: [room], props: [inside, outside], walls: [], doors: [] } as unknown as RoomLayout;
-  const cache = new ZoneVisibleLayout();
-  const hidden = cache.update(source, coveredZones([room], { x: 15, z: 0 }));
-  assert.deepEqual(hidden?.props, [outside]);
-  assert.equal(cache.update(source, [room]), hidden);
-  assert.equal(cache.update(source, []), source);
-  assert.deepEqual(source.props, [inside, outside]);
 });
 test("occupant names follow current position, preserve Unicode, and fall back to username", () => {
   assert.deepEqual(zoneOccupantRows(room, [

@@ -25,7 +25,7 @@ function drawWallSpan(ctx: CanvasRenderingContext2D, p: Map2dProjection, wall: R
     ctx.fillStyle = WALL_SHADOW_COLOR;
     ctx.fillRect(leftPx + offsetX, topPx + offsetY, widthPx, depthPx);
   }
-  ctx.fillStyle = WALL_CAP_COLOR;
+  ctx.fillStyle = wall.color ?? WALL_CAP_COLOR;
   ctx.fillRect(leftPx, topPx, widthPx, depthPx);
   ctx.strokeStyle = WALL_EDGE_COLOR;
   ctx.lineWidth = WALL_EDGE_WIDTH_PX;

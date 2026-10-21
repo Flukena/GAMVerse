@@ -1,8 +1,9 @@
 import { ROOM_PROP_CATALOG, type RoomLayoutProp } from "@gammyverse/shared";
 import { worldToScreen, type Map2dProjection } from "./map2dProjection";
-import { fitPropIconRect, MAP2D_DETAIL_PALETTE, map2dPropStyle } from "./map2dStaticDetail";
+import { MAP2D_DETAIL_PALETTE, map2dPropStyle } from "./map2dStaticDetail";
+import { drawMap2dPropImage } from "./map2dPropImageDrawing";
 import { map2dPropDetailVisible, map2dPropKind, type Map2dPropKind } from "./map2dPropVisual";
-import { propPreviewImages } from "./propPreviewImages";
+import { hasTopdownPropImage, propPreviewImages } from "./propPreviewImages";
 
 const PROP_DEFINITIONS = new Map(ROOM_PROP_CATALOG.map(item => [item.asset, item]));
 const OUTLINE_WIDTH_PX = 1;
@@ -131,6 +132,11 @@ const PROP_DRAWERS: Record<Exclude<Map2dPropKind, "fallback">, (ctx: CanvasRende
 };
 function drawFallback(ctx: CanvasRenderingContext2D, prop: RoomLayoutProp, widthPx: number, depthPx: number) {
   const definition = PROP_DEFINITIONS.get(prop.asset);
+  const image = propPreviewImages.get(definition);
+  if (hasTopdownPropImage(definition) && image) {
+    drawMap2dPropImage(ctx, image, widthPx, depthPx);
+    return;
+  }
   const style = map2dPropStyle(definition?.group ?? "", prop.asset);
   ctx.fillStyle = style.color;
   ctx.strokeStyle = MAP2D_DETAIL_PALETTE.border;
@@ -138,10 +144,8 @@ function drawFallback(ctx: CanvasRenderingContext2D, prop: RoomLayoutProp, width
   if (style.circle) ctx.arc(0, 0, Math.min(widthPx, depthPx) * HALF_RATIO, 0, FULL_CIRCLE_RAD);
   else ctx.rect(-widthPx * HALF_RATIO, -depthPx * HALF_RATIO, widthPx, depthPx);
   ctx.fill(); ctx.stroke();
-  const image = propPreviewImages.get(definition);
   if (!image) return;
-  const icon = fitPropIconRect(image.naturalWidth, image.naturalHeight, widthPx, depthPx);
-  ctx.drawImage(image, icon.x, icon.y, icon.width, icon.height);
+  drawMap2dPropImage(ctx, image, widthPx, depthPx);
 }
 function drawInteractionBadge(ctx: CanvasRenderingContext2D, screenX: number, screenY: number, widthPx: number, depthPx: number) {
   const offsetPx = Math.min(INTERACTION_BADGE_OFFSET_MAX_PX, Math.max(widthPx, depthPx) * INTERACTION_BADGE_OFFSET_RATIO);
@@ -165,7 +169,11 @@ export function drawMap2dProp(ctx: CanvasRenderingContext2D, p: Map2dProjection,
   ctx.translate(screen.x, screen.y);
   ctx.rotate(-prop.rotation);
   ctx.lineWidth = OUTLINE_WIDTH_PX;
-  if (kind === "fallback") drawFallback(ctx, prop, widthPx, depthPx);
+  const definition = PROP_DEFINITIONS.get(prop.asset);
+  const topdownImage = hasTopdownPropImage(definition) ? propPreviewImages.get(definition) : null;
+  if (topdownImage) {
+    drawMap2dPropImage(ctx, topdownImage, widthPx, depthPx);
+  } else if (kind === "fallback") drawFallback(ctx, prop, widthPx, depthPx);
   else {
     ctx.scale(widthPx, depthPx);
     ctx.lineWidth = OUTLINE_WIDTH_PX / Math.min(widthPx, depthPx);

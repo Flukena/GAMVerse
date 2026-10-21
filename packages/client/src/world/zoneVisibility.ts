@@ -1,5 +1,5 @@
 import { USER_STATUS_PRESENTATIONS } from "../presencePresentation";
-import type { RoomLayout, RoomLayoutZone, RoomLayoutWall } from "@gammyverse/shared";
+import type { RoomLayoutZone, RoomLayoutWall } from "@gammyverse/shared";
 
 export type ZonePosition = { x: number; z: number };
 export type ZoneOccupant = ZonePosition & { displayName: string; username: string; status?: string };
@@ -21,22 +21,6 @@ export function zoneOccupantRows(zone: RoomLayoutZone, players: Iterable<ZoneOcc
     const presentation = Object.entries(USER_STATUS_PRESENTATIONS).find(([status]) => status === player.status)?.[1] ?? USER_STATUS_PRESENTATIONS.available;
     return { name: player.displayName.trim() || player.username, color: presentation.color, statusLabel: presentation.label };
   });
-}
-
-/** Keeps the expensive 2D static bitmap stable while players walk within a zone. */
-export class ZoneVisibleLayout {
-  private source: RoomLayout | null | undefined;
-  private coveredKey = "";
-  private layout: RoomLayout | null = null;
-  update(source: RoomLayout | null, covered: readonly RoomLayoutZone[]): RoomLayout | null {
-    const key = JSON.stringify(covered.map(zone => zone.id));
-    if (this.source !== source || this.coveredKey !== key) {
-      this.source = source;
-      this.coveredKey = key;
-      this.layout = source && covered.length ? { ...source, props: source.props.filter(prop => !isCoveredPosition(prop, covered)) } : source;
-    }
-    return this.layout;
-  }
 }
 
 export const DEFAULT_ZONE_ROOF_HEIGHT_M = 2.5;

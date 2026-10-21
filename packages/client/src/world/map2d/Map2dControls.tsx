@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { map2dTravelMessage, type Map2dTravelFeedback } from "./map2dTravelFeedback";
 import { CAMERA_ZOOM_BUTTON_RATIO } from "../camera/constants";
-import { MAP2D_DEFAULT_SCALE_PX_PER_M, MAP2D_MAX_SCALE_PX_PER_M, MAP2D_MIN_SCALE_PX_PER_M } from "./constants";
+import { MAP2D_REFERENCE_SCALE_PX_PER_M, MAP2D_MAX_SCALE_PX_PER_M, MAP2D_MIN_SCALE_PX_PER_M } from "./constants";
 import "./Map2dControls.css";
 
 const ZOOM_PERCENT_PER_RATIO = 100;
@@ -32,7 +32,7 @@ export interface Map2dControlsProps {
 export function Map2dControls({ scalePxPerM, following, disabled = false, hasDesk, atDesk, onZoom, onFocus, onToggleFollow, onGoToDesk, tools, travelFeedback, onCancelTravel }: Map2dControlsProps) {
   const [activeGroup, setActiveGroup] = useState<"character" | "zoom" | null>(null);
   const focusLabel = following ? FOLLOWING_LABEL : RECENTER_LABEL;
-  const zoomPercent = Math.round(scalePxPerM / MAP2D_DEFAULT_SCALE_PX_PER_M * ZOOM_PERCENT_PER_RATIO);
+  const zoomPercent = Math.round(scalePxPerM / MAP2D_REFERENCE_SCALE_PX_PER_M * ZOOM_PERCENT_PER_RATIO);
   return <aside className="map2d-controls world-control-dock" aria-label="2D map controls">
     {travelFeedback?.status === "started" && <div className="map2d-travel-feedback">
       <span role="status" aria-live="polite">{map2dTravelMessage(travelFeedback)}</span>

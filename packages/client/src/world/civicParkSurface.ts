@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { RoomLayout, RoomLayoutZone } from "@gammyverse/shared";
+import type { RoomLayout } from "@gammyverse/shared";
 
 const PARK_GRASS_COLOR = 0x78b76b;
 const PARK_GROUND_Y_M = 0.003;
@@ -233,15 +233,4 @@ export function makeEastFootballFieldVisual(layout: RoomLayout, dimensions: { wi
     field.add(lamp);
   }
   return field;
-}
-
-/** Opaque light floors keep the stronger park green outside the civic rooms. */
-export function civicRoomFloorColor(zone: RoomLayoutZone): number | null {
-  if (zone.id === "shared-townhall") return 0xe5e0ec;
-  if (zone.id === "shared-lobby") return 0xf2eadc;
-  if (zone.id === "shared-cafeteria") return 0xf3e6d2;
-  if (zone.id === "shared-lounge") return 0xe9e8df;
-  if (/^meeting-(small|large)-/.test(zone.id)) return 0xece9e0;
-  if (zone.id.startsWith("shared-restroom-")) return 0xe6eeee;
-  return null;
 }

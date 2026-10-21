@@ -1,6 +1,6 @@
 import type { AvatarPose } from "./avatarPoseSmoother";
 
-export type Map2dAvatarMotion = "idle" | "walking" | "seated";
+export type Map2dAvatarMotion = "idle" | "walking" | "seated" | "lying";
 export type Map2dAvatarVisual = { motion: Map2dAvatarMotion; stridePhaseRad: number };
 export type Map2dPlayer = AvatarPose & {
   displayName: string;

@@ -67,11 +67,12 @@ const PATTERN_DRAWERS = { wood: drawWood, tile: drawTile, grass: drawGrass, carp
 
 /** Patterns live only for one static bitmap rebuild, independent of the render loop. */
 export class Map2dSurfaces {
-  private readonly patterns = new Map<Map2dSurfaceMaterial, CanvasPattern | null>();
+  private readonly patterns = new Map<string, CanvasPattern | null>();
   constructor(private readonly ctx: CanvasRenderingContext2D, private readonly pxPerM: number) {}
 
   private pattern(style: Map2dSurfaceStyle): CanvasPattern | null {
-    if (this.patterns.has(style.material)) return this.patterns.get(style.material) ?? null;
+    const key = `${style.material}:${style.base}`;
+    if (this.patterns.has(key)) return this.patterns.get(key) ?? null;
     const tile = document.createElement("canvas");
     tile.width = tile.height = Math.max(PATTERN_MIN_SIZE_PX, Math.round(this.pxPerM * PATTERN_SIZE_M));
     const ctx = tile.getContext("2d");
@@ -86,7 +87,7 @@ export class Map2dSurfaces {
       ctx.fillRect(0, 0, tile.width * CARPET_WEAVE_WIDTH_RATIO, tile.height);
     }
     const pattern = this.ctx.createPattern(tile, "repeat");
-    this.patterns.set(style.material, pattern);
+    this.patterns.set(key, pattern);
     return pattern;
   }
 

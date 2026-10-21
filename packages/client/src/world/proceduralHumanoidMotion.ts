@@ -38,7 +38,11 @@ const MIXAMO_BONE_NAMES = {
 } as const;
 
 function joint(root: THREE.Object3D, names: readonly string[], axisA = AXIS_Z, axisB = AXIS_X): JointPose | undefined {
-  const bone = names.map((name) => root.getObjectByName(name)).find((object): object is THREE.Object3D => Boolean(object));
+  let bone = names.map((name) => root.getObjectByName(name)).find((object): object is THREE.Object3D => Boolean(object));
+  // Some Polygonal Mind rigs retain an asset namespace before the Mixamo bone name.
+  if (!bone) root.traverse((object) => {
+    if (!bone && names.some((name) => object.name.endsWith(name))) bone = object;
+  });
   if (!bone) return undefined;
   return {
     bone,
