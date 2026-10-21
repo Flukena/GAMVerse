@@ -8,7 +8,7 @@ export class PropModelVisibility {
   private nextLoadAtMs = 0;
   private nextCullAtMs = 0;
   private coveredKey = "";
-  update(now: number, editing: boolean, local: (ZonePosition & { rotation?: number }) | undefined, roomKey: string, focus: ZonePosition,
+  update(now: number, editing: boolean, local: (ZonePosition & { rotation?: number }) | undefined, focus: ZonePosition,
     roadsideScenery: RoadsideSceneryVisibility, deferredPropModelLoads: readonly DeferredPropModel[], distanceCulledPropVisuals: readonly Object3D[],
     covered: readonly RoomLayoutZone[], offset: ZonePosition): void {
     const key = JSON.stringify(covered.map(zone => zone.id));
@@ -16,7 +16,7 @@ export class PropModelVisibility {
     const hidden = (position: ZonePosition) => isCoveredPosition({ x: position.x - offset.x, z: position.z - offset.z }, covered);
     if (now >= this.nextLoadAtMs) {
       this.nextLoadAtMs = now + PROP_RENDER_CULL_INTERVAL_MS;
-      roadsideScenery.update(local, roomKey, editing);
+      roadsideScenery.update(local, editing);
       let remainingLoads = editing ? PROP_MODEL_LOAD_BATCH_SIZE * 4 : PROP_MODEL_LOAD_BATCH_SIZE;
       if (editing) {
         for (const pending of deferredPropModelLoads) {

@@ -23,7 +23,7 @@ test("every generated prop, including park, building and restroom families, belo
     assert.ok(chunked.some(item => item.id.startsWith(family)), family);
   }
   const roadside = new RoadsideSceneryVisibility(layout.props);
-  roadside.update({ x: 0, z: 0 }, "lobby", false);
+  roadside.update({ x: 0, z: 0 }, false);
   for (const item of layout.props) assert.notEqual(roadside.visibilityFor(item.id), undefined, item.id);
 });
 
@@ -39,49 +39,44 @@ test("spatial chunks separate distant props without mutating placements", () => 
 test("chunk bounds include rotated prop extents beyond their grid cell", () => {
   const [chunk] = groupRoadsideProps([prop("campus-landscape-1", R + 30, 0, 2, 80, Math.PI / 2)]);
   assert.ok(Math.abs(chunk.bounds.minX - (R - 10)) < 0.0001);
-  assert.equal(shouldRenderRoadsideChunk(chunk.bounds, observer, false, "lobby", false), true);
+  assert.equal(shouldRenderRoadsideChunk(chunk.bounds, observer, false, false), true);
 });
 
 test("hidden chunks enter at the render distance inclusive and visible chunks exit after the hysteresis", () => {
-  assert.equal(shouldRenderRoadsideChunk(bounds, observer, false, "lobby", false), true);
-  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -0.01, z: 0 }, false, "lobby", false), false);
-  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -H, z: 0 }, true, "lobby", false), true);
-  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -H - 0.01, z: 0 }, true, "lobby", false), false);
-  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -H / 3, z: 0 }, false, "lobby", false), false);
-  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -H / 3, z: 0 }, true, "lobby", false), true);
+  assert.equal(shouldRenderRoadsideChunk(bounds, observer, false, false), true);
+  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -0.01, z: 0 }, false, false), false);
+  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -H, z: 0 }, true, false), true);
+  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -H - 0.01, z: 0 }, true, false), false);
+  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -H / 3, z: 0 }, false, false), false);
+  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -H / 3, z: 0 }, true, false), true);
 });
 
 test("distance is circular to the nearest chunk extent, not a square or its center", () => {
   const near = R * 0.8;
   const diagonal = { minX: near, maxX: near + 64, minZ: near, maxZ: near + 64 };
-  assert.equal(shouldRenderRoadsideChunk(diagonal, observer, false, "lobby", false), false);
-  assert.equal(shouldRenderRoadsideChunk(bounds, { x: bounds.maxX + R / 2, z: 0 }, false, "lobby", false), true);
+  assert.equal(shouldRenderRoadsideChunk(diagonal, observer, false, false), false);
+  assert.equal(shouldRenderRoadsideChunk(bounds, { x: bounds.maxX + R / 2, z: 0 }, false, false), true);
 });
 
-test("editor, nonpublic zones and missing character preserve visibility", () => {
-  for (const zone of ["meeting-1", "private-1"]) {
-    assert.equal(shouldRenderRoadsideChunk(bounds, { x: -1000, z: 0 }, false, zone, false), true);
-  }
-  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -1000, z: 0 }, false, "lobby", true), true);
-  assert.equal(shouldRenderRoadsideChunk(bounds, undefined, false, "lobby", false), true);
+test("editor and missing character preserve visibility; a distant chunk is culled in any zone", () => {
+  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -1000, z: 0 }, false, false), false);
+  assert.equal(shouldRenderRoadsideChunk(bounds, { x: -1000, z: 0 }, false, true), true);
+  assert.equal(shouldRenderRoadsideChunk(bounds, undefined, false, false), true);
 });
 
 test("visibility follows the character, restores batches on zone/editor changes and handles late loads", () => {
   const roadside = new RoadsideSceneryVisibility([prop("campus-landscape-1", 600)]);
   const visual = { visible: true };
-  roadside.update(observer, "lobby", false);
+  roadside.update(observer, false);
   roadside.registerVisual("campus-landscape-1", visual);
   assert.equal(visual.visible, false);
   assert.equal(roadside.visibilityFor("campus-landscape-1"), false);
   assert.equal(roadside.visibilityFor("unknown-prop"), undefined);
-  roadside.update({ x: 600, z: 0 }, "lobby", false);
+  roadside.update({ x: 600, z: 0 }, false);
   assert.equal(visual.visible, true);
-  roadside.update(observer, "meeting-1", false);
-  assert.equal(visual.visible, true);
-  assert.equal(roadside.visibilityFor("campus-landscape-1"), undefined);
-  roadside.update(observer, "lobby", false);
+  roadside.update(observer, false);
   assert.equal(visual.visible, false);
-  roadside.update(observer, "lobby", true);
+  roadside.update(observer, true);
   assert.equal(visual.visible, true);
   assert.equal(roadside.visibilityFor("campus-landscape-1"), undefined);
 });
@@ -95,14 +90,16 @@ test("instanced placements split by spatial cell for any id; unknown ids stay in
   ]);
 });
 
-test("public zone hides every prop family outside the directional area of the character; other zones use the camera rule", () => {
+test("every zone hides each prop family outside the directional area; the camera rule only covers ids unknown to the layout", () => {
   const roadside = new RoadsideSceneryVisibility([prop("campus-civic-park-tree-1", 0, R - 10), prop("desk-1", 0, R + 500), prop("campus-city-building-north-1", R - 10)]);
-  roadside.update(observer, "lobby", false);
+  roadside.update(observer, false);
   assert.equal(roadside.visibilityFor("campus-civic-park-tree-1"), true);
   assert.equal(roadside.visibilityFor("desk-1"), false);
   assert.equal(roadside.visibilityFor("campus-city-building-north-1"), false);
-  roadside.update(observer, "meeting-1", false);
-  assert.equal(roadside.visibilityFor("desk-1"), undefined);
+  roadside.update({ x: 0, z: R + 500 }, false);
+  assert.equal(roadside.visibilityFor("desk-1"), true);
+  assert.equal(roadside.visibilityFor("campus-civic-park-tree-1"), false);
+  assert.equal(roadside.visibilityFor("unknown-prop"), undefined);
   assert.equal(shouldRenderDistanceCulledProp({ x: 240, z: 0 }, observer, true), false);
   assert.equal(shouldLoadPropModel({ x: 240, z: 0 }, observer), false);
   assert.equal(shouldRenderDistanceCulledProp({ x: 200, z: 0 }, observer, true), true);
@@ -114,7 +111,7 @@ test("no generated prop of the 560x292 campus is visible outside the grown direc
   for (const rotation of [0, Math.PI / 2, Math.PI, -Math.PI / 2, 0.7]) {
     const character = { ...observer, rotation };
     const roadside = new RoadsideSceneryVisibility(layout.props);
-    roadside.update(character, "lobby", false);
+    roadside.update(character, false);
     const visible = layout.props.filter(item => roadside.visibilityFor(item.id));
     assert.ok(visible.length > 0 && visible.length < layout.props.length);
     for (const item of layout.props) {
@@ -128,7 +125,7 @@ test("no generated prop of the 560x292 campus is visible outside the grown direc
 
 const at = (x: number, z: number, rotation = 0) => ({ x, z, rotation, bounds: { minX: x - 1, maxX: x + 1, minZ: z - 1, maxZ: z + 1 } });
 const seen = (x: number, z: number, rotation: number, was = false) =>
-  shouldRenderRoadsideProp(at(x, z).bounds, { x: 0, z: 0, rotation }, was, "lobby", false);
+  shouldRenderRoadsideProp(at(x, z).bounds, { x: 0, z: 0, rotation }, was, false);
 
 test("area constants are 150 front, 100 side, 50 back, with a 15 unit exit margin", () => {
   assert.deepEqual([R, SIDE, BACK, H], [150, 100, 50, 15]);
@@ -173,12 +170,12 @@ test("visible props stay until the area grown by the hysteresis, including after
   assert.equal(seen(0, -60, Math.PI, false), true);
   assert.equal(seen(0, -120, 0, false), false);
   const roadside = new RoadsideSceneryVisibility([prop("campus-landscape-1", 0, 100)]);
-  roadside.update({ x: 0, z: 0, rotation: 0 }, "lobby", false);
+  roadside.update({ x: 0, z: 0, rotation: 0 }, false);
   assert.equal(roadside.visibilityFor("campus-landscape-1"), true);
-  roadside.update({ x: 0, z: 0, rotation: Math.PI }, "lobby", false);
+  roadside.update({ x: 0, z: 0, rotation: Math.PI }, false);
   assert.equal(roadside.visibilityFor("campus-landscape-1"), false);
-  roadside.update({ x: 0, z: 0, rotation: 0 }, "lobby", false);
-  roadside.update({ x: 0, z: -60, rotation: 0 }, "lobby", false);
+  roadside.update({ x: 0, z: 0, rotation: 0 }, false);
+  roadside.update({ x: 0, z: -60, rotation: 0 }, false);
   assert.equal(roadside.visibilityFor("campus-landscape-1"), true);
 });
 
@@ -199,18 +196,18 @@ test("chunk rejection never removes a chunk that holds a prop of the area, whate
       const itemBounds = { minX: px - 1, maxX: px + 1, minZ: pz - 1, maxZ: pz + 1 };
       const character = { x: 0, z: 0, rotation };
       if (!intersectsRoadsideArea(itemBounds, character, 0)) continue;
-      assert.equal(shouldRenderRoadsideChunk(itemBounds, character, false, "lobby", false), true);
+      assert.equal(shouldRenderRoadsideChunk(itemBounds, character, false, false), true);
     }
   }
-  assert.equal(shouldRenderRoadsideChunk({ minX: 150.01, maxX: 160, minZ: -1, maxZ: 1 }, observer, false, "lobby", false), false);
-  assert.equal(shouldRenderRoadsideChunk({ minX: 150.01, maxX: 160, minZ: -1, maxZ: 1 }, observer, true, "lobby", false), true);
+  assert.equal(shouldRenderRoadsideChunk({ minX: 150.01, maxX: 160, minZ: -1, maxZ: 1 }, observer, false, false), false);
+  assert.equal(shouldRenderRoadsideChunk({ minX: 150.01, maxX: 160, minZ: -1, maxZ: 1 }, observer, true, false), true);
 });
 
-test("editing, nonpublic zones and a missing character show every prop", () => {
+test("editing and a missing character show every prop", () => {
   const far = at(900, 900).bounds;
-  assert.equal(shouldRenderRoadsideProp(far, { x: 0, z: 0, rotation: 0 }, false, "lobby", true), true);
-  assert.equal(shouldRenderRoadsideProp(far, { x: 0, z: 0, rotation: 0 }, false, "meeting-1", false), true);
-  assert.equal(shouldRenderRoadsideProp(far, undefined, false, "lobby", false), true);
+  assert.equal(shouldRenderRoadsideProp(far, { x: 0, z: 0, rotation: 0 }, false, true), true);
+  assert.equal(shouldRenderRoadsideProp(far, { x: 0, z: 0, rotation: 0 }, false, false), false);
+  assert.equal(shouldRenderRoadsideProp(far, undefined, false, false), true);
 });
 
 test("negative coordinates use distinct floor-based cells and support props spanning the origin", () => {

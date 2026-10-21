@@ -16,11 +16,11 @@ test("covered room props neither load nor render and open immediately on entry",
   visual.position.set(100, 0, 100);
   const roadside = new RoadsideSceneryVisibility([]);
   const offset = { x: 100, z: 100 };
-  controller.update(0, false, undefined, "lobby", offset, roadside, [indoors, outdoors], [visual], [room], offset);
+  controller.update(0, false, undefined, offset, roadside, [indoors, outdoors], [visual], [room], offset);
   assert.equal(indoors.started, false);
   assert.equal(outdoors.started, true);
   assert.equal(visual.visible, false);
-  controller.update(1, false, undefined, "lobby", offset, roadside, [indoors], [visual], [], offset);
+  controller.update(1, false, undefined, offset, roadside, [indoors], [visual], [], offset);
   assert.equal(indoors.started, true);
   assert.equal(visual.visible, true);
 });
@@ -30,7 +30,7 @@ test("editing preserves loading and visibility for props outside normal distance
   const visual = new Object3D();
   visual.position.set(1000, 0, 1000);
   visual.visible = false;
-  controller.update(0, true, undefined, "lobby", { x: 0, z: 0 }, new RoadsideSceneryVisibility([]), [prop], [visual], [], { x: 0, z: 0 });
+  controller.update(0, true, undefined, { x: 0, z: 0 }, new RoadsideSceneryVisibility([]), [prop], [visual], [], { x: 0, z: 0 });
   assert.equal(prop.started, true);
   assert.equal(visual.visible, true);
 });

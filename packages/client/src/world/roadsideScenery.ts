@@ -12,7 +12,7 @@ type RoadsidePlacement = Position & { id: string; width: number; depth: number; 
 export type RoadsideBounds = { minX: number; maxX: number; minZ: number; maxZ: number };
 export type RoadsideChunk<Prop> = { key: string; bounds: RoadsideBounds; props: Prop[] };
 
-/** Every layout prop is chunked; in the public zone the character, not the camera, decides what is drawn. */
+/** Every layout prop is chunked; in every zone the character, not the camera, decides what is drawn. */
 export function groupRoadsideProps<Prop extends RoadsidePlacement>(props: readonly Prop[]): RoadsideChunk<Prop>[] {
   const chunks = new Map<string, RoadsideChunk<Prop>>();
   for (const prop of props) {
@@ -87,10 +87,9 @@ export function shouldRenderRoadsideChunk(
   bounds: RoadsideBounds,
   character: RoadsideCharacter | undefined,
   wasVisible: boolean,
-  cameraRoomKey: string,
   editing: boolean,
 ) {
-  if (editing || cameraRoomKey !== "lobby" || !character) return true;
+  if (editing || !character) return true;
   const dx = Math.max(bounds.minX - character.x, 0, character.x - bounds.maxX);
   const dz = Math.max(bounds.minZ - character.z, 0, character.z - bounds.maxZ);
   const radius = ROADSIDE_FRONT_M + (wasVisible ? ROADSIDE_RENDER_HYSTERESIS_M : 0);
@@ -101,10 +100,9 @@ export function shouldRenderRoadsideProp(
   bounds: RoadsideBounds,
   character: RoadsideCharacter | undefined,
   wasVisible: boolean,
-  cameraRoomKey: string,
   editing: boolean,
 ) {
-  if (editing || cameraRoomKey !== "lobby" || !character) return true;
+  if (editing || !character) return true;
   return intersectsRoadsideArea(bounds, character, wasVisible ? ROADSIDE_RENDER_HYSTERESIS_M : 0);
 }
 
@@ -121,14 +119,14 @@ export class RoadsideSceneryVisibility {
     for (const chunk of this.chunks) for (const prop of chunk.props) this.propStates.set(prop.id, { bounds: groupRoadsideProps([prop])[0].bounds, visible: false });
   }
 
-  update(character: RoadsideCharacter | undefined, cameraRoomKey: string, editing: boolean) {
-    this.active = Boolean(character && cameraRoomKey === "lobby" && !editing);
+  update(character: RoadsideCharacter | undefined, editing: boolean) {
+    this.active = Boolean(character && !editing);
     for (const chunk of this.chunks) {
-      const chunkVisible = shouldRenderRoadsideChunk(chunk.bounds, character, chunk.visible, cameraRoomKey, editing);
+      const chunkVisible = shouldRenderRoadsideChunk(chunk.bounds, character, chunk.visible, editing);
       let anyVisible = false;
       for (const prop of chunk.props) {
         const state = this.propStates.get(prop.id)!;
-        state.visible = chunkVisible && shouldRenderRoadsideProp(state.bounds, character, state.visible, cameraRoomKey, editing);
+        state.visible = chunkVisible && shouldRenderRoadsideProp(state.bounds, character, state.visible, editing);
         anyVisible ||= state.visible;
       }
       chunk.visible = this.active ? anyVisible : chunkVisible;

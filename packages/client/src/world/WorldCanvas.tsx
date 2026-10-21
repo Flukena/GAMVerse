@@ -3484,7 +3484,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       camera.lookAt(visiblePose.lookAt);
       camera.updateMatrixWorld(true);
       const roofZones = coveredZones(roomLayout?.zones ?? [], localPlayerState, editing);
-      propModelVisibility.update(now, editing, localPlayerState, cameraRoomKeyRef.current, visiblePose.lookAt,
+      propModelVisibility.update(now, editing, localPlayerState, visiblePose.lookAt,
         roadsideScenery, deferredPropModelLoads, distanceCulledPropVisuals, roofZones, mapOffset);
       for (const parked of parkedVehicleGroups.values()) parked.visible &&= !isCoveredPosition({ x: parked.position.x - mapOffset.x, z: parked.position.z - mapOffset.z }, roofZones);
       previousCameraPose = pose;

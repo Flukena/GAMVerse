@@ -17,7 +17,7 @@ for (const farId of ["campus-landscape-3", "campus-city-tree-south-1--1-58", "ca
     ].map(prop => ({ ...prop, asset: "tree", width: 2, depth: 2, rotation: Math.PI / 2, elevation: 5, collision: true }));
     const before = structuredClone(props);
     const roadside = new RoadsideSceneryVisibility(props);
-    roadside.update({ x: 0, z: 0 }, "lobby", false);
+    roadside.update({ x: 0, z: 0 }, false);
     const batches = createInstancedSceneryBatches(template, props, { width: 1000, depth: 800 }, roadside);
     assert.equal(batches.length, 2);
     assert.deepEqual(batches.map(batch => batch.visible), [true, false]);
@@ -34,10 +34,10 @@ for (const farId of ["campus-landscape-3", "campus-city-tree-south-1--1-58", "ca
     const expected = new THREE.Matrix4().makeRotationY(Math.PI / 2).setPosition(500, 5, 400).multiply(source.matrixWorld);
     actual.elements.forEach((value, index) => assert.ok(Math.abs(value - expected.elements[index]) < 0.00001));
     assert.deepEqual(props, before);
-    roadside.update({ x: 600, z: 0 }, "lobby", false);
+    roadside.update({ x: 600, z: 0 }, false);
     assert.deepEqual(batches.map(batch => batch.visible), [false, true]);
     assert.deepEqual(batches.map(batch => (batch.children[0] as THREE.InstancedMesh).count), [0, 1]);
-    roadside.update({ x: 0, z: 0 }, "private-1", false);
+    roadside.update({ x: 0, z: 0 }, true);
     assert.ok(batches.every(batch => batch.visible));
     assert.deepEqual(batches.map(batch => (batch.children[0] as THREE.InstancedMesh).count), [2, 1]);
   });
@@ -49,7 +49,7 @@ test("instances outside the directional area are dropped individually inside a c
   const props = [{ id: "near", x: 0, z: R - 10 }, { id: "far", x: 0, z: R + 40 }, { id: "beside", x: R - 10, z: 0 }]
     .map(prop => ({ ...prop, asset: "tree", width: 2, depth: 2, rotation: 0, collision: true }));
   const roadside = new RoadsideSceneryVisibility(props);
-  roadside.update({ x: 0, z: 0, rotation: 0 }, "lobby", false);
+  roadside.update({ x: 0, z: 0, rotation: 0 }, false);
   const [batch] = createInstancedSceneryBatches(template, props, { width: 1000, depth: 800 }, roadside);
   assert.equal((batch.children[0] as THREE.InstancedMesh).count, 1);
   const kept = new THREE.Matrix4();
