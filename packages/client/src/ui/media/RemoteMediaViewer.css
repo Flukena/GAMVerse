@@ -14,4 +14,5 @@
 .remote-media-viewer.is-minimized { max-height: calc(100dvh - var(--office-header-height, 0px) - var(--office-popup-bottom-clearance, 92px) - 16px); }
 .remote-media-viewer.is-minimized .remote-media-stage { flex: 0 1 auto; aspect-ratio: 16 / 9; max-height: min(45dvh, 320px); }
 .remote-media-stage { position: relative; display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.remote-media-loading { display: grid; flex: 1; min-height: 0; place-items: center; color: #d7e6eb; font-size: 13px; }
 .remote-media-viewer .remote-media-pip { position: absolute; right: 12px; bottom: 48px; width: min(24%, 220px); max-height: 30%; aspect-ratio: 4 / 3; border: 2px solid #f8fcfd; border-radius: 8px; object-fit: cover; pointer-events: none; }

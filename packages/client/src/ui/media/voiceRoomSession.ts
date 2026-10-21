@@ -1,5 +1,5 @@
 import { mediaControlError, type MediaControlSource } from "./mediaControlError";
-import type { DisconnectReason, RoomEvent, LocalParticipant, LocalTrack, LocalTrackPublication, RemoteParticipant, RemoteTrack, RemoteTrackPublication, RoomEventCallbacks, TrackPublishOptions } from "livekit-client";
+import type { DisconnectReason, RoomConnectOptions, RoomEvent, LocalParticipant, LocalTrack, LocalTrackPublication, RemoteParticipant, RemoteTrack, RemoteTrackPublication, RoomEventCallbacks, TrackPublishOptions } from "livekit-client";
 import { isVoiceAuthorizationDenied } from "./voiceToken";
 import { voiceTargetKey, type VoiceTarget } from "./voiceTarget";
 
@@ -18,7 +18,7 @@ export const VOICE_AUDIO_CAPTURE_OPTIONS = { autoGainControl: true, echoCancella
 
 /** Small SDK seam: tests replace only the room and token transport. */
 export interface VoiceRoom {
-  connect(url: string, token: string): Promise<void>;
+  connect(url: string, token: string, options?: RoomConnectOptions): Promise<void>;
   disconnect(stopTracks?: boolean): Promise<void>;
   localParticipant: Pick<LocalParticipant, "setMicrophoneEnabled" | "setCameraEnabled" | "setScreenShareEnabled"> & Partial<Pick<LocalParticipant, "isCameraEnabled" | "isScreenShareEnabled" | "audioTrackPublications" | "videoTrackPublications" | "publishTrack" | "unpublishTrack">>;
   on<E extends keyof RoomEventCallbacks>(event: E, listener: RoomEventCallbacks[E]): this;
@@ -233,7 +233,7 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
       this.authorizationDenied = adapter.authorizationDenied;
       this.bindRoom(adapter, generation, target);
       this.listener.roomChanged?.(room, target);
-      await room.connect(token.url, token.token);
+      await room.connect(token.url, token.token, { autoSubscribe: false });
       if (!this.current(generation, room)) return;
       if (this.retainedTracks.length) await this.restoreRetainedTracks(room, generation);
       else await this.resetMedia(room, generation);
@@ -316,6 +316,7 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     bind(events.Reconnected, () => {
       if (!this.current(generation, room)) return;
       this.publish({ connected: true, busy: false });
+      this.listener.participantsChanged?.(room);
       void this.drainControls();
     });
     this.bindMediaEvents(bind, room, events, generation, target);
@@ -352,7 +353,12 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
         this.listener.participantsChanged?.(room);
       }
     });
-    for (const event of [events.ParticipantConnected, events.ParticipantDisconnected, events.TrackPublished, events.TrackUnpublished]) {
+    bind(events.TrackPublished, (publication) => {
+      if (!this.current(generation, room)) return;
+      if (publication.kind === "audio") publication.setSubscribed(true);
+      this.listener.participantsChanged?.(room);
+    });
+    for (const event of [events.ParticipantConnected, events.ParticipantDisconnected, events.TrackUnpublished]) {
       bind(event, () => { if (this.current(generation, room)) this.listener.participantsChanged?.(room); });
     }
     for (const event of [events.TrackMuted, events.TrackUnmuted]) {

@@ -2274,19 +2274,23 @@ export function OfficeApp() {
             : undefined;
           for (const [sessionId, player] of state.players) {
             const entry = player as PlayerState;
+            const hasDetailedPosition = entry.hasDetailedPosition === true;
+            const x = hasDetailedPosition ? entry.x : entry.markerX;
+            const z = hasDetailedPosition ? entry.z : entry.markerZ;
+            const rotation = hasDetailedPosition ? entry.rotation : entry.markerRotation;
             // A stale/mismatched Colyseus schema can temporarily expose incomplete
             // records during development HMR. Never publish those into React state.
             if (
               typeof entry.username !== "string" ||
               typeof entry.displayName !== "string" ||
-              !Number.isFinite(entry.x) ||
-              !Number.isFinite(entry.z) ||
-              !Number.isFinite(entry.rotation)
+              !Number.isFinite(x) ||
+              !Number.isFinite(z) ||
+              !Number.isFinite(rotation)
             ) continue;
             snapshot.set(sessionId, {
-              x: entry.x,
-              z: entry.z,
-              rotation: entry.rotation,
+              x,
+              z,
+              rotation,
               username: entry.username,
               displayName: entry.displayName,
               isMaintainer: entry.isMaintainer === true,
@@ -2296,9 +2300,9 @@ export function OfficeApp() {
               vehicleId: (entry.vehicleId || "") as KenneyVehicleId | "",
               vehicleMode: entry.vehicleMode === "manual" || entry.vehicleMode === "auto" ? entry.vehicleMode : "",
               vehiclePropId: entry.vehiclePropId || "",
-              vehiclePropX: entry.vehiclePropX,
-              vehiclePropZ: entry.vehiclePropZ,
-              vehiclePropRotation: entry.vehiclePropRotation,
+              vehiclePropX: hasDetailedPosition ? entry.vehiclePropX : x,
+              vehiclePropZ: hasDetailedPosition ? entry.vehiclePropZ : z,
+              vehiclePropRotation: hasDetailedPosition ? entry.vehiclePropRotation : rotation,
               sittingPropId: entry.sittingPropId || "",
               dancing: Boolean(entry.dancing),
               handRaised: Boolean(entry.handRaised),

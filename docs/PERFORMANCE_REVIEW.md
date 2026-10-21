@@ -8,7 +8,7 @@ This is a review of the current checkout, a production build, the existing autom
 
 - The HTTP API, realtime world, media SFU, database, and static web server have distinct processes/containers. Production Compose has readiness checks for PostgreSQL, API, and realtime, plus restart policies.
 - Realtime movement is server-authoritative. The world uses a 20 ms fixed timestep, a 50 ms state patch interval, caps input to at most one packet per 30 ms per player, and caps room messages (`packages/server/src/offices/OfficeRoom.ts:86-90,433-468`). High-frequency movement is not written to PostgreSQL; activity refresh is rate-limited (`OfficeRoom.ts:456-464`).
-- Production config sets `ROOM_MAX_CLIENTS=50` and database pool limits of 10 per API/realtime process (`compose.production.yaml`). This gives a clear initial single-room cap, although the current load evidence does not validate that cap under the intended production conditions.
+- Production config sets `ROOM_MAX_CLIENTS=150` and database pool limits of 10 per API/realtime process (`compose.production.yaml`). The current load evidence does not validate that cap under the intended production conditions.
 - The room and render code dispose many Three.js resources on teardown, and the renderer caps device pixel ratio at 1.75 (`packages/client/src/world/WorldCanvas.tsx:698-704`).
 
 ## Findings to address
