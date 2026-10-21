@@ -89,7 +89,7 @@ services:
       PGPASSWORD: ${APP_DB_PASSWORD}
       DB_POOL_MAX: "10"
       CLIENT_ORIGIN: https://${DOMAIN}
-      ROOM_MAX_CLIENTS: "50"
+      ROOM_MAX_CLIENTS: "150"
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.production}
       LIVEKIT_URL: wss://${LIVEKIT_DOMAIN:?Set LIVEKIT_DOMAIN in .env.production}
       LIVEKIT_INTERNAL_URL: http://livekit:7880

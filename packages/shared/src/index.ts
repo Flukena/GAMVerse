@@ -337,6 +337,8 @@ export * from "./availability.js";
 
 export type MediaActivity = { microphone: boolean; camera: boolean; screenShare: boolean };
 
+export const PLAYER_SPATIAL_VIEW_TAG = 1;
+
 export function isValidMediaActivity(value: unknown): value is MediaActivity {
   if (typeof value !== "object" || value === null) return false;
   const activity = value as Record<string, unknown>;
@@ -345,9 +347,9 @@ export function isValidMediaActivity(value: unknown): value is MediaActivity {
 
 export const PlayerState = schema(
   {
-    x: t.float32(),
-    z: t.float32(),
-    rotation: t.float32(),
+    x: t.float32().view(PLAYER_SPATIAL_VIEW_TAG),
+    z: t.float32().view(PLAYER_SPATIAL_VIEW_TAG),
+    rotation: t.float32().view(PLAYER_SPATIAL_VIEW_TAG),
     worldVersion: t.uint8(),
     displayName: t.string(),
     username: t.string(),
@@ -356,9 +358,9 @@ export const PlayerState = schema(
     vehicleId: t.string(),
     vehicleMode: t.string(),
     vehiclePropId: t.string(),
-    vehiclePropX: t.float32(),
-    vehiclePropZ: t.float32(),
-    vehiclePropRotation: t.float32(),
+    vehiclePropX: t.float32().view(PLAYER_SPATIAL_VIEW_TAG),
+    vehiclePropZ: t.float32().view(PLAYER_SPATIAL_VIEW_TAG),
+    vehiclePropRotation: t.float32().view(PLAYER_SPATIAL_VIEW_TAG),
     sittingPropId: t.string(),
     dancing: t.boolean(),
     handRaised: t.boolean(),
@@ -373,6 +375,10 @@ export const PlayerState = schema(
     customStatusText: t.string(),
     customStatusEmoji: t.string(),
     customStatusExpiresAtMs: t.float64(),
+    hasDetailedPosition: t.boolean().view(PLAYER_SPATIAL_VIEW_TAG),
+    markerX: t.float32(),
+    markerZ: t.float32(),
+    markerRotation: t.float32(),
   },
   "PlayerState",
 );

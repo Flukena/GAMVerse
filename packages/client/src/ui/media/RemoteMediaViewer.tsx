@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { screenCameraTile, type RemoteMediaSnapshot } from "./remoteMediaState";
+import { screenCameraTile, type RemoteMediaSelection, type RemoteMediaSnapshot } from "./remoteMediaState";
 import "./RemoteMediaViewer.css";
 
 function ViewerSizeGlyph({ expanded }: { expanded: boolean }) {
@@ -10,13 +10,13 @@ function ScreenShareArrow({ direction }: { direction: "previous" | "next" }) {
   return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={direction === "previous" ? "m12 4-6 6 6 6" : "m8 4 6 6-6 6"} /></svg>;
 }
 
-export function RemoteMediaViewer({ tiles, selected, minimized, onToggleSize, onSelect }: RemoteMediaSnapshot & { onToggleSize(): void; onSelect(key: string): void }) {
+export function RemoteMediaViewer({ tiles, availableTiles = tiles, selected, minimized, onToggleSize, onSelect }: RemoteMediaSnapshot & { availableTiles?: readonly RemoteMediaSelection[]; onToggleSize(): void; onSelect(key: string): void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const track = selected?.track;
   const camera = screenCameraTile(tiles, selected);
   const cameraRef = useRef<HTMLVideoElement>(null);
   const cameraTrack = camera?.track;
-  const screenShares = tiles.filter(tile => tile.source === "screen_share");
+  const screenShares = availableTiles.filter(tile => tile.source === "screen_share");
   const screenIndex = screenShares.findIndex(tile => tile.key === selected?.key);
   useEffect(() => {
     const video = videoRef.current;
@@ -37,7 +37,7 @@ export function RemoteMediaViewer({ tiles, selected, minimized, onToggleSize, on
       <button type="button" title={minimized ? "Expand" : "Minimize"} aria-label={minimized ? "Expand media viewer" : "Minimize media viewer"} aria-expanded={!minimized} onClick={onToggleSize}><ViewerSizeGlyph expanded={minimized} /></button>
     </header>
     <div className="remote-media-stage">
-      <video ref={videoRef} autoPlay muted playsInline controls aria-label={`${selected.name}'s ${selected.source === "screen_share" ? "screen share" : "camera"}`} />
+      {track ? <video ref={videoRef} autoPlay muted playsInline controls aria-label={`${selected.name}'s ${selected.source === "screen_share" ? "screen share" : "camera"}`} /> : <div className="remote-media-loading" role="status">Connecting video…</div>}
       {screenIndex >= 0 && screenShares.length > 1 && <>
         <button type="button" className="remote-media-switcher previous" aria-label="Previous screen share" onClick={() => onSelect(screenShares[(screenIndex - 1 + screenShares.length) % screenShares.length]!.key)}><ScreenShareArrow direction="previous" /></button>
         <span className="remote-media-position" aria-live="polite">{screenIndex + 1} / {screenShares.length}</span>

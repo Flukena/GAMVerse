@@ -411,7 +411,8 @@ Record for every phase:
 - [x] Phase 4 implementation: bounded process-wide worker pool, worker bundle/path resolution, static geometry snapshots with per-request vehicle/access overlays, queue/cancellation limits, and stale-result fencing. Auto-move, move-to-player, initial follow/repaths, seat approach/fallback, public-conversation approach, and meeting-room planning use workers. Results recheck active sessions, intent, map/access revisions, participant/target state, live collision, and zone availability before commit. Focused regression suites pass and independent review found no remaining issues.
 - [x] Phase 5 initial server optimization: idle players skip per-tick movement/collision work between seat scans; fresh facing input, seat scans, and independent spatial/security deadlines remain active. A process counter records skipped stationary work.
 - [x] Phase 5 measurement hooks: aggregate patch-cycle encode/enqueue duration, outgoing state-patch/snapshot/application-frame bytes, client snapshot processing time, and render callback duration. No user identifiers are included.
-- [ ] Phase 5 replication: collect comparable runtime samples, then select state-interest or client-assistance changes; two-browser behavior and repeatable loaded measurements remain.
+- [x] Phase 5 initial replication: Colyseus views send precise coordinates for the local player and players within 100 world units; office-wide distant markers update once per second. The shared people/presence list remains available.
+- [ ] Phase 5 runtime gate: verify two-browser interest boundaries, reconnect snapshots, minimap markers, and privacy; capture comparable patch bytes/CPU before and after and tune the 100-unit radius if needed.
 - [ ] Two-browser regression verification.
 - [ ] Staged load tests and capacity decision.
 - [ ] Owner-approved production rollout.

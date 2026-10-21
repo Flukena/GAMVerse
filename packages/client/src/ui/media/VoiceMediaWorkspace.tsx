@@ -8,8 +8,8 @@ export function VoiceMediaWorkspace({ viewer, ...roster }: Props) {
   return <>
     <VoiceParticipantRoster {...roster}
       cameraTiles={viewer.tiles}
-      canViewMedia={(username, source) => viewer.tiles.some(tile => tile.username === username.toLocaleLowerCase() && tile.source === source)}
-      onViewMedia={(username, source) => { const tile = viewer.tiles.find(tile => tile.username === username.toLocaleLowerCase() && tile.source === source); if (tile) viewer.open(tile.key); }} />
-    <RemoteMediaViewer tiles={viewer.tiles} selected={viewer.selected} minimized={viewer.minimized} onToggleSize={viewer.toggleSize} onSelect={viewer.open} />
+      canViewMedia={(username, source) => viewer.availableTiles.some(tile => tile.username === username.toLocaleLowerCase() && tile.source === source)}
+      onViewMedia={(username, source) => { const tile = viewer.availableTiles.find(tile => tile.username === username.toLocaleLowerCase() && tile.source === source); if (tile) viewer.open(tile.key); }} />
+    <RemoteMediaViewer tiles={viewer.tiles} availableTiles={viewer.availableTiles} selected={viewer.selected} minimized={viewer.minimized} onToggleSize={viewer.toggleSize} onSelect={viewer.open} />
   </>;
 }

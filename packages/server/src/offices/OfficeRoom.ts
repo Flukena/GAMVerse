@@ -42,6 +42,7 @@ import { recordOfficeActivity } from "./activity.js";
 import { ghostCollisionWorld, movementBlockedByProps } from "./ghostCollision.js";
 import { database } from "../infra/db.js";
 import { logServerError, logServerEvent } from "../infra/logger.js";
+import { PlayerSpatialInterest } from "./playerSpatialInterest.js";
 
 // At most ceil(1000 / 30) = 34 input messages/s. Allow a three-second
 // buffered movement burst (102) plus 26 control/handshake messages.
@@ -50,6 +51,7 @@ const DESK_MAP_CHANGED_LABEL = "The office desk map changed. Choose your desk ag
 const INITIAL_MESSAGE_COUNT = 0;
 const PROXIMITY_GROUP_ID_BYTES = 12;
 const SPATIAL_PROJECTION_INTERVAL_MS = 100;
+const DISTANT_MARKER_UPDATE_INTERVAL_MS = 1_000;
 const SPAWN_ACCESS_UNAVAILABLE_LABEL = "No accessible spawn point is available.";
 const REPLACED_SESSION_CLOSE_CODE = 4001;
 const OFFICE_ACCESS_REVOKED_REASON = "Office access changed. Reopen the office.";
@@ -130,6 +132,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
   private routeSearchSequence = 0;
   private dynamicCollisionRevision = 0;
   private static roomsByOffice = new Map<string, Set<OfficeRoom>>();
+  private readonly playerSpatialInterest = new PlayerSpatialInterest();
 
   static getOperationsCounts() {
     let activeRoomCount = 0;
@@ -684,6 +687,10 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     player.x = spawn.x;
     player.z = spawn.z;
     player.rotation = 0;
+    player.hasDetailedPosition = true;
+    player.markerX = spawn.x;
+    player.markerZ = spawn.z;
+    player.markerRotation = 0;
     player.worldVersion = this.worldVersion;
     player.username = auth.username;
     player.displayName = auth.nickname?.trim() || auth.username;
@@ -842,6 +849,8 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.updatePrivateMembership();
     this.updateProximity();
     this.state.players.delete(client.sessionId);
+    this.playerSpatialInterest.sync(this.clients, this.state.players);
+    this.playerSpatialInterest.removeObserver(client);
     this.refreshVehicleCollisionWorlds();
     this.lastPacketAt.delete(client.sessionId);
     this.activityRefreshAtBySessionId.delete(client.sessionId);
@@ -1577,6 +1586,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     this.proximityGroupBySessionId = nextGroupBySessionId;
     this.proximityGroupMembersById = nextMembersByGroupId;
     this.refreshConversations();
+    this.playerSpatialInterest.sync(this.clients, this.state.players);
   }
 
   private completeAutoMoveTeleport(client: Client, player: InstanceType<typeof PlayerState>, landing: Position) {
@@ -1962,6 +1972,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
 
   private previousTickStartedAtMs: number | undefined;
   private nextSpatialProjectionAtMs = 0;
+  private nextDistantMarkerUpdateAtMs = 0;
   private spatialProjectionDirty = true;
   private step(deltaSeconds: number) {
     const startedAtMs = performance.now();
@@ -2170,6 +2181,14 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       }
     }
     if (vehicleCollisionChanged) this.refreshVehicleCollisionWorlds();
+    if (now >= this.nextDistantMarkerUpdateAtMs) {
+      for (const player of this.state.players.values()) {
+        player.markerX = player.x;
+        player.markerZ = player.z;
+        player.markerRotation = player.rotation;
+      }
+      this.nextDistantMarkerUpdateAtMs = now + DISTANT_MARKER_UPDATE_INTERVAL_MS;
+    }
     if (this.spatialProjectionDirty || now >= this.nextSpatialProjectionAtMs || this.privacy?.deadlineDue()) {
       this.spatialProjectionDirty = false;
       this.nextSpatialProjectionAtMs = now + SPATIAL_PROJECTION_INTERVAL_MS;
