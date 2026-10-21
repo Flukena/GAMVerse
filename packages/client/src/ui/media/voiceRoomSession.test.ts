@@ -22,9 +22,20 @@ class FakeRoom implements VoiceRoom {
   connection = deferred();
   reset = deferred();
   disconnectCount = 0;
+  disconnectStopTracks: boolean[] = [];
   teardown: Promise<void> = Promise.resolve();
   microphone: boolean[] = [];
-  localParticipant = {
+  publishedTracks: unknown[] = [];
+  localParticipant: any = {
+    audioTrackPublications: new Map(),
+    videoTrackPublications: new Map(),
+    publishTrack: async (track: unknown) => { this.publishedTracks.push(track); return undefined; },
+    unpublishTrack: async (track: unknown) => {
+      for (const publications of [this.localParticipant.audioTrackPublications, this.localParticipant.videoTrackPublications]) {
+        for (const [key, publication] of publications) if (publication.track === track) publications.delete(key);
+      }
+      return undefined;
+    },
     setMicrophoneEnabled: async (enabled: boolean) => { this.microphone.push(enabled); await this.reset.promise; return undefined; },
     isCameraEnabled: false,
     isScreenShareEnabled: false,
@@ -35,9 +46,10 @@ class FakeRoom implements VoiceRoom {
   off<E extends keyof RoomEventCallbacks>(event: E, listener: RoomEventCallbacks[E]): this { if (this.handlers.get(event) === listener) this.handlers.delete(event); return this; }
   disconnectedHandler() { return this.handlers.get(RoomEvent.Disconnected) as RoomEventCallbacks[RoomEvent.Disconnected]; }
   emitDisconnected(reason = DisconnectReason.UNKNOWN_REASON) { (this.handlers.get(RoomEvent.Disconnected) as RoomEventCallbacks[RoomEvent.Disconnected])?.(reason); }
+  emitLocalTrackUnpublished(publication: any) { (this.handlers.get(RoomEvent.LocalTrackUnpublished) as RoomEventCallbacks[RoomEvent.LocalTrackUnpublished])?.(publication, this.localParticipant); }
   emitReconnecting() { (this.handlers.get(RoomEvent.Reconnecting) as RoomEventCallbacks[RoomEvent.Reconnecting])?.(); }
   connect = async () => this.connection.promise;
-  disconnect = async () => { this.disconnectCount++; this.connection.reject(ConnectionError.cancelled("SDK cancellation")); await this.teardown; };
+  disconnect = async (stopTracks = true) => { this.disconnectCount++; this.disconnectStopTracks.push(stopTracks); this.connection.reject(ConnectionError.cancelled("SDK cancellation")); await this.teardown; };
   ready() { this.connection.resolve(); this.reset.resolve(); }
 }
 function adapter(room: FakeRoom): VoiceRoomAdapter<FakeRoom> {
@@ -75,6 +87,37 @@ test("regression: meeting A→B joins B and disconnects A first", async () => {
   const f = fixture(); await join(f); f.session.setTarget({ ...target, id: "B" }); await flush();
   assert.equal(f.rooms[0]!.disconnectCount, 1); assert.equal(f.rooms.length, 2);
   f.rooms[1]!.ready(); await flush(); assert.equal(f.states.at(-1)?.target?.id, "B"); assert.equal(f.states.at(-1)?.connected, true);
+});
+
+test("proximity group rotation republishes active local media without stopping captured tracks", async () => {
+  const f = fixture();
+  const firstTarget: VoiceTarget = { ...target, kind: "proximity", id: "group-a" };
+  f.session.setTarget(firstTarget); await flush(); f.rooms[0]!.ready(); await flush();
+  const track = { kind: "video", mediaStreamTrack: { readyState: "live" }, stop() { throw new Error("retained track was stopped"); } };
+  f.rooms[0]!.localParticipant.videoTrackPublications.set("screen", { track, source: "screen_share", isMuted: false });
+  f.session.setTarget({ ...firstTarget, id: "group-b" }); await flush();
+  assert.deepEqual(f.rooms[0]!.disconnectStopTracks, [false]);
+  assert.equal(f.notices.length, 0);
+  f.rooms[1]!.ready(); await flush();
+  assert.deepEqual(f.rooms[1]!.publishedTracks, [track]);
+  assert.equal(f.states.at(-1)?.connected, true);
+});
+test("server removal during proximity rotation preserves tracks until the new group joins", async () => {
+  const f = fixture();
+  const firstTarget: VoiceTarget = { ...target, kind: "proximity", id: "group-a" };
+  f.session.setTarget(firstTarget); await flush(); f.rooms[0]!.ready(); await flush();
+  let stopped = false;
+  const track = { kind: "video", mediaStreamTrack: { readyState: "live" }, stop() { stopped = true; } };
+  const publication = { track, source: "screen_share", isMuted: false };
+  f.rooms[0]!.localParticipant.videoTrackPublications.set("screen", publication);
+  f.rooms[0]!.localParticipant.videoTrackPublications.delete("screen");
+  f.rooms[0]!.emitLocalTrackUnpublished(publication);
+  f.rooms[0]!.emitDisconnected(); await flush();
+  f.session.setTarget({ ...firstTarget, id: "group-b" }); await flush();
+  f.rooms[1]!.ready(); await flush();
+  assert.equal(stopped, false);
+  assert.deepEqual(f.rooms[1]!.publishedTracks, [track]);
+  assert.deepEqual(f.notices, []);
 });
 test("regression: owned connect cancellation never sets error", async () => {
   const f = fixture(); f.session.setTarget(target); await flush(); f.session.leave(); await flush();
@@ -381,5 +424,36 @@ test("availability suppression leaves active media and cancels queued microphone
   f.rooms.at(-1)!.ready();
   await flush();
   assert.deepEqual(f.rooms.at(-1)!.microphone, [false]);
+  await f.session.dispose();
+});
+
+test("media control success clears a previous permission failure", async () => {
+  const f = fixture();
+  await join(f);
+  const denied = new Error("Permission denied");
+  denied.name = "NotAllowedError";
+  await f.session.control(async () => { throw denied; });
+  assert.equal(f.states.at(-1)?.error, denied);
+  await f.session.control(async () => undefined);
+  assert.equal(f.states.at(-1)?.error, null);
+  await f.session.dispose();
+});
+
+test("media control permission guidance distinguishes camera from screen recording", async () => {
+  const f = fixture();
+  await join(f);
+  for (const [source, expected] of [
+    ["camera", /Camera access was denied.*browser permissions/],
+    ["screen_share", /Screen sharing was cancelled or denied.*screen recording.*system settings/],
+  ] as const) {
+    const denied = new DOMException("Permission denied", "NotAllowedError");
+    await f.session.control(async () => { throw denied; }, source);
+    const error = f.states.at(-1)?.error;
+    assert.match(error?.message ?? "", expected);
+    assert.equal(error?.cause, denied);
+  }
+  const otherFailure = new Error("Device disconnected");
+  await f.session.control(async () => { throw otherFailure; }, "camera");
+  assert.equal(f.states.at(-1)?.error, otherFailure);
   await f.session.dispose();
 });
