@@ -11,6 +11,8 @@ export async function createVoiceRoom(): Promise<VoiceRoomAdapter<Room>> {
   return {
     room: new Room({
       adaptiveStream: true, dynacast: true,
+      // Membership rotation disconnects proximity rooms; the session republishes only after a fresh grant.
+      stopLocalTrackOnUnpublish: false,
       ...mediaDeviceCaptureDefaults(devices),
       ...(typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype
         ? { audioOutput: { deviceId: devices.audiooutput } } : {}),

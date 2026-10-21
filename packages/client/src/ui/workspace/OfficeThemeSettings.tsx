@@ -1,4 +1,7 @@
+import { lazy, Suspense } from "react";
 import type { WorkspaceTheme } from "./workspaceTheme";
+
+const SurfaceMaterialPreview = lazy(() => import("./SurfaceMaterialPreview").then(({ SurfaceMaterialPreview: Preview }) => ({ default: Preview })));
 
 const THEME_CHOICES: readonly { id: WorkspaceTheme; label: string; description: string; colors: readonly string[] }[] = [
   { id: "app", label: "App", description: "Eucalyptus, oat and terracotta", colors: ["#DCE8DE", "#E7EEE7", "#293A32", "#B86F53"] },
@@ -24,5 +27,6 @@ export function OfficeThemeSettings({ theme, onThemeChange }: Readonly<OfficeThe
         <span className="office-theme-selected-mark" aria-hidden="true">{theme === choice.id ? "✓" : ""}</span>
       </button>)}
     </div>
+    <Suspense fallback={null}><SurfaceMaterialPreview /></Suspense>
   </section>;
 }

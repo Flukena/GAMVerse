@@ -27,7 +27,7 @@ const AVATAR_OBSTACLE_PADDING_PX = 12;
 const NAME_AVATAR_CLEARANCE_PX = 4;
 
 function drawNames(ctx: CanvasRenderingContext2D, p: Map2dProjection,
-  players: ReadonlyMap<string, Map2dPlayer>, localId: string | null, speaking: ReadonlySet<string>): void {
+  players: ReadonlyMap<string, Map2dPlayer>, localId: string | null, speaking: ReadonlySet<string>, hiddenNameIds: ReadonlySet<string>): void {
   const fontPx = map2dNameFontPx(p.pxPerM);
   const candidates: Map2dNameCandidate[] = [];
   const obstacles: Map2dNameRect[] = [];
@@ -37,15 +37,17 @@ function drawNames(ctx: CanvasRenderingContext2D, p: Map2dProjection,
   ctx.textBaseline = "alphabetic";
   for (const [sessionId, player] of players) {
     const screen = worldToScreen(p, player);
+    const body = avatarSpriteScreenRect(screen.x, screen.y, p.pxPerM);
+    obstacles.push({ leftPx: body.x - NAME_AVATAR_CLEARANCE_PX, topPx: body.y - NAME_AVATAR_CLEARANCE_PX,
+      widthPx: body.width + NAME_AVATAR_CLEARANCE_PX * 2, heightPx: body.height + AVATAR_OBSTACLE_PADDING_PX * avatarSpriteScale(p.pxPerM) });
+    if (hiddenNameIds.has(sessionId)) continue;
     const maxTextWidthPx = Math.max(0, Math.min(NAME_MAX_TEXT_WIDTH_PX, p.widthPx - NAME_PILL_PADDING_PX * 2));
     const text = fitMap2dName(playerName(player), maxTextWidthPx, name => ctx.measureText(name).width);
     candidates.push({ sessionId, text, xPx: screen.x,
       topPx: map2dNamePillTopPx(screen.y, avatarSpriteAboveAnchorPx(p.pxPerM), fontPx) - NAME_AVATAR_CLEARANCE_PX,
       widthPx: ctx.measureText(text).width + NAME_PILL_PADDING_PX * 2, heightPx: fontPx + NAME_PILL_HEIGHT_PADDING_PX,
       local: sessionId === localId, speaking: speaking.has(player.username.toLocaleLowerCase()), handRaised: Boolean(player.handRaised) });
-    const body = avatarSpriteScreenRect(screen.x, screen.y, p.pxPerM);
-    obstacles.push({ leftPx: body.x - NAME_AVATAR_CLEARANCE_PX, topPx: body.y - NAME_AVATAR_CLEARANCE_PX,
-      widthPx: body.width + NAME_AVATAR_CLEARANCE_PX * 2, heightPx: body.height + AVATAR_OBSTACLE_PADDING_PX * avatarSpriteScale(p.pxPerM) });
+
   }
   for (const label of layoutMap2dNames(candidates, p, obstacles)) {
     ctx.fillStyle = NAME_PILL_COLOR;
@@ -68,6 +70,7 @@ export function drawMap2dDynamic(
   portraits?: AvatarPortraits,
   presentation: Map2dPresentation = "immersive",
   movingVehicleProps: readonly RoomLayoutProp[] = [],
+  hiddenNameIds: ReadonlySet<string> = new Set(),
 ): void {
   portraits?.setActiveCharacters(Array.from(players.values(), player => player.characterId));
   for (const prop of movingVehicleProps) drawMap2dProp(ctx, p, prop);
@@ -84,7 +87,7 @@ export function drawMap2dDynamic(
     );
   for (const [id, player] of players)
     if (!player.vehicleId) drawMap2dAvatarIndicators(ctx, p, player, id === localId, speaking.has(player.username.toLocaleLowerCase()));
-  drawNames(ctx, p, players, localId, speaking);
+  drawNames(ctx, p, players, localId, speaking, hiddenNameIds);
   for (const decoration of decorations) {
     const player = players.get(decoration.sessionId);
     if (!player || decoration.expiresAtMs <= nowMs) continue;

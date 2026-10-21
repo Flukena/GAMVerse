@@ -1,0 +1,21 @@
+.surface-material-preview { display: grid; gap: 8px; margin-top: 20px; }
+.surface-preview-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.surface-preview-heading h4 { margin: 0; color: var(--workspace-ink); font-size: 12px; font-weight: 700; }
+.surface-preview-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--workspace-edge); border-radius: 8px; background: var(--workspace-subtle); }
+.surface-preview-tabs button { min-width: 48px; min-height: 28px; padding: 4px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--workspace-muted); font: 650 10px "DM Sans", sans-serif; cursor: pointer; }
+.surface-preview-tabs button[aria-pressed="true"] { background: var(--workspace-selected); color: var(--workspace-ink); box-shadow: inset 0 0 0 1px var(--workspace-edge); }
+.surface-preview-stage { position: relative; width: 100%; height: 132px; overflow: hidden; border: 1px solid var(--workspace-edge); border-radius: 8px; background: color-mix(in srgb, var(--workspace-subtle) 88%, #73908a 12%); isolation: isolate; }
+.surface-preview-stage canvas { display: block; width: 100% !important; height: 100% !important; }
+.surface-preview-renderer-fallback { position: absolute; inset: 0; }
+.surface-preview-renderer-fallback button { position: absolute; right: 8px; bottom: 8px; padding: 5px 8px; border: 1px solid var(--workspace-edge); border-radius: 6px; background: var(--workspace-selected); color: var(--workspace-ink); font: 650 10px "DM Sans", sans-serif; cursor: pointer; }
+.surface-preview-shader { position: absolute !important; inset: 0; }
+.surface-preview-shader-mount { display: none; }
+.surface-preview-glass { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; background: linear-gradient(120deg, #9db6aa 0 28%, #e3c39c 28% 48%, #c67d63 48% 69%, #668b93 69%); color: #243632; }
+.surface-preview-grid { position: absolute; inset: 0; background-image: linear-gradient(90deg, #ffffff55 1px, transparent 1px), linear-gradient(#ffffff55 1px, transparent 1px); background-size: 22px 22px; }
+.surface-preview-glass-label { position: relative; padding: 8px 12px; border: 1px solid #ffffffb8; border-radius: 6px; background: #f8f4e8b8; color: #263b36; font: 750 12px "Manrope", sans-serif; }
+.surface-preview-static { width: 100%; height: 100%; background: linear-gradient(125deg, #96b4a8, #dfbf99 46%, #c77b61 72%, #638992); }
+.surface-preview-caption { min-height: 14px; margin: 0; color: var(--workspace-muted); font-size: 10px; line-height: 1.4; }
+.surface-material-preview :is(button, [role="tab"]):focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .surface-preview-tabs button { scroll-behavior: auto; transition: none; }
+}

@@ -4,6 +4,7 @@ import type { VoiceTarget } from "./voiceTarget";
 interface ConversationMediaSession {
   suppressMedia(): void;
   setTarget(target: VoiceTarget | null): void;
+  isProximityTarget?(): boolean;
 }
 
 type AdmissionIntent = { known: boolean; admitted: boolean; newLease: boolean };
@@ -33,6 +34,7 @@ export function applyConversationMediaIntent(
   if (!session) return;
   if (suppressForAvailability) { session.suppressMedia(); return; }
   if (!admission.known) { session.setTarget(null); return; }
-  if (mode !== "join" || !admission.admitted || admission.newLease) session.suppressMedia();
+  const rotatingProximityRoom = admission.newLease && target?.kind === "proximity" && session.isProximityTarget?.();
+  if (mode !== "join" || !admission.admitted || (admission.newLease && !rotatingProximityRoom)) session.suppressMedia();
   if (mode !== "off") session.setTarget(target);
 }

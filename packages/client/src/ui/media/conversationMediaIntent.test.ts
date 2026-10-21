@@ -72,6 +72,24 @@ test("a new guest enters muted from public audio while the same lease preserves 
   assert.equal(admission.receive(admittedSnapshot("second-lease"), "replacement-session").newLease, true);
 });
 
+test("a proximity group membership change keeps active media intent during the room rotation", () => {
+  const admission = new ConversationAdmissionIntent();
+  const calls: unknown[] = [];
+  const session = {
+    suppressMedia() { calls.push("suppress"); },
+    setTarget(value: VoiceTarget | null) { calls.push(value); },
+    isProximityTarget: () => true,
+  };
+  const nearby = admittedSnapshot("first-group");
+  nearby.conversation!.kind = "proximity";
+  admission.receive(nearby, "session");
+  const joined = { ...target, kind: "proximity" as const, id: "next-group", mode: "join" as const };
+  const changedMembership = admittedSnapshot("next-group");
+  changedMembership.conversation!.kind = "proximity";
+  applyConversationMediaIntent(session, joined, "join", admission.receive(changedMembership, "session"));
+  assert.deepEqual(calls, [joined]);
+});
+
 test("unknown conversation mode does not erase microphone intent while awaiting admission sync", () => {
   const admission = new ConversationAdmissionIntent();
   const preferences = new ConversationListeningPreferences();
