@@ -16,9 +16,10 @@ export function avatarSpriteAboveAnchorPx(pxPerM: number): number {
 
 export const AVATAR_SPRITE_DIRECTION_COUNT = 8;
 export const AVATAR_SPRITE_WALK_FRAME_COUNT = 8;
-const AVATAR_SPRITE_STATIONARY_POSE_COUNT = 2;
+const AVATAR_SPRITE_STATIONARY_POSE_COUNT = 3;
 export const AVATAR_SPRITE_POSE_COUNT = AVATAR_SPRITE_WALK_FRAME_COUNT + AVATAR_SPRITE_STATIONARY_POSE_COUNT;
-export const AVATAR_SPRITE_SEATED_POSE_INDEX = AVATAR_SPRITE_POSE_COUNT - 1;
+export const AVATAR_SPRITE_SEATED_POSE_INDEX = AVATAR_SPRITE_POSE_COUNT - 2;
+export const AVATAR_SPRITE_LYING_POSE_INDEX = AVATAR_SPRITE_POSE_COUNT - 1;
 export const AVATAR_SPRITE_FULL_CIRCLE_RAD = Math.PI * 2;
 
 function wrappedSpriteAngleRad(angleRad: number): number {
@@ -32,6 +33,7 @@ export function avatarSpriteDirectionIndex(rotationRad: number): number {
   return Math.round(turn / AVATAR_SPRITE_FULL_CIRCLE_RAD * AVATAR_SPRITE_DIRECTION_COUNT) % AVATAR_SPRITE_DIRECTION_COUNT;
 }
 export function avatarSpritePoseIndex(visual: Map2dAvatarVisual): number {
+  if (visual.motion === "lying") return AVATAR_SPRITE_LYING_POSE_INDEX;
   if (visual.motion === "seated") return AVATAR_SPRITE_SEATED_POSE_INDEX;
   if (visual.motion === "idle") return 0;
   const turn = wrappedSpriteAngleRad(visual.stridePhaseRad);

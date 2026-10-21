@@ -45,6 +45,10 @@ export function drawAvatarFallback(ctx: CanvasRenderingContext2D, xPx: number, y
   player: Map2dPlayer, visual: Map2dAvatarVisual, scale: number): void {
   const swingPx = visual.motion === "walking" ? Math.sin(visual.stridePhaseRad) * WALK_SWING_PX : 0;
   ctx.save(); ctx.translate(xPx, yPx); ctx.scale(scale, scale);
+  if (visual.motion === "lying") {
+    ctx.rotate(Math.PI - player.rotation);
+    ctx.translate(0, -HEAD_TOP_PX / 2);
+  }
   ctx.fillStyle = MAP2D_COLORS.text;
   ctx.beginPath();
   ctx.roundRect(LEFT_LEG_X_PX, LEG_TOP_PX + swingPx, LEG_WIDTH_PX, LEG_HEIGHT_PX - swingPx, CORNER_RADIUS_PX);

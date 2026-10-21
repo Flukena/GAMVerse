@@ -1,6 +1,8 @@
 import { StaticSceneGroup } from "./staticSceneGroup";
 import { OfficeMapSceneLayers } from "./officeMapSceneLayers";
 import { playerName } from "../identity/playerName";
+import { isRoomPropBed } from "@gammyverse/shared";
+import { applyLyingCharacterPose } from "./lyingCharacterPose";
 import { CAMPUS_LAYOUT, CAMPUS_WORLD, CAMERA, lerpAngle, DEFAULT_CHARACTER_ID, JUMP_DURATION_MS, jumpHeightAt, KENNEY_BLASTER_IDS, KENNEY_VEHICLE_IDS, WORLD, ROOM_PROP_CATALOG, TEMPLATE_PRIVATE_WALL_ASSETS, templatePrivateWallAsset, parseRoomPropSeatReference, roomPropCollisionFootprint, roomWallSolidSegments, roomBoundaryWalls, roomPropPlacementSupport, roomPropSeatAnchors, campusPropPlacements, type CampusRoom, type KenneyBlasterId, type KenneyCharacterId, type KenneyVehicleId, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone, type UserStatus } from "@gammyverse/shared";
 import type { MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -21,6 +23,7 @@ import { createProceduralHumanoidRig, updateProceduralHumanoidRig, type Procedur
 import { createWorldDestinationBeacon } from "./destinationBeacon";
 import { fitWallAssetModel } from "./wallAssetTransform";
 import { cameraReducer, createCameraState, isBehindCharacterLocked, type CameraEvent } from "./camera/cameraState";
+import { isLockedBackwardHeld } from "./camera/lockedMovement";
 import { computeCameraFrame, applyCameraProjection, campusOverviewDistance } from "./camera/cameraFrame";
 import { rotateFirstPersonAim, panCameraTarget, cameraPanDistanceM, hasExceededCameraDragThreshold, isCameraClickGesture, classifyCampusMapPointerAction, findClosestScreenTarget, cameraWheelEvent, panEditorCamera, hasCameraMovement, isConflictingCameraPointerDown, canFinishCameraPointerGesture } from "./camera/cameraInput";
 import { CameraOcclusion } from "./camera/cameraOcclusion";
@@ -33,6 +36,8 @@ import { useMap2dPresentation } from "./map2d/useMap2dPresentation";
 import type { Map2dTravelFeedback } from "./map2d/map2dTravelFeedback";
 import { WorldSocialOverlay } from "./WorldSocialOverlay";
 import { Map2dRenderer, readMap2dPreference, persistMap2dPreference } from "./map2d/Map2dRenderer";
+import { mountMap2dWithoutWebgl } from "./map2d/map2dNoWebgl";
+import { rememberWebglFailure, retryWebglAfterReload, webglFailedInThisTab } from "./webglFailureSession";
 import { smoothAvatarPose, avatarPoseBlend } from "./map2d/avatarPoseSmoother";
 import { registerMap2dShortcut } from "./map2d/map2dShortcut";
 import { applyCameraView } from "./camera/cameraView";
@@ -40,7 +45,8 @@ import { locateMap2d, type Map2dLocateRequest } from "./map2d/map2dInput";
 import type { Map2dDecoration } from "./map2d/map2dDynamicLayer";
 import { campusOverviewMapScalePxPerM } from "./map2d/map2dProjection";
 import { clientRuntimeMetrics } from "./clientRuntimeMetrics";
-import { civicRoomFloorColor, makeCivicParkGround, makeEastFootballFieldVisual, makeWestPublicParkVisual } from "./civicParkSurface";
+import { makeCivicParkGround, makeEastFootballFieldVisual, makeWestPublicParkVisual } from "./civicParkSurface";
+import { CAMPUS_GRASS_COLOR, CAMPUS_STONE_COLOR, civicRoomFloorColor, ZONE_COLOR_OPACITY } from "./zoneFloorColor";
 import { PropModelVisibility } from "./propModelVisibility";
 import { coveredZones, isCoveredPosition, isInsideZone } from "./zoneVisibility";
 import { ZoneRoofs } from "./zoneRoofs";
@@ -327,7 +333,7 @@ function makeCampusRoom(room: CampusRoom, floor: CampusFloorId) {
   return group;
 }
 
-function makeCampusFloor(floor: { id: number; name: string; width: number; depth: number }, outdoorGroundColor = 0xe9e8df) {
+function makeCampusFloor(floor: { id: number; name: string; width: number; depth: number }, outdoorGroundColor = CAMPUS_STONE_COLOR) {
   const group = new THREE.Group();
   const base = new THREE.Mesh(
     new THREE.BoxGeometry(floor.width, 0.22, floor.depth),
@@ -352,6 +358,7 @@ function makeCampusFloor(floor: { id: number; name: string; width: number; depth
 
 interface AvatarAnimationState {
   model: THREE.Group;
+  lyingModel?: THREE.Group;
   proceduralMotion: boolean;
   rotationOffset: number;
   phase: number;
@@ -807,6 +814,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const [firstPersonView, setFirstPersonView] = useState(false);
   const inboundAudioMutedRef = useRef(inboundAudioMuted);
   inboundAudioMutedRef.current = inboundAudioMuted;
+  const appPausedRef = useRef(appPaused);
+  appPausedRef.current = appPaused;
+  const [webglUnavailable, setWebglUnavailable] = useState(false);
+  const webglCreationFailedRef = useRef(webglFailedInThisTab());
   const idleAnimationsEnabledRef = useRef(idleAnimationsEnabled);
   idleAnimationsEnabledRef.current = idleAnimationsEnabled;
   const [activeFloatingGroup, setActiveFloatingGroup] = useState<"character" | "edit" | "view" | "zoom" | null>(null);
@@ -844,6 +855,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const travelRequestingRef = useRef(travelRequesting);
   travelRequestingRef.current = travelRequesting;
   const setMap2dView = (view: "2d" | "3d") => {
+    if (webglUnavailable && view === "3d") return;
     if (view === "2d") cameraYawRef.current = Math.PI;
     cameraStateRef.current = applyCameraView(cameraStateRef.current, view, {
       exitFirstPerson: () => {
@@ -947,9 +959,60 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    const map2dListener = {
+      pan: (center: { x: number; z: number }) => { map2dCenterRef.current = center; if (cameraStateRef.current.following) dispatchCamera({ type: "manual-drag" }); },
+      zoom: (pxPerM: number) => dispatchCamera({ type: "map2d-scale", pxPerM }),
+      zoomOverview: (deltaYPx: number) => dispatchCamera(cameraWheelEvent(cameraStateRef.current, deltaYPx, tppMaxDistanceMRef.current)),
+      walk: (destination: { x: number; z: number }) => {
+        if (!buildModeRef.current && !mapEditModeRef.current) buildCallbacksRef.current.onAutoMove?.(destination, false);
+      },
+      selectPlayer: (id: string, x: number, y: number) => buildCallbacksRef.current.onSelectPlayer?.(id, x, y),
+    };
     const dimensions = roomLayout?.dimensions ?? CAMPUS_LAYOUT.floors[0]!;
     const mapWorld = { ...CAMPUS_WORLD, ...dimensions };
     const activeFloor = { ...CAMPUS_LAYOUT.floors[0]!, ...dimensions };
+    const showMap2dFallback = () => {
+      setWebglUnavailable(true);
+      setMap2dView("2d");
+      if (map2dViewRef) map2dViewRef.current = true;
+      const onVehicleExit = (event: KeyboardEvent) => {
+        if (event.code !== "KeyE" || event.repeat || appPausedRef.current) return;
+        const target = event.target;
+        if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName))) return;
+        const localPlayer = playersRef.current.get(localSessionIdRef.current ?? "");
+        if (!localPlayer?.vehicleId) return;
+        event.preventDefault();
+        vehicleInteractRef.current?.("");
+      };
+      window.addEventListener("keydown", onVehicleExit);
+      const disposeMap2d = mountMap2dWithoutWebgl(host, map2dListener, (nowMs, deltaS) => {
+        if (heldKeysRef?.current && hasCameraMovement(heldKeysRef.current)) dispatchCamera({ type: "walk-input" });
+        const locate = locateRequestRef?.current;
+        if (locate && locate.requestId !== lastLocateRequestRef.current) {
+          const target = locate.center ?? (locate.sessionId ? playersRef.current.get(locate.sessionId) : undefined);
+          if (target) {
+            const located = locateMap2d(target, locate.sessionId ?? "", nowMs);
+            dispatchCamera({ type: "manual-drag" });
+            map2dCenterRef.current = located.center;
+            locateDecorationsRef.current = [located.decoration];
+          }
+          lastLocateRequestRef.current = locate.requestId;
+        }
+        return {
+        presentation: mapPresentationRef.current, visible: true, view: "2d", layout: roomLayout,
+        widthM: mapWorld.width, depthM: mapWorld.depth, configVersion: propsConfigVersion,
+        projection: { center: map2dCenterRef.current, pxPerM: cameraStateRef.current.map2dScalePxPerM,
+          widthPx: host.clientWidth, heightPx: host.clientHeight, dpr: window.devicePixelRatio || 1 },
+        players: playersRef.current, localId: localSessionIdRef.current,
+        speaking: speakingUsernamesRef?.current ?? new Set<string>(),
+        decorations: [...locateDecorationsRef.current, ...(map2dDecorationsRef?.current ?? [])], nowMs, deltaS,
+        destination: travelFeedbackRef.current?.destination ?? null,
+        following: cameraStateRef.current.following,
+        };
+      }, (center) => { map2dCenterRef.current = center; });
+      return () => { window.removeEventListener("keydown", onVehicleExit); disposeMap2d(); };
+    };
+    if (webglCreationFailedRef.current) return showMap2dFallback();
 
     const cameraOcclusion = new CameraOcclusion();
     const scene = new THREE.Scene();
@@ -959,10 +1022,26 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     const camera = new THREE.PerspectiveCamera(TPP_FOV_DEG, 1, CAMERA_NEAR_MAX_M, CAMERA_FAR_MIN_M);
     if (cameraPositionRef.current) camera.position.copy(cameraPositionRef.current);
     scene.add(camera);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    } catch (error) {
+      console.error("Could not start the 3D office renderer.", error);
+      webglCreationFailedRef.current = true;
+      rememberWebglFailure();
+      return showMap2dFallback();
+    }
+    setWebglUnavailable(false);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    const onWebglContextLost = (event: Event) => {
+      event.preventDefault();
+      webglCreationFailedRef.current = true;
+      rememberWebglFailure();
+      setWebglUnavailable(true);
+    };
+    renderer.domElement.addEventListener("webglcontextlost", onWebglContextLost);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     const vehicleNameOverlay = document.createElement("div");
@@ -980,15 +1059,9 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     map2dCanvasRef.current = map2dCanvas;
     const destinationBeacon = createWorldDestinationBeacon(host, scene);
     const socialOverlay = new WorldSocialOverlay(host, scene);
-    const map2dRenderer = new Map2dRenderer(map2dCanvas, {
-      pan: (center) => { map2dCenterRef.current = center; if (cameraStateRef.current.following) dispatchCamera({ type: "manual-drag" }); },
-      zoom: (pxPerM) => dispatchCamera({ type: "map2d-scale", pxPerM }),
-      zoomOverview: (deltaYPx) => dispatchCamera(cameraWheelEvent(cameraStateRef.current, deltaYPx, tppMaxDistanceMRef.current)),
-      walk: (destination) => { buildCallbacksRef.current.onAutoMove?.(destination, false); },
-      selectPlayer: (id, x, y) => buildCallbacksRef.current.onSelectPlayer?.(id, x, y),
-    });
+    const map2dRenderer = new Map2dRenderer(map2dCanvas, map2dListener);
     const removeMap2dShortcut = registerMap2dShortcut(window, {
-      state: () => ({ paused: appPaused, buildMode: buildModeRef.current, mapEditMode: mapEditModeRef.current }),
+      state: () => ({ paused: appPausedRef.current, buildMode: buildModeRef.current, mapEditMode: mapEditModeRef.current }),
       toggle: toggleMap2d,
     });
     // Compact shooter-style first-person viewmodel. The arms are simple
@@ -1331,7 +1404,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       floorGroup.visible = true;
       campusFloorGroups.set(floor.id, floorGroup);
       campusRoot.add(floorGroup);
-      const campusFloor = makeCampusFloor(floor, roomLayout?.roadways?.length ? 0xb8d2a5 : 0xe9e8df);
+      const campusFloor = makeCampusFloor(floor, roomLayout?.roadways?.length ? CAMPUS_GRASS_COLOR : CAMPUS_STONE_COLOR);
       floorGroup.add(campusFloor.group);
       campusFloor.boundaryWalls.forEach((wall) => cameraOcclusion.register(wall));
     }
@@ -1612,7 +1685,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         const zoneMesh = new THREE.Mesh(
           new THREE.BoxGeometry(zone.width, 0.018, zone.depth),
           new THREE.MeshStandardMaterial(civicFloorColor === null
-            ? { color: zone.color, transparent: true, opacity: 0.22, roughness: 1 }
+            ? { color: zone.color, transparent: true, opacity: ZONE_COLOR_OPACITY, roughness: 1 }
             : { color: civicFloorColor, roughness: 0.96 }),
         );
         zoneMesh.position.set(zone.x + mapWorld.width / 2, 0.018, zone.z + mapWorld.depth / 2);
@@ -2331,7 +2404,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       setPropActionMenu({ id: propId, ...getOfficePropActionPosition(propId, event.clientX, event.clientY) });
     };
     const onPointerDown = (event: PointerEvent) => {
-      if (appPaused && event.button !== 2) { event.preventDefault(); return; }
+      if (appPausedRef.current && event.button !== 2) { event.preventDefault(); return; }
       // Never let a second button or pointer replace the gesture that already
       // owns the map. A chord cancels the pending click, so it cannot turn into
       // an accidental automove when either button is released.
@@ -2723,7 +2796,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       renderer.domElement.style.cursor = "default";
     };
     const onVehicleKeyDown = (event: KeyboardEvent) => {
-      if (appPaused || event.repeat || event.code !== "KeyE" || buildModeRef.current || mapEditModeRef.current) return;
+      if (appPausedRef.current || event.repeat || event.code !== "KeyE" || buildModeRef.current || mapEditModeRef.current) return;
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName))) return;
       const localId = localSessionIdRef.current;
@@ -2740,7 +2813,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     };
     let ghostKeyHeld = false;
     const onGhostModeKeyDown = (event: KeyboardEvent) => {
-      if (appPaused || event.repeat || event.code !== "KeyG" || buildModeRef.current || mapEditModeRef.current || ghostKeyHeld) return;
+      if (appPausedRef.current || event.repeat || event.code !== "KeyG" || buildModeRef.current || mapEditModeRef.current || ghostKeyHeld) return;
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
       event.preventDefault();
@@ -2754,7 +2827,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
     };
     const onGhostModeKeyUp = (event: KeyboardEvent) => { if (event.code === "KeyG") stopGhostKey(); };
     const onFirstPersonKeyDown = (event: KeyboardEvent) => {
-      if (appPaused || (event.code !== "KeyB" && event.key.toLowerCase() !== "b") || event.repeat || !campusOverviewRef.current || !firstPersonViewRef.current || mapEditModeRef.current || buildModeRef.current) return;
+      if (appPausedRef.current || (event.code !== "KeyB" && event.key.toLowerCase() !== "b") || event.repeat || !campusOverviewRef.current || !firstPersonViewRef.current || mapEditModeRef.current || buildModeRef.current) return;
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
       event.preventDefault();
@@ -2765,7 +2838,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       });
     };
     const onCameraViewKeyDown = (event: KeyboardEvent) => {
-      if (appPaused || event.code !== "KeyV" || event.repeat || buildModeRef.current || mapEditModeRef.current) return;
+      if (appPausedRef.current || event.code !== "KeyV" || event.repeat || buildModeRef.current || mapEditModeRef.current) return;
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
       event.preventDefault();
@@ -2784,7 +2857,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       event.preventDefault();
       event.stopImmediatePropagation();
       const target = event.target instanceof Element ? event.target : null;
-      if (event.repeat || appPaused || buildModeRef.current || mapEditModeRef.current || cameraStateRef.current.mode === "map2d" || target?.closest("[role='dialog']")) return;
+      if (event.repeat || appPausedRef.current || buildModeRef.current || mapEditModeRef.current || cameraStateRef.current.mode === "map2d" || target?.closest("[role='dialog']")) return;
       const localId = localSessionIdRef.current;
       const player = localId ? playersRef.current.get(localId) : undefined;
       if (!player || player.vehicleId || player.sittingPropId) return;
@@ -3071,7 +3144,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           const color = avatarColors[avatars.size % avatarColors.length];
           const fallback = makeAvatar(color);
           avatar = fallback.group;
-          avatarAnimations.set(id, { model: fallback.bodyPivot, proceduralMotion: true, rotationOffset: Math.PI, phase: 0 });
+          avatarAnimations.set(id, { model: fallback.bodyPivot, lyingModel: fallback.proceduralRig, proceduralMotion: true, rotationOffset: Math.PI, phase: 0, danceBasePosition: fallback.bodyPivot.position.clone(), danceBaseRotation: fallback.bodyPivot.rotation.clone() });
           fallbackParts.set(id, {
             body: fallback.body,
             head: fallback.head,
@@ -3202,6 +3275,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         const sittingReference = player.sittingPropId ? parseRoomPropSeatReference(player.sittingPropId) : undefined;
         const sittingProp = sittingReference ? roomLayout?.props.find((prop) => prop.id === sittingReference.propId) : undefined;
         const sittingDefinition = sittingProp ? ROOM_PROP_CATALOG.find((item) => item.asset === sittingProp.asset) : undefined;
+        const lying = Boolean(sittingProp && isRoomPropBed(sittingProp.asset));
         const sittingAnchor = sittingProp && sittingReference
           ? roomPropSeatAnchors(sittingProp, sittingDefinition, renderedPropScales.get(sittingProp.id) ?? 1).find((anchor) => anchor.index === sittingReference.seatIndex)
           : undefined;
@@ -3225,7 +3299,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
           const dancing = Boolean(player.dancing) && !moving && !sittingProp && !vehicleId;
           const targetAction = dancing && animation.danceAction
             ? animation.danceAction
-            : sittingProp
+            : sittingProp && !lying
             ? animation.sitAction ?? (idleEnabled ? animation.idleAction : undefined)
             : moving ? (sprinting ? animation.runAction ?? animation.walkAction : animation.walkAction) : idleEnabled ? animation.idleAction : undefined;
           if (targetAction !== animation.currentAction) {
@@ -3265,11 +3339,14 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
             fallback.rightLeg.rotation.x = dancing ? -Math.sin(animation.phase * 0.5) * 0.35 : moving ? stride * strideAmount * 1.15 : 0;
           }
         }
+        if (animation?.lyingModel) applyLyingCharacterPose(animation.lyingModel, lying, undefined, undefined, -1);
+        else if (animation?.danceBasePosition && animation.danceBaseRotation)
+          applyLyingCharacterPose(animation.model, lying, animation.danceBasePosition, animation.danceBaseRotation);
         const blend = avatarPoseBlend(delta, id === localId);
         const rotationOffset = animation?.rotationOffset ?? Math.PI;
         // Kenney's authored sit clip faces the opposite local direction from
         // the chair fronts in our office furniture assets.
-        const targetRotation = sittingProp ? (sittingAnchor?.rotation ?? sittingProp.rotation) + rotationOffset + Math.PI : player.rotation + rotationOffset;
+        const targetRotation = sittingProp ? (sittingAnchor?.rotation ?? sittingProp.rotation) + (lying ? 0 : rotationOffset + Math.PI) : player.rotation + rotationOffset;
         const pose = smoothAvatarPose({ x: current.x, z: current.z, rotation: avatar.rotation.y }, { x: renderX, z: renderZ, rotation: targetRotation }, delta, id === localId);
         current.x = pose.x;
         current.z = pose.z;
@@ -3437,8 +3514,10 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
 
       const local = localId ? avatars.get(localId) : undefined;
       const localPlayerState = localId ? playersRef.current.get(localId) : undefined;
+      const heldKeys = heldKeysRef?.current;
+      const backwardHeld = heldKeys ? isLockedBackwardHeld(heldKeys) : false;
       if (cameraStateRef.current.arrival === "awaiting-avatar" && local && localPlayerState) {
-        if (cameraStateRef.current.alignBehind) cameraYawRef.current = localPlayerState.rotation + Math.PI;
+        if (cameraStateRef.current.alignBehind && !backwardHeld) cameraYawRef.current = localPlayerState.rotation + Math.PI;
         dispatchCamera({ type: "avatar-ready" });
         previousCameraPose = null;
       }
@@ -3453,12 +3532,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         }
         dispatchCamera({ type: "edit", active: editing });
       }
-      const heldKeys = heldKeysRef?.current;
       const walkingInput = Boolean(heldKeys && hasCameraMovement(heldKeys));
       if (walkingInput) dispatchCamera({ type: "walk-input" });
       const lockBehind = isBehindCharacterLocked(cameraStateRef.current);
       cameraBehindCharacterRef.current = lockBehind;
-      if (lockBehind && localPlayerState) {
+      if (lockBehind && localPlayerState && !backwardHeld) {
         const blend = 1 - Math.exp(-FOLLOW_FACING_RESPONSE_PER_SECOND * delta);
         cameraYawRef.current = lerpAngle(cameraYawRef.current, localPlayerState.rotation + Math.PI, blend);
       }
@@ -3741,6 +3819,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       zoneLockIconsRef.current.clear();
       cancelAnimationFrame(animationFrame);
       document.removeEventListener("visibilitychange", onDocumentVisibilityChange);
+      renderer.domElement.removeEventListener("webglcontextlost", onWebglContextLost);
       observer.disconnect();
       renderer.domElement.removeEventListener("contextmenu", onCanvasContextMenu);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
@@ -3832,11 +3911,16 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       deskClaimLayer.remove();
       renderer.domElement.remove();
     };
-  }, [playersRef, localSessionIdRef, cameraYawRef, firstPersonViewRef, activeRoomKey, roomLayout, appPaused]);
+  }, [playersRef, localSessionIdRef, cameraYawRef, firstPersonViewRef, activeRoomKey, roomLayout, webglUnavailable]);
 
   return (
     <>
-      <div className="world-canvas" ref={hostRef} aria-label="Office map. Walk up to a parked vehicle and press E to drive. Press E again to get out." />
+      <div className="world-canvas" ref={hostRef} aria-label="Office map. Walk up to a parked vehicle and press E to drive. Press E again to get out.">
+        {webglUnavailable && <div role="status" className="world-webgl-error">
+          <span>3D is unavailable. The 2D map is active; editing is unavailable.</span>
+          {!buildMode && !mapEditMode && <button type="button" onClick={retryWebglAfterReload}>Retry 3D</button>}
+        </div>}
+      </div>
       {buildMode && movePropArmedId && <div className="modify-props-move-toast" role="status">Click and drag the selected prop. Right-drag pans the camera.</div>}
       {buildMode && propActionMenu && <div ref={propActionMenuElementRef} className="prop-action-menu" style={{ left: propActionMenu.x, top: propActionMenu.y }} role="toolbar" aria-label="Actions for selected prop" onPointerDown={(event) => event.stopPropagation()}>
         <button type="button" title="Click, then left-drag on the map to move this prop" aria-label="Move prop" onClick={() => { onSelectMapItem?.(propActionMenu.id); onPlacementComplete?.(); movePropArmedIdRef.current = propActionMenu.id; setMovePropArmedId(propActionMenu.id); setPropActionMenu(null); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7M5 5v14" /></svg><span>Move</span></button>
@@ -3852,8 +3936,8 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
         cameraState={cameraState} campusOverview={campusOverview} firstPersonView={firstPersonView} appPaused={appPaused}
         personalDeskZone={personalDeskZone} currentPrivateZoneId={currentPrivateZoneId}
         activeFloatingGroup={activeFloatingGroup} setActiveFloatingGroup={setActiveFloatingGroup}
-        canEditMap={canEditMap} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockPending}
-        onEditMap={onEditMap} onModifyProps={onModifyProps} weaponInventoryOpen={weaponInventoryOpen}
+        canEditMap={canEditMap && !webglUnavailable} mapEditorUsername={mapEditorUsername} mapEditLockPending={mapEditLockPending}
+        onEditMap={webglUnavailable ? undefined : onEditMap} onModifyProps={webglUnavailable ? undefined : onModifyProps} weaponInventoryOpen={weaponInventoryOpen}
         onToggleWeaponInventory={() => { setWeaponInventoryOpen((open) => !open); if (!weaponInventoryOpen && document.pointerLockElement) document.exitPointerLock(); }}
         toggleCameraView={toggleCameraView} dispatchCamera={dispatchCamera}
         onGoToDesk={() => { setActiveFloatingGroup(null); onReturnToDesk?.(); }}

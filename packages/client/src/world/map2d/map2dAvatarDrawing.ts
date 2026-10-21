@@ -32,16 +32,18 @@ function outerRingRadiusPx(radiusPx: number, local: boolean, speaking: boolean, 
 }
 export function drawMap2dAvatar(
   ctx: CanvasRenderingContext2D, p: Map2dProjection, player: DrawablePlayer,
-  local: boolean, speaking: boolean, portraits: Pick<AvatarPortraits, "get"> | undefined, immersive: boolean,
+  local: boolean, speaking: boolean, portraits: Pick<AvatarPortraits, "get"> | undefined, immersive: boolean, lying = false,
 ): void {
   const screen = worldToScreen(p, player);
   const radiusPx = map2dHeadRadiusPx(p.pxPerM);
   const sprite = portraits?.get(player.characterId);
-  const visual = player.visual ?? { motion: player.sittingPropId ? "seated" : "idle", stridePhaseRad: 0 };
+  const visual: Map2dAvatarVisual = lying ? { motion: "lying", stridePhaseRad: 0 }
+    : player.visual ?? { motion: player.sittingPropId ? "seated" : "idle", stridePhaseRad: 0 };
   if (sprite) {
     const source = avatarSpriteSourceRect(player.rotation, visual);
     const target = avatarSpriteScreenRect(screen.x, screen.y, p.pxPerM);
-    ctx.drawImage(sprite, source.x, source.y, source.width, source.height, target.x, target.y, target.width, target.height);
+    ctx.drawImage(sprite, source.x, source.y, source.width, source.height, target.x,
+      lying ? screen.y - target.height / 2 : target.y, target.width, target.height);
   } else drawAvatarFallback(ctx, screen.x, screen.y, player, visual, avatarSpriteScale(p.pxPerM));
   const notchRadiusPx = outerRingRadiusPx(radiusPx, local, speaking, avatarSpriteScale(p.pxPerM));
   if (immersive) drawFacing(ctx, screen.x, screen.y, notchRadiusPx, player.rotation, avatarSpriteScale(p.pxPerM));

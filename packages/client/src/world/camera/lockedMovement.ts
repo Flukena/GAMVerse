@@ -1,6 +1,6 @@
 import { screenMovementToWorld, shortestAngleDelta, type MovementInput } from "@gammyverse/shared";
 
-export const CHARACTER_TURN_STEP_RAD = Math.PI / 12;
+export const CHARACTER_TURN_STEP_RAD = Math.PI / 4;
 export const CHARACTER_TURN_REPEAT_MS = 200;
 const TURN_INTENT_HOLD_MS = 1000;
 
@@ -8,14 +8,19 @@ export type LockedTurnState = {
   rotationRad: number;
   direction: -1 | 0 | 1;
   lastStepAtMs: number;
+  backwardHeld?: boolean;
 };
+
+export function isLockedBackwardHeld(keys: ReadonlySet<string>): boolean {
+  return (keys.has("KeyS") || keys.has("ArrowDown")) && !(keys.has("KeyW") || keys.has("ArrowUp"));
+}
 
 /** In this world +X is to the avatar's left when facing +Z. */
 export function advanceLockedTurn(state: LockedTurnState | null, direction: -1 | 0 | 1, currentRotationRad: number, nowMs: number): LockedTurnState | null {
   if (direction === 0) return state ? { ...state, direction: 0 } : null;
   if (state?.direction === direction && nowMs - state.lastStepAtMs < CHARACTER_TURN_REPEAT_MS) return state;
   const rotationRad = state && nowMs - state.lastStepAtMs < TURN_INTENT_HOLD_MS ? state.rotationRad : currentRotationRad;
-  return { rotationRad: shortestAngleDelta(0, rotationRad - direction * CHARACTER_TURN_STEP_RAD), direction, lastStepAtMs: nowMs };
+  return { rotationRad: shortestAngleDelta(0, rotationRad - direction * CHARACTER_TURN_STEP_RAD), direction, lastStepAtMs: nowMs, backwardHeld: state?.backwardHeld };
 }
 
 export function recentLockedRotation(state: LockedTurnState | null, nowMs: number): number | null {

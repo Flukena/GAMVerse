@@ -2,9 +2,11 @@ import * as THREE from "three";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { loadCharacterAsset, type LoadedCharacterAsset } from "../../assets/characterAssets";
 import { createProceduralHumanoidRig, updateProceduralHumanoidRig, type ProceduralHumanoidRig } from "../proceduralHumanoidMotion";
+import { applyLyingCharacterPose } from "../lyingCharacterPose";
+import { rememberWebglFailure, webglFailedInThisTab } from "../webglFailureSession";
 import {
   AVATAR_SPRITE_FRAME_HEIGHT_M, AVATAR_SPRITE_DIRECTION_COUNT, AVATAR_SPRITE_FULL_CIRCLE_RAD, AVATAR_SPRITE_POSE_COUNT,
-  AVATAR_SPRITE_SEATED_POSE_INDEX, AVATAR_SPRITE_TILE_HEIGHT_PX, AVATAR_SPRITE_TILE_WIDTH_PX,
+  AVATAR_SPRITE_SEATED_POSE_INDEX, AVATAR_SPRITE_LYING_POSE_INDEX, AVATAR_SPRITE_TILE_HEIGHT_PX, AVATAR_SPRITE_TILE_WIDTH_PX,
   AVATAR_SPRITE_WALK_FRAME_COUNT,
 } from "./avatarSpriteGeometry";
 
@@ -38,7 +40,12 @@ let renderer: THREE.WebGLRenderer | null = null;
 
 function snapshotRenderer(): THREE.WebGLRenderer {
   if (!renderer) {
-    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
+    } catch (error) {
+      rememberWebglFailure();
+      throw error;
+    }
     renderer.setSize(AVATAR_SPRITE_TILE_WIDTH_PX, AVATAR_SPRITE_TILE_HEIGHT_PX, false);
     renderer.setClearColor(PORTRAIT_LIGHT_PALETTE.clear, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -114,6 +121,12 @@ async function renderSprites(asset: LoadedCharacterAsset, request: SnapshotReque
   root.add(model);
   const scene = snapshotScene(root);
   const camera = snapshotCamera();
+  const lyingCamera = snapshotCamera();
+  lyingCamera.position.set(0, CAMERA_DISTANCE_M, 0);
+  lyingCamera.up.set(0, 0, -1);
+  lyingCamera.lookAt(0, 0, 0);
+  const restPosition = model.position.clone();
+  const restRotation = model.rotation.clone();
   const setPose = spritePose(model, asset, request.characterId);
   const canvas = document.createElement("canvas");
   canvas.width = AVATAR_SPRITE_TILE_WIDTH_PX * AVATAR_SPRITE_POSE_COUNT;
@@ -125,10 +138,14 @@ async function renderSprites(asset: LoadedCharacterAsset, request: SnapshotReque
       if (!request.active()) return null;
       root.rotation.y = direction / AVATAR_SPRITE_DIRECTION_COUNT * AVATAR_SPRITE_FULL_CIRCLE_RAD;
       for (let pose = 0; pose < AVATAR_SPRITE_POSE_COUNT; pose += 1) {
+        if (webglFailedInThisTab()) return null;
         setPose(pose);
+        const lying = pose === AVATAR_SPRITE_LYING_POSE_INDEX;
+        applyLyingCharacterPose(model, lying, restPosition, restRotation);
+        if (!lying) model.position.y = restPosition.y;
         root.position.y = pose === AVATAR_SPRITE_SEATED_POSE_INDEX ? SEATED_ROOT_OFFSET_M : 0;
         const sharedRenderer = snapshotRenderer();
-        sharedRenderer.render(scene, camera);
+        sharedRenderer.render(scene, lying ? lyingCamera : camera);
         ctx?.drawImage(sharedRenderer.domElement, pose * AVATAR_SPRITE_TILE_WIDTH_PX, direction * AVATAR_SPRITE_TILE_HEIGHT_PX);
       }
     }
@@ -140,8 +157,9 @@ async function renderSprites(asset: LoadedCharacterAsset, request: SnapshotReque
   }
 }
 async function processRequest(request: SnapshotRequest): Promise<void> {
+  if (webglFailedInThisTab()) { request.complete(null); return; }
   const asset = await loadCharacterAsset(request.characterId, request.endpoint);
-  if (request.active()) request.complete(await renderSprites(asset, request));
+  if (request.active()) request.complete(webglFailedInThisTab() ? null : await renderSprites(asset, request));
 }
 async function drainQueue(): Promise<void> {
   draining = true;
@@ -160,6 +178,7 @@ async function drainQueue(): Promise<void> {
   }
 }
 export function queueAvatarSnapshot(request: SnapshotRequest): void {
+  if (webglFailedInThisTab()) { request.complete(null); return; }
   queue.push(request);
   if (!draining) void drainQueue();
 }

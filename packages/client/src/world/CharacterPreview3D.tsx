@@ -38,7 +38,13 @@ export function CharacterPreview3D({ characterId, modelUrl, endpoint, label, fal
     camera.position.set(0, 1.05, 4.4);
     camera.lookAt(0, 0.82, 0);
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
+    } catch {
+      setLoadState("error");
+      return;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -157,10 +163,6 @@ export function CharacterPreview3D({ characterId, modelUrl, endpoint, label, fal
       platformGeometry.dispose();
       platformMaterial.dispose();
       renderer.dispose();
-      // This preview remounts whenever the selected character or pet changes.
-      // Explicitly release the WebGL context so opening the picker or stepping
-      // through many pets cannot exhaust the browser's per-page context limit
-      // and blank out the office renderer.
       renderer.forceContextLoss();
       renderer.domElement.remove();
     };

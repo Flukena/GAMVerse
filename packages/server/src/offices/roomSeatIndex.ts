@@ -1,5 +1,5 @@
 import { realtimeRuntimeMetrics } from "../infra/realtimeRuntimeMetrics.js";
-import { ROOM_PROP_CATALOG, parseRoomPropSeatReference, roomPropSeatAnchors, roomPropSeatReference, type RoomLayoutProp } from "@gammyverse/shared";
+import { ROOM_PROP_CATALOG, isRoomPropBed, parseRoomPropSeatReference, roomPropSeatAnchors, roomPropSeatReference, type RoomLayoutProp } from "@gammyverse/shared";
 
 const SEAT_BUCKET_SIZE_M = 8;
 const SEAT_EDGE_HALF_WIDTH_M = 0.45;
@@ -26,16 +26,18 @@ export class RoomSeatIndex {
       const definition = propDefinitionByAsset.get(prop.asset);
       if (definition?.interaction !== "sit") continue;
       const cos = Math.cos(prop.rotation), sin = Math.sin(prop.rotation);
+      const bed = isRoomPropBed(prop.asset);
+      const useX = bed || prop.width >= prop.depth;
       for (const anchor of roomPropSeatAnchors(prop, definition)) {
-        const anchorAlong = prop.width >= prop.depth ? anchor.localX : anchor.localZ;
+        const anchorAlong = useX ? anchor.localX : anchor.localZ;
         const seat: IndexedSeat = { prop, seatId: roomPropSeatReference(prop.id, anchor.index), seatIndex: anchor.index, order: this.seats.size, cos, sin, anchorAlong };
         this.seats.set(seat.seatId, seat);
-        const halfAcross = Math.min(prop.width, prop.depth) / 2;
-        const halfX = prop.width >= prop.depth ? SEAT_EDGE_HALF_WIDTH_M : halfAcross;
-        const halfZ = prop.width >= prop.depth ? halfAcross : SEAT_EDGE_HALF_WIDTH_M;
+        const halfAcross = (useX ? prop.depth : prop.width) / 2;
+        const halfX = useX ? SEAT_EDGE_HALF_WIDTH_M : halfAcross;
+        const halfZ = useX ? halfAcross : SEAT_EDGE_HALF_WIDTH_M;
         // Invert the original edge-distance transform; keep its rotation semantics.
-        const centerX = prop.x + cos * anchor.localX - sin * anchor.localZ;
-        const centerZ = prop.z + sin * anchor.localX + cos * anchor.localZ;
+        const centerX = prop.x + cos * anchor.localX + (bed ? sin : -sin) * anchor.localZ;
+        const centerZ = prop.z + (bed ? -sin : sin) * anchor.localX + cos * anchor.localZ;
         const extentX = Math.abs(cos) * halfX + Math.abs(sin) * halfZ;
         const extentZ = Math.abs(sin) * halfX + Math.abs(cos) * halfZ;
         for (let x = Math.floor((centerX - extentX) / SEAT_BUCKET_SIZE_M); x <= Math.floor((centerX + extentX) / SEAT_BUCKET_SIZE_M); x++) {
@@ -67,10 +69,13 @@ export class RoomSeatIndex {
       if (occupied.has(seat.seatId)) continue;
       const { prop, cos, sin } = seat;
       const dx = position.x - prop.x, dz = position.z - prop.z;
-      const localX = dx * cos + dz * sin, localZ = -dx * sin + dz * cos;
-      const along = prop.width >= prop.depth ? localX : localZ;
-      const across = prop.width >= prop.depth ? localZ : localX;
-      const distanceFromEdge = Math.hypot(Math.max(0, Math.abs(along - seat.anchorAlong) - SEAT_EDGE_HALF_WIDTH_M), Math.max(0, Math.abs(across) - Math.min(prop.width, prop.depth) / 2));
+      const bed = isRoomPropBed(prop.asset);
+      const useX = bed || prop.width >= prop.depth;
+      const localX = bed ? dx * cos - dz * sin : dx * cos + dz * sin;
+      const localZ = bed ? dx * sin + dz * cos : -dx * sin + dz * cos;
+      const along = useX ? localX : localZ;
+      const across = useX ? localZ : localX;
+      const distanceFromEdge = Math.hypot(Math.max(0, Math.abs(along - seat.anchorAlong) - SEAT_EDGE_HALF_WIDTH_M), Math.max(0, Math.abs(across) - (useX ? prop.depth : prop.width) / 2));
       if (distanceFromEdge <= radiusM && (!best || distanceFromEdge < best.distanceFromEdge || distanceFromEdge === best.distanceFromEdge && seat.order < best.order)) best = { ...seat, distanceFromEdge };
     }
     return best;

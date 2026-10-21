@@ -143,6 +143,7 @@ export function petPreviewUrl(id: string) {
 }
 
 const cache = new Map<string, Promise<LoadedCharacterAsset>>();
+const VRM0_FORWARD_CORRECTION_RAD = Math.PI;
 
 export function loadCharacterAsset(characterId: string, customEndpoint: string): Promise<LoadedCharacterAsset> {
   const isCustom = characterId.startsWith("custom-");
@@ -162,7 +163,13 @@ export function loadCharacterAsset(characterId: string, customEndpoint: string):
       : `/assets/kenney/mini-characters/${characterId}.glb`;
   let loaded = cache.get(url);
   if (!loaded) {
-    loaded = loadGltfAsset(url).then((gltf) => ({ scene: gltf.scene, animations: gltf.animations }));
+    loaded = loadGltfAsset(url).then((gltf) => {
+      const scene = new THREE.Group();
+      // VRM 0 avatars face -Z; the world, picker and sprite directions use +Z.
+      if (gltf.userData.gltfExtensions?.VRM) gltf.scene.rotation.y += VRM0_FORWARD_CORRECTION_RAD;
+      scene.add(gltf.scene);
+      return { scene, animations: gltf.animations };
+    });
     cache.set(url, loaded);
     void loaded.catch(() => cache.delete(url));
   }

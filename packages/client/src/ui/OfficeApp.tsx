@@ -2651,6 +2651,11 @@ export function OfficeApp() {
     };
   }, [client, connectionAttempt, authReady, connectionUsername, connectionOfficeId]);
 
+  const displayedOfficeMapLayout = useMemo(
+    () => modifyPropsOpen && officeMapLayout ? { ...officeMapLayout, props: modifyPropsDraft } : officeMapLayout,
+    [modifyPropsOpen, officeMapLayout, modifyPropsDraft],
+  );
+
   if (!authReady) {
     return <FullScreenLoading label="Loading your account…" />;
   }
@@ -2858,7 +2863,6 @@ export function OfficeApp() {
   const canClaimAnyDesk = status === "connected" && !deskClaimBusy && !officeDesks.ownDesk;
   const previewCharacterId = characterDraft ?? authUser.characterId ?? DEFAULT_CHARACTER_ID;
   const previewCharacter = characterDetails(previewCharacterId, personalAvatarModels);
-  const displayedOfficeMapLayout = modifyPropsOpen && officeMapLayout ? { ...officeMapLayout, props: modifyPropsDraft } : officeMapLayout;
   const setGhostMode = (enabled: boolean) => {
     if (enabled && appPausedRef.current) return;
     roomRef.current?.send("ghost-mode", { enabled });

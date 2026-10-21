@@ -1,5 +1,5 @@
 import type { Map2dPresentation } from "./map2dPresentation";
-import { nearestInteractiveProp, type RoomLayoutProp } from "@gammyverse/shared";
+import { isRoomPropBed, parseRoomPropSeatReference, nearestInteractiveProp, type RoomLayoutProp } from "@gammyverse/shared";
 import { MAP2D_AVATAR_RADIUS_PX, MAP2D_COLORS, MAP2D_FONT_PX, MAP2D_NAME_OFFSET_PX } from "./constants";
 import { worldToScreen, type Map2dPoint, type Map2dProjection } from "./map2dProjection";
 import type { AvatarPose } from "./avatarPoseSmoother";
@@ -11,6 +11,7 @@ import type { Map2dPlayer } from "./map2dAvatarVisual";
 import { avatarSpriteScreenRect, avatarSpriteAboveAnchorPx, avatarSpriteScale } from "./avatarSpriteGeometry";
 import { drawMap2dProp } from "./map2dPropDrawing";
 import { fitMap2dName, layoutMap2dNames, type Map2dNameCandidate, type Map2dNameRect } from "./map2dNameLayout";
+import { map2dRestingPlayers } from "./map2dRestingPlayers";
 export type { Map2dPlayer } from "./map2dAvatarVisual";
 export type Map2dDecoration = { sessionId: string; text: string; expiresAtMs: number };
 const FULL_CIRCLE_RAD = Math.PI * 2;
@@ -71,11 +72,14 @@ export function drawMap2dDynamic(
   presentation: Map2dPresentation = "immersive",
   movingVehicleProps: readonly RoomLayoutProp[] = [],
   hiddenNameIds: ReadonlySet<string> = new Set(),
+  layoutProps: readonly RoomLayoutProp[] = [],
 ): void {
+  players = map2dRestingPlayers(players, layoutProps);
   portraits?.setActiveCharacters(Array.from(players.values(), player => player.characterId));
   for (const prop of movingVehicleProps) drawMap2dProp(ctx, p, prop);
-  for (const [id, player] of players)
-    if (!player.vehicleId)
+  for (const [id, player] of players) {
+    if (player.vehicleId) continue;
+    const restingPropId = player.sittingPropId ? parseRoomPropSeatReference(player.sittingPropId)?.propId : undefined;
     drawMap2dAvatar(
       ctx,
       p,
@@ -84,7 +88,9 @@ export function drawMap2dDynamic(
       speaking.has(player.username.toLocaleLowerCase()),
       portraits,
       presentation === "immersive",
+      Boolean(restingPropId && layoutProps.some(prop => prop.id === restingPropId && isRoomPropBed(prop.asset))),
     );
+  }
   for (const [id, player] of players)
     if (!player.vehicleId) drawMap2dAvatarIndicators(ctx, p, player, id === localId, speaking.has(player.username.toLocaleLowerCase()));
   drawNames(ctx, p, players, localId, speaking, hiddenNameIds);

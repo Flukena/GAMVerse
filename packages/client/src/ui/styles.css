@@ -200,6 +200,8 @@ button:focus-visible { outline: 3px solid #287a59; outline-offset: 3px; }
 .invite-link-box code { overflow: hidden; color: #4c6254; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .invite-link-box small { grid-column: 1 / -1; color: #849188; font-size: 9px; }
 .world-canvas { position: absolute; inset: 0; }
+.world-webgl-error { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: #d8e5df; color: #183b4b; text-align: center; z-index: 1; }
+.world-webgl-error button { flex: none; border: 1px solid currentColor; border-radius: 6px; padding: 4px 8px; background: transparent; color: inherit; cursor: pointer; }
 .world-canvas canvas { display: block; width: 100%; height: 100%; outline: none; cursor: grab; }
 .vehicle-name-overlay { position: absolute; z-index: 3; inset: 0; overflow: hidden; pointer-events: none; }
 .vehicle-name-label { position: absolute; transform: translate(-50%, -100%); min-width: 50px; max-width: 180px; padding: 3px 11px; overflow: hidden; border: 1px solid rgba(255,255,255,.92); border-radius: 999px; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.45); font: 700 11px/1.2 "DM Sans", sans-serif; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
