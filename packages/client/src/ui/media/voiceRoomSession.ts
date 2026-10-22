@@ -1,5 +1,5 @@
-import { mediaControlError, type MediaControlSource } from "./mediaControlError";
-import type { DisconnectReason, RoomConnectOptions, RoomEvent, LocalParticipant, LocalTrack, LocalTrackPublication, RemoteParticipant, RemoteTrack, RemoteTrackPublication, RoomEventCallbacks, TrackPublishOptions } from "livekit-client";
+import { mediaControlError, microphoneCaptureError, type MediaControlSource } from "./mediaControlError";
+import type { DisconnectReason, RoomConnectOptions, RoomEvent, LocalParticipant, LocalTrack, LocalTrackPublication, RemoteParticipant, RemoteTrack, RemoteTrackPublication, RoomEventCallbacks, TrackPublishOptions, TrackPublication, Participant } from "livekit-client";
 import { isVoiceAuthorizationDenied } from "./voiceToken";
 import { voiceTargetKey, type VoiceTarget } from "./voiceTarget";
 
@@ -235,14 +235,15 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
       this.listener.roomChanged?.(room, target);
       await room.connect(token.url, token.token, { autoSubscribe: false });
       if (!this.current(generation, room)) return;
+      let microphoneError: Error | null = null;
       if (this.retainedTracks.length) await this.restoreRetainedTracks(room, generation);
-      else await this.resetMedia(room, generation);
+      else microphoneError = await this.resetMedia(room, generation);
       if (!this.current(generation, room)) return;
       this.listener.localTracksChanged?.(room);
       this.retries = 0;
       this.listener.speakersChanged?.(room);
       this.listener.participantsChanged?.(room);
-      this.publish({ connected: true, busy: false, error: null });
+      this.publish({ connected: true, busy: false, error: microphoneError });
       void this.drainControls();
     } catch (cause) {
       if (!this.current(generation, room)) return;
@@ -272,16 +273,28 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     this.retainedTracks.forEach(({ track }) => track.stop());
     this.retainedTracks = [];
   }
-  private async resetMedia(room: R, generation: number): Promise<void> {
-    // Joining voice is receive-only by default. A missing or denied microphone
-    // permission must not prevent the participant from hearing the room.
+  private async resetMicrophone(room: R, generation: number): Promise<Error | null> {
     const muted = this.state.muted;
     this.publish({ muted, error: null });
-    await room.localParticipant.setMicrophoneEnabled(!muted, muted ? undefined : VOICE_AUDIO_CAPTURE_OPTIONS);
-    if (!this.current(generation, room)) return;
+    try {
+      await room.localParticipant.setMicrophoneEnabled(!muted, muted ? undefined : VOICE_AUDIO_CAPTURE_OPTIONS);
+      return null;
+    } catch (cause) {
+      if (!this.current(generation, room)) return null;
+      const error = microphoneCaptureError(cause);
+      if (!error) throw cause;
+      this.publish({ muted: true, error });
+      return error;
+    }
+  }
+  private async resetMedia(room: R, generation: number): Promise<Error | null> {
+    // Capture failure must leave the authorized room available for listening.
+    const error = await this.resetMicrophone(room, generation);
+    if (!this.current(generation, room)) return error;
     await room.localParticipant.setCameraEnabled(false);
-    if (!this.current(generation, room)) return;
+    if (!this.current(generation, room)) return error;
     await room.localParticipant.setScreenShareEnabled(false);
+    return error;
   }
   private fail(error: Error): void {
     this.invalidate(this.target?.kind === "proximity");
@@ -331,15 +344,7 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     });
     bind(events.LocalTrackUnpublished, publication => {
       if (!this.current(generation, room)) return;
-      const track = publication.track;
-      if (target.kind === "proximity" && track && !publication.isMuted
-        && RETAINABLE_TRACK_SOURCES.includes(String(publication.source))
-        && track.mediaStreamTrack.readyState === "live") {
-        this.retainedTracks = [...this.retainedTracks.filter(item => item.track !== track), {
-          track, ...(publication.options ? { options: publication.options } : {}),
-        }];
-      }
-      this.listener.localTracksChanged?.(room);
+      this.localTrackUnpublished(room, publication, target);
     });
     bind(events.TrackSubscribed, (track, publication, participant) => {
       if (this.current(generation, room)) {
@@ -362,12 +367,29 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
       bind(event, () => { if (this.current(generation, room)) this.listener.participantsChanged?.(room); });
     }
     for (const event of [events.TrackMuted, events.TrackUnmuted]) {
-      bind(event, () => {
+      bind(event, (publication: TrackPublication, participant: Participant) => {
         if (!this.current(generation, room)) return;
+        if (Object.is(participant, room.localParticipant)) this.syncMicrophoneMuted(publication);
         this.listener.participantsChanged?.(room);
         this.listener.localTracksChanged?.(room);
       });
     }
+  }
+  private syncMicrophoneMuted(publication: TrackPublication): void {
+    if (String(publication.source) === VOICE_MICROPHONE_SOURCE) this.publish({ muted: publication.isMuted });
+  }
+  private localTrackUnpublished(room: R, publication: LocalTrackPublication, target: VoiceTarget): void {
+    const track = publication.track;
+    const retainTrack = target.kind === "proximity" && track && !publication.isMuted
+      && RETAINABLE_TRACK_SOURCES.includes(String(publication.source))
+      && track.mediaStreamTrack.readyState === "live";
+    if (retainTrack) {
+      this.retainedTracks = [...this.retainedTracks.filter(item => item.track !== track), {
+        track, ...(publication.options ? { options: publication.options } : {}),
+      }];
+    }
+    if (String(publication.source) === VOICE_MICROPHONE_SOURCE && !retainTrack) this.publish({ muted: true });
+    this.listener.localTracksChanged?.(room);
   }
   control(run: (room: R) => Promise<unknown>, source?: MediaControlSource): Promise<void> {
     return this.enqueueControl(run, undefined, source);
@@ -380,7 +402,7 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     });
   }
   setMuted(muted: boolean): Promise<void> {
-    return this.enqueueControl(room => room.localParticipant.setMicrophoneEnabled(!muted, VOICE_AUDIO_CAPTURE_OPTIONS), muted);
+    return this.enqueueControl(room => room.localParticipant.setMicrophoneEnabled(!muted, VOICE_AUDIO_CAPTURE_OPTIONS), muted, "microphone");
   }
   private async drainControls(): Promise<void> {
     const generation = this.generation;

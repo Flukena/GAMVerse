@@ -41,7 +41,8 @@ import { rememberWebglFailure, retryWebglAfterReload, webglFailedInThisTab } fro
 import { smoothAvatarPose, avatarPoseBlend } from "./map2d/avatarPoseSmoother";
 import { registerMap2dShortcut } from "./map2d/map2dShortcut";
 import { applyCameraView } from "./camera/cameraView";
-import { locateMap2d, type Map2dLocateRequest } from "./map2d/map2dInput";
+import type { Map2dLocateRequest } from "./map2d/map2dInput";
+import { Map2dLocateRequests } from "./map2d/map2dLocateRequest";
 import type { Map2dDecoration } from "./map2d/map2dDynamicLayer";
 import { campusOverviewMapScalePxPerM } from "./map2d/map2dProjection";
 import { clientRuntimeMetrics } from "./clientRuntimeMetrics";
@@ -849,7 +850,7 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
   const mapPresentationRef = useRef(mapPresentation.presentation);
   const map2dCenterRef = useRef({ x: 0, z: 0 });
   const locateDecorationsRef = useRef<Map2dDecoration[]>([]);
-  const lastLocateRequestRef = useRef(0);
+  const locateRequestsRef = useRef(new Map2dLocateRequests());
   const travelFeedbackRef = useRef(travelFeedback);
   travelFeedbackRef.current = travelFeedback;
   const travelRequestingRef = useRef(travelRequesting);
@@ -987,16 +988,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       window.addEventListener("keydown", onVehicleExit);
       const disposeMap2d = mountMap2dWithoutWebgl(host, map2dListener, (nowMs, deltaS) => {
         if (heldKeysRef?.current && hasCameraMovement(heldKeysRef.current)) dispatchCamera({ type: "walk-input" });
-        const locate = locateRequestRef?.current;
-        if (locate && locate.requestId !== lastLocateRequestRef.current) {
-          const target = locate.center ?? (locate.sessionId ? playersRef.current.get(locate.sessionId) : undefined);
-          if (target) {
-            const located = locateMap2d(target, locate.sessionId ?? "", nowMs);
-            dispatchCamera({ type: "manual-drag" });
-            map2dCenterRef.current = located.center;
-            locateDecorationsRef.current = [located.decoration];
-          }
-          lastLocateRequestRef.current = locate.requestId;
+        const located = locateRequestsRef.current.consume(locateRequestRef?.current, playersRef.current, nowMs);
+        if (located) {
+          dispatchCamera({ type: "manual-drag" });
+          map2dCenterRef.current = located.center;
+          locateDecorationsRef.current = [located.decoration];
         }
         return {
         presentation: mapPresentationRef.current, visible: true, view: "2d", layout: roomLayout,
@@ -3734,16 +3730,11 @@ export function WorldCanvas({ activeRoomKey, cameraRoomKey = activeRoomKey, play
       zoneRoofs.update(roofZones, players.values(), camera, !showMap2d && campusOverviewRef.current);
       renderer.domElement.style.opacity = showMap2d ? "0" : "1";
       if (map2dViewRef) map2dViewRef.current = showMap2d;
-      const locate = locateRequestRef?.current;
-      if (locate && locate.requestId !== lastLocateRequestRef.current) {
-        const target = locate.center ?? (locate.sessionId ? playersRef.current.get(locate.sessionId) : undefined);
-        if (target) {
-          const located = locateMap2d(target, locate.sessionId ?? "", performance.now());
-          setMap2dView("2d");
-          dispatchCamera({ type: "manual-drag" }); map2dCenterRef.current = located.center;
-          locateDecorationsRef.current = [located.decoration];
-        }
-        lastLocateRequestRef.current = locate.requestId;
+      const located = locateRequestsRef.current.consume(locateRequestRef?.current, playersRef.current, performance.now());
+      if (located) {
+        setMap2dView("2d");
+        dispatchCamera({ type: "manual-drag" }); map2dCenterRef.current = located.center;
+        locateDecorationsRef.current = [located.decoration];
       }
       camera.updateMatrixWorld(true);
       const travelActive = travelRequestingRef.current || travelFeedbackRef.current?.status === "started";

@@ -1,4 +1,4 @@
-import type { RoomLayout } from "./roomLayout.js";
+import type { RoomLayout } from "./roomLayoutTypes.js";
 import { normalizeAccountUsername } from "./accountUsername.js";
 import { conversationRecord, conversationText } from "./conversationValidation.js";
 

@@ -1,5 +1,5 @@
-import type { RoomLayoutZone } from "./roomLayout.js";
-import type { StarterPlacement } from "./campusFurnishingTemplates.js";
+import type { RoomLayoutZone } from "./roomLayoutTypes.js";
+import type { StarterPlacement } from "./campusFurnishingTypes.js";
 
 export const CIVIC_TOWNHALL_PROP_BUDGET_COUNT = 240;
 const HALF_TURN_RAD = Math.PI;

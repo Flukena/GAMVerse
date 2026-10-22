@@ -1,4 +1,4 @@
-import type { RoomLayoutRoadway } from "./roomLayout.js";
+import type { RoomLayoutRoadway } from "./roomLayoutTypes.js";
 
 /** Axis-aligned rectangle used for road overlap and blocker tests. */
 export interface RoadRect {

@@ -1,4 +1,6 @@
-import { ROOM_PROP_CATALOG, type RoomLayout, type RoomLayoutProp } from "./roomLayout.js";
+import { ROOM_PROP_CATALOG } from "./roomPropCatalog.js";
+import type { RoomLayout } from "./roomLayoutTypes.js";
+import type { RoomLayoutProp } from "./roomPropTypes.js";
 
 const CITY_BUILDING_CLEARANCE_M = 1;
 const CITY_TREE_CLEARANCE_M = 0.3;

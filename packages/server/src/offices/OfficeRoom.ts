@@ -51,7 +51,6 @@ const DESK_MAP_CHANGED_LABEL = "The office desk map changed. Choose your desk ag
 const INITIAL_MESSAGE_COUNT = 0;
 const PROXIMITY_GROUP_ID_BYTES = 12;
 const SPATIAL_PROJECTION_INTERVAL_MS = 100;
-const DISTANT_MARKER_UPDATE_INTERVAL_MS = 1_000;
 const SPAWN_ACCESS_UNAVAILABLE_LABEL = "No accessible spawn point is available.";
 const REPLACED_SESSION_CLOSE_CODE = 4001;
 const OFFICE_ACCESS_REVOKED_REASON = "Office access changed. Reopen the office.";
@@ -1972,7 +1971,6 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
 
   private previousTickStartedAtMs: number | undefined;
   private nextSpatialProjectionAtMs = 0;
-  private nextDistantMarkerUpdateAtMs = 0;
   private spatialProjectionDirty = true;
   private step(deltaSeconds: number) {
     const startedAtMs = performance.now();
@@ -2181,14 +2179,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
       }
     }
     if (vehicleCollisionChanged) this.refreshVehicleCollisionWorlds();
-    if (now >= this.nextDistantMarkerUpdateAtMs) {
-      for (const player of this.state.players.values()) {
-        player.markerX = player.x;
-        player.markerZ = player.z;
-        player.markerRotation = player.rotation;
-      }
-      this.nextDistantMarkerUpdateAtMs = now + DISTANT_MARKER_UPDATE_INTERVAL_MS;
-    }
+    this.playerSpatialInterest.updateMarkers(this.state.players, now);
     if (this.spatialProjectionDirty || now >= this.nextSpatialProjectionAtMs || this.privacy?.deadlineDue()) {
       this.spatialProjectionDirty = false;
       this.nextSpatialProjectionAtMs = now + SPATIAL_PROJECTION_INTERVAL_MS;

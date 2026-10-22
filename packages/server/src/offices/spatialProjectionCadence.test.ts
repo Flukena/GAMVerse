@@ -53,6 +53,26 @@ test("stationary ticks batch projections, but movement crossing a zone boundary 
   } finally { room.onDispose(); room.clock.stop(); mock.restoreAll(); }
 });
 
+test("simulation ticks project distant markers after authoritative movement", async () => {
+  const tickAtMs = 1_000;
+  const tickDeltaSeconds = 0.02;
+  mock.method(performance, "now", () => tickAtMs);
+  const { room, internal } = await fixture();
+  try {
+    const player = room.state.players.get("alice")!;
+    player.x = 0;
+    player.z = 0;
+    player.rotation = 0;
+    const initialX = player.x;
+    internal.movementInputs.set("alice", { x: 1, z: 0, sprint: false, receivedAt: tickAtMs });
+    internal.step(tickDeltaSeconds);
+    assert.ok(player.x > initialX, "the tick applies movement before marker projection");
+    assert.equal(player.markerX, player.x);
+    assert.equal(player.markerZ, player.z);
+    assert.equal(player.markerRotation, player.rotation);
+  } finally { room.onDispose(); room.clock.stop(); mock.restoreAll(); }
+});
+
 test("empty room ticks skip projections without disabling deadlines or retained-player work", async () => {
   const { room, internal } = await fixture();
   try {

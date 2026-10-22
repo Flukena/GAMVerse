@@ -1,4 +1,6 @@
-import { ROOM_PROP_CATALOG, type RoomLayout, type RoomLayoutProp } from "./roomLayout.js";
+import { ROOM_PROP_CATALOG } from "./roomPropCatalog.js";
+import type { RoomLayout } from "./roomLayoutTypes.js";
+import type { RoomLayoutProp } from "./roomPropTypes.js";
 
 const MAX_FINISHED_BUILDINGS = 18;
 /** Prefab variety is limited, so a second pass may reuse a prefab to keep filling open blocks. */

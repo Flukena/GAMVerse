@@ -1,5 +1,5 @@
-import type { RoomLayoutZone } from "./roomLayout.js";
-import type { StarterPlacement } from "./campusFurnishingTemplates.js";
+import type { RoomLayoutZone } from "./roomLayoutTypes.js";
+import type { StarterPlacement } from "./campusFurnishingTypes.js";
 
 const DESK_ASSET = "external-pixel-modern-office-pixel-modern-office-desk-l-shaped-e63b68bc";
 const KEYBOARD_ASSET = "kit:computerkeyboard";

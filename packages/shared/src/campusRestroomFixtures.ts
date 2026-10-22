@@ -1,5 +1,5 @@
-import type { StarterPlacement } from "./campusFurnishingTemplates.js";
-import type { RoomLayoutZone } from "./roomLayout.js";
+import type { StarterPlacement } from "./campusFurnishingTypes.js";
+import type { RoomLayoutZone } from "./roomLayoutTypes.js";
 
 const STALL_COUNT_PER_SIDE = 5;
 const STALL_SPACING_M = 2.2;

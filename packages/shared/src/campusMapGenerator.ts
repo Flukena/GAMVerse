@@ -5,7 +5,9 @@ import { campusRestroomFixtures } from "./campusFurnishingTemplates.js";
 import { roadsideVergePoints } from "./campusRoadNetwork.js";
 import { campusLoopRoads } from "./campusLoopRoads.js";
 import { appendCampusCivicParkProps } from "./campusCivicPark.js";
-import { ROOM_PROP_CATALOG, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "./roomLayout.js";
+import { ROOM_PROP_CATALOG } from "./roomPropCatalog.js";
+import type { RoomLayout, RoomLayoutDoor, RoomLayoutWall, RoomLayoutZone } from "./roomLayoutTypes.js";
+import type { RoomLayoutProp } from "./roomPropTypes.js";
 
 export interface CampusMapGeneratorInputs {
   totalPeople: number;

@@ -5,7 +5,15 @@ import { remoteMediaTiles, screenCameraTile, RemoteMediaViewerState } from "./re
 
 function selection(viewer: RemoteMediaViewerState) { return viewer.snapshot.selected; }
 function publication(source: string, sid = source) {
-  return { source, trackSid: sid, isSubscribed: true, isMuted: false, track: { kind: "video" } as RemoteTrack | undefined };
+  return {
+    source, trackSid: sid, isSubscribed: true, isDesired: true, isMuted: false,
+    track: { kind: "video" } as RemoteTrack | undefined,
+    subscriptionRequests: [] as boolean[],
+    setSubscribed(subscribed: boolean) {
+      this.isDesired = subscribed;
+      this.subscriptionRequests.push(subscribed);
+    },
+  };
 }
 function fixture(...publications: ReturnType<typeof publication>[]) {
   const participant = { identity: "alice-0123456789abcdef", name: "Alice", videoTrackPublications: new Map(publications.map(pub => [pub.trackSid, pub])) };
@@ -167,4 +175,33 @@ test("screen camera PiP selects only the screen publisher's subscribed camera", 
   participant.videoTrackPublications.delete(camera.trackSid);
   assert.equal(screenCameraTile(remoteMediaTiles(room), selected), undefined);
   assert.equal(screenCameraTile(tiles, null), undefined);
+});
+
+test("switching screen shares subscribes only the selected publisher and camera without repeating requests", () => {
+  const aliceCamera = publication("camera");
+  const aliceScreen = publication("screen_share");
+  const bobCamera = publication("camera", "bob-camera");
+  const bobScreen = publication("screen_share", "bob-screen");
+  const { room, transport } = fixture(aliceCamera, aliceScreen);
+  transport.remoteParticipants.set("bob", {
+    identity: "bob", name: "Bob",
+    videoTrackPublications: new Map([[bobCamera.trackSid, bobCamera], [bobScreen.trackSid, bobScreen]]),
+  });
+  const viewer = new RemoteMediaViewerState();
+  viewer.setRoom(room);
+  viewer.refresh(room);
+  assert.equal(aliceCamera.isDesired, true);
+  assert.equal(aliceScreen.isDesired, true);
+  assert.deepEqual(bobCamera.subscriptionRequests, [false]);
+  assert.deepEqual(bobScreen.subscriptionRequests, [false]);
+
+  viewer.open(`bob:${bobScreen.trackSid}`);
+  assert.deepEqual(aliceCamera.subscriptionRequests, [false]);
+  assert.deepEqual(aliceScreen.subscriptionRequests, [false]);
+  assert.deepEqual(bobCamera.subscriptionRequests, [false, true]);
+  assert.deepEqual(bobScreen.subscriptionRequests, [false, true]);
+  viewer.refresh(room);
+  assert.equal(selection(viewer)?.identity, "bob");
+  assert.deepEqual(bobCamera.subscriptionRequests, [false, true]);
+  assert.deepEqual(bobScreen.subscriptionRequests, [false, true]);
 });

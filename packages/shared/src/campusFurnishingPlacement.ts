@@ -1,8 +1,12 @@
-import { campusStarterPlacements, type StarterPlacement } from "./campusFurnishingTemplates.js";
+import { campusStarterPlacements } from "./campusFurnishingTemplates.js";
+import type { StarterPlacement } from "./campusFurnishingTypes.js";
 import { TEAM_MEETING_PROP_BUDGET_COUNT } from "./campusTeamMeetingTemplate.js";
 import { CIVIC_TOWNHALL_PROP_BUDGET_COUNT } from "./campusCivicRoomTemplates.js";
 import { MAX_OFFICE_PROPS } from "./officePropLimits.js";
-import { ROOM_PROP_CATALOG, roomPropPlacementSupport, type RoomLayout, type RoomLayoutProp, type RoomLayoutZone } from "./roomLayout.js";
+import { ROOM_PROP_CATALOG } from "./roomPropCatalog.js";
+import { roomPropPlacementSupport } from "./roomLayout.js";
+import type { RoomLayout, RoomLayoutZone } from "./roomLayoutTypes.js";
+import type { RoomLayoutProp } from "./roomPropTypes.js";
 
 const MAX_STARTER_ROOM_PROPS_COUNT = 72;
 const DEFAULT_ROTATION_RAD = 0;

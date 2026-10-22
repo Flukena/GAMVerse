@@ -1,3 +1,9 @@
+import { FeatherIcon } from "./FeatherIcon";
+import { TouchMoveButton } from "./workspace/TouchMoveButton";
+import { usePanelPresence } from "./workspace/usePanelPresence";
+import { officeActivityLabels, officeActivityLocation, type OfficeActivity } from "./workspace/officeActivityPresentation";
+import { CharacterPicker, PersonalAvatarPicker } from "./workspace/CharacterPickers";
+import { characterDetails, type CharacterSelectionId, type PersonalAvatarModel } from "./workspace/characterPresentation";
 import { VoiceMediaWorkspace } from "./media/VoiceMediaWorkspace";
 import { useRemoteMediaViewer } from "./media/useRemoteMediaViewer";
 import { readVoiceRosterActivity } from "./media/voiceRosterActivity";
@@ -43,9 +49,9 @@ import { availabilityPolicy, USER_STATUSES, type UserStatus, type CustomStatus }
 import type { PersonActionCallbacks, PersonActionContext } from "./workspace/personActions";
 import "./social/social.css";
 import { Client, type Room } from "@colyseus/sdk";
-import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_CHARACTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomLayoutZoneAt, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type KenneyBlasterId, type KenneyCharacterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
+import { INPUT_HEARTBEAT_INTERVAL_MS, InputSendGate, type MovementInput, CAMPUS_WORLD, DEFAULT_CAMERA_YAW, DEFAULT_CHARACTER_ID, KENNEY_BLASTER_IDS, KENNEY_PET_IDS, KENNEY_VEHICLE_IDS, OfficeState, campusWorldFromConfig, isPositionWalkable, isValidJumpEvent, readRoomLayout, roomLayoutZoneAt, roomPropPlacementSupport, roomZoneEntranceIssues, ROOM_DOOR_FRAME_ASSETS, ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type KenneyBlasterId, type KenneyPetId, type KenneyVehicleId, type OfficeState as OfficeStateType, type PlayerState, type RoomLayout, type RoomLayoutDoor, type RoomLayoutProp, type RoomLayoutWall, type RoomLayoutZone } from "@gammyverse/shared";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { createVoiceRoom } from "./media/voiceRoomSdk";
 import { CameraSettings } from "./media/CameraSettings";
@@ -67,7 +73,7 @@ import { applyConversationMediaIntent, ConversationAdmissionIntent } from "./med
 import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, Room as LiveKitRoomInstance, RoomEvent } from "livekit-client";
 import { CharacterPreview3D } from "../world/CharacterPreview3D";
 import { PetThumbnail } from "./PetThumbnail";
-import { gobkitPet, kaykitCharacter, petModelUrl, petPreviewUrl, polygonalMindCharacter, QUATERNIUS_CHARACTERS, quaterniusPet } from "../assets/characterAssets";
+import { gobkitPet, petModelUrl, petPreviewUrl, quaterniusPet } from "../assets/characterAssets";
 import { CHARACTER_SAVE_TIMEOUT_MS, characterSaveError } from "./characterSaveError";
 import { getRealtimeEndpoint } from "../realtimeEndpoint";
 import { Minimap } from "./Minimap";
@@ -101,32 +107,8 @@ const VOICE_MICROPHONE_SOURCE = "microphone";
 const VOICE_AUDIO_KIND = "audio";
 
 type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
-type CharacterSelectionId = KenneyCharacterId | `custom-${string}`;
-type PersonalAvatarModel = { id: `custom-${string}`; label: string; modelUrl: string };
 type SettingsSection = "general" | "sound" | "camera" | "permissions" | "security" | "theme";
 type BrowserPermissionValue = "granted" | "denied" | "prompt" | "unknown";
-type OfficeActivityType = "office.join" | "office.leave" | "meeting.enter" | "meeting.leave" | "private.enter" | "private.leave" | "bubble.enter" | "bubble.leave" | "vehicle.enter" | "vehicle.leave";
-type OfficeActivity = { id: string; actorUsername: string; activityType: OfficeActivityType; locationName: string | null; occurredAt: string };
-const officeActivityLabels: Record<OfficeActivityType, string> = {
-  "office.join": "Entered the office",
-  "office.leave": "Left the office",
-  "meeting.enter": "Entered the meeting area",
-  "meeting.leave": "Left the meeting area",
-  "private.enter": "Entered a private desk",
-  "private.leave": "Left a private desk",
-  "bubble.enter": "Joined a voice bubble",
-  "bubble.leave": "Left a voice bubble",
-  "vehicle.enter": "Started driving",
-  "vehicle.leave": "Stopped driving",
-};
-const officeActivityLocation = (activity: OfficeActivity) => {
-  const value = activity.locationName;
-  if (!value || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value)) return "";
-  const vehicleName = value.replace(/^campus-car-/, "").replace(/^(vehicle|car)-/, "");
-  return vehicleName !== value || /^(vehicle|car)-/.test(value)
-    ? vehicleName.replaceAll("-", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
-    : value;
-};
 type PlayerSnapshot = { x: number; z: number; rotation: number; username: string; displayName: string; isMaintainer: boolean; characterId: CharacterSelectionId; petId: KenneyPetId | ""; weaponId: KenneyBlasterId | ""; vehicleId: KenneyVehicleId | ""; vehicleMode: "" | "manual" | "auto"; vehiclePropId: string; vehiclePropX: number; vehiclePropZ: number; vehiclePropRotation: number; sittingPropId: string; dancing: boolean; status: UserStatus; customStatusText: string; customStatusEmoji: string; customStatusExpiresAtMs: number; presence: "online" | "away"; nearby: boolean; handRaised: boolean; microphoneEnabled: boolean; cameraEnabled: boolean; screenShareEnabled: boolean };
 
 type FollowAlert = { followerSessionId: string; followerName: string };
@@ -146,167 +128,11 @@ const MEDIA_MAX_FRAMERATE_FPS = 30;
 const MEDIA_DEGRADATION_PREFERENCE = "maintain-resolution";
 const RECONNECT_VOICE_LABEL = "Reconnect voice";
 
-function usePanelPresence(isOpen: boolean, exitDuration = 260) {
-  const [isMounted, setIsMounted] = useState(isOpen);
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsMounted(true);
-      return;
-    }
-    if (!isMounted) return;
-
-    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : exitDuration;
-    const timeout = window.setTimeout(() => setIsMounted(false), duration);
-    return () => window.clearTimeout(timeout);
-  }, [isOpen, isMounted, exitDuration]);
-
-  return isMounted;
-}
-
-function CharacterPicker({ value, currentCharacterId, onChange }: { value: CharacterSelectionId | null; currentCharacterId: CharacterSelectionId | null; onChange: (id: KenneyCharacterId) => void }) {
-  return <div className="character-picker" role="radiogroup" aria-label="Choose a character">
-    {KENNEY_CHARACTER_IDS.map((id, index) => {
-      const blocky = id.startsWith("character-blocky-");
-      const suffix = blocky ? id.slice("character-blocky-".length) : id.replace("character-", "");
-      const quaternius = QUATERNIUS_CHARACTERS[id as keyof typeof QUATERNIUS_CHARACTERS];
-      const polygonalMind = polygonalMindCharacter(id);
-      const kaykit = kaykitCharacter(id);
-      const label = quaternius?.label ?? polygonalMind?.label ?? kaykit?.label ?? (blocky
-        ? `Blocky ${suffix.toUpperCase()}`
-        : suffix.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
-      const preview = quaternius?.preview ?? polygonalMind?.preview ?? kaykit?.preview ?? (blocky
-        ? `/assets/kenney/blocky-characters/Previews/character-${suffix}.png`
-        : `/assets/kenney/mini-characters/Previews/${id}.png`);
-      return <button type="button" className={`character-option${value === id ? " selected" : ""}`} key={id} role="radio" aria-checked={value === id} onClick={() => onChange(id)}>
-        {preview ? <img src={preview} alt="" loading="lazy" /> : <span className={`character-option-avatar-placeholder tone-${index % 6}`} aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="19" r="12" /><path d="M13 58c1-14 8-23 19-23s18 9 19 23H13Z" /></svg></span>}
-        <span>{label}</span>
-        {currentCharacterId === id && <small className="character-current-badge">Current</small>}
-      </button>;
-    })}
-  </div>;
-}
-
-function PersonalAvatarPicker({ models, value, currentCharacterId, onChange, onRemove }: { models: PersonalAvatarModel[]; value: CharacterSelectionId | null; currentCharacterId: CharacterSelectionId | null; onChange: (id: PersonalAvatarModel["id"]) => void; onRemove: (model: PersonalAvatarModel) => void }) {
-  if (models.length === 0) return null;
-  return <div className="character-picker" role="radiogroup" aria-label="Your uploaded characters">
-    {models.map((model) => <div className={`character-option personal-avatar-option${value === model.id ? " selected" : ""}`} key={model.id}>
-      <button type="button" className="personal-avatar-select" role="radio" aria-checked={value === model.id} aria-label={`Use ${model.label}`} onClick={() => onChange(model.id)}>
-        <span className="personal-avatar-preview" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="M13 10h22v8h5v12h-5v8H13v-8H8V18h5v-8Z" fill="currentColor" opacity=".18"/><path d="M17 15h14v18H17zM11 21h6v8h-6zm20 0h6v8h-6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/><path d="M20 22h2m4 0h2M20 28h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg></span>
-        <span>{model.label}</span>
-      </button>
-      {currentCharacterId === model.id && <small className="character-current-badge">Current</small>}
-      <button type="button" className="personal-avatar-remove" aria-label={`Remove ${model.label}`} title={value === model.id || currentCharacterId === model.id ? "Choose and save another character before removing this model" : `Remove ${model.label}`} disabled={value === model.id || currentCharacterId === model.id} onClick={() => onRemove(model)}>×</button>
-    </div>)}
-  </div>;
-}
-
-function characterDetails(characterId: CharacterSelectionId, models: PersonalAvatarModel[]) {
-  if (characterId.startsWith("custom-")) {
-    const customModel = models.find((model) => model.id === characterId);
-    return { label: customModel?.label ?? "Uploaded model", source: "Your uploaded model", preview: null };
-  }
-  const blocky = characterId.startsWith("character-blocky-");
-  const quaternius = QUATERNIUS_CHARACTERS[characterId as keyof typeof QUATERNIUS_CHARACTERS];
-  const polygonalMind = polygonalMindCharacter(characterId);
-  const kaykit = kaykitCharacter(characterId);
-  const suffix = blocky ? characterId.slice("character-blocky-".length) : characterId.replace("character-", "");
-  return {
-    label: quaternius?.label ?? polygonalMind?.label ?? kaykit?.label ?? (blocky ? `Blocky ${suffix.toUpperCase()}` : suffix.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())),
-    source: quaternius?.source ?? polygonalMind?.source ?? kaykit?.source ?? (blocky ? "Kenney Blocky Characters" : "Kenney Mini Characters"),
-    preview: quaternius?.preview ?? polygonalMind?.preview ?? kaykit?.preview ?? (blocky ? `/assets/kenney/blocky-characters/Previews/character-${suffix}.png` : `/assets/kenney/mini-characters/Previews/${characterId}.png`),
-  };
-}
-
 const petLabel = (id: KenneyPetId) => gobkitPet(id)?.label ?? quaterniusPet(id)?.label ?? id.replace("animal-", "").replace(/(^|-)([a-z])/g, (_match, dash: string, letter: string) => `${dash ? " " : ""}${letter.toUpperCase()}`);
 const vehicleLabel = (id: KenneyVehicleId) => ({
   "vehicle-speedster": "Speedster", "vehicle-racer": "Racer", "vehicle-suv": "Toy SUV", "vehicle-monster-truck": "Monster Truck", "vehicle-truck": "Toy Truck",
   "car-sedan": "Sedan", "car-hatchback-sports": "Sports Hatchback", "car-taxi": "Taxi", "car-kart-oopi": "Kart",
 })[id];
-function TouchMoveButton({
-  label,
-  code,
-  heldKeysRef,
-  onInputChange,
-  disabled = false,
-  children,
-}: {
-  label: string;
-  code: string;
-  heldKeysRef: MutableRefObject<Set<string>>;
-  onInputChange?: () => void;
-  disabled?: boolean;
-  children: string;
-}) {
-  const hold = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (disabled) return;
-    event.preventDefault();
-    heldKeysRef.current.add(code);
-    onInputChange?.();
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-  const release = (event?: ReactPointerEvent<HTMLButtonElement> | ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (event && "preventDefault" in event) event.preventDefault();
-    heldKeysRef.current.delete(code);
-    onInputChange?.();
-  };
-  const onKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (disabled) return;
-    if (event.code === "Enter" || event.code === "Space") {
-      event.preventDefault();
-      heldKeysRef.current.add(code);
-      if (!event.repeat) onInputChange?.();
-    }
-  };
-  const onKeyUp = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (event.code === "Enter" || event.code === "Space") release(event);
-  };
-
-  return (
-    <button
-      type="button"
-      className="touch-move-button"
-      aria-label={label}
-      disabled={disabled}
-      onPointerDown={hold}
-      onPointerUp={release}
-      onPointerCancel={release}
-      onLostPointerCapture={release}
-      onKeyDown={onKeyDown}
-      onKeyUp={onKeyUp}
-      onBlur={() => { heldKeysRef.current.delete(code); onInputChange?.(); }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function FeatherIcon({ name, size = 18 }: { name: "mic" | "micOff" | "video" | "videoOff" | "screen" | "screenOff" | "headphones" | "headphonesOff" | "close" | "maximize" | "exit" | "car" | "lock" | "unlock" | "refresh" | "office" | "chat" | "people" | "clock"; size?: number }) {
-  const shared = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  const drawings = {
-    mic: <><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></>,
-    micOff: <><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9V5a3 3 0 0 0-5.83-1M5 10v2a7 7 0 0 0 11.4 5.45M19 10v2c0 .6-.08 1.17-.22 1.71M12 19v3m-4 0h8M2 2l20 20"/></>,
-    video: <><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></>,
-    videoOff: <><path d="m3 3 18 18M10.6 5H14a2 2 0 0 1 2 2v2l5-3v10l-5-3v2a2 2 0 0 1-.59 1.41M3 7v10a2 2 0 0 0 2 2h9"/></>,
-    screen: <><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4m-3-9 2-2 2 2 3-4"/></>,
-    screenOff: <><path d="m3 3 18 18M10 3h10a2 2 0 0 1 2 2v10M2 8V5a2 2 0 0 1 2-2h1m-1 7v7a2 2 0 0 0 2 2h11M8 21h8m-4-4v4"/></>,
-    headphones: <><path d="M3 14v-3a9 9 0 0 1 18 0v3"/><path d="M5 13h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Zm12 0h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Z"/></>,
-    headphonesOff: <><path d="M3 14v-3a9 9 0 0 1 15.4-6.4M21 11v3M5 13h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Zm12 0h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1M2 2l20 20"/></>,
-    close: <><path d="m18 6-12 12M6 6l12 12"/></>,
-    maximize: <><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></>,
-    exit: <><path d="M10 17l5-5-5-5m5 5H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></>,
-    car: <><path d="m5 11 1.5-5h11L19 11l2 2v5h-2m-14 0H3v-5l2-2Z"/><path d="M5 11h14M7 18h10"/><circle cx="7" cy="18" r="1.5"/><circle cx="17" cy="18" r="1.5"/></>,
-    lock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></>,
-    unlock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2m-3.5 9v3"/></>,
-    refresh: <><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 17.4 6.4L20 9M4 15l2.6 2.6A7 7 0 0 0 18.4 15"/></>,
-    office: <><path d="M3 21h18M5 21V5l7-3 7 3v16M9 9h.01M15 9h.01M9 13h.01M15 13h.01M10 21v-4h4v4"/></>,
-    chat: <><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 3.9a8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></>,
-    people: <><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>,
-    clock: <><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></>,
-  };
-  return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" {...shared}>{drawings[name]}</svg>;
-}
-
 const endpoint = getRealtimeEndpoint();
 const CAMERA_CAPTURE_720P30 = { resolution: { width: 1280, height: 720, frameRate: 30 }, frameRate: { ideal: 30, max: 30 } };
 const SCREEN_CAPTURE_1080P30 = { resolution: { width: 1920, height: 1080, frameRate: 30 }, contentHint: "detail" as const };

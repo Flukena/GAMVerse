@@ -1,5 +1,5 @@
-import type { StarterPlacement } from "./campusFurnishingTemplates.js";
-import type { RoomLayoutZone } from "./roomLayout.js";
+import type { StarterPlacement } from "./campusFurnishingTypes.js";
+import type { RoomLayoutZone } from "./roomLayoutTypes.js";
 
 export const TEAM_MEETING_PROP_BUDGET_COUNT = 160;
 const HALF_TURN_RAD = Math.PI;

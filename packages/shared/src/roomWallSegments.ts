@@ -1,4 +1,4 @@
-import type { RoomLayoutDoor, RoomLayoutWall } from "./roomLayout.js";
+import type { RoomLayoutDoor, RoomLayoutWall } from "./roomLayoutTypes.js";
 
 const ROOM_BOUNDARY_THICKNESS_M = 0.3;
 

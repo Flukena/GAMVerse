@@ -10,7 +10,7 @@ export async function createVoiceRoom(): Promise<VoiceRoomAdapter<Room>> {
   const devices = readMediaDevicePreferences();
   return {
     room: new Room({
-      adaptiveStream: true, dynacast: true,
+      adaptiveStream: { pixelDensity: "screen" }, dynacast: true,
       // Membership rotation disconnects proximity rooms; the session republishes only after a fresh grant.
       stopLocalTrackOnUnpublish: false,
       ...mediaDeviceCaptureDefaults(devices),

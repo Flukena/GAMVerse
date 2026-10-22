@@ -1,5 +1,7 @@
 import { CIVIC_PARK_ASSETS } from "./campusCivicParkCatalog.js";
-import { ROOM_PROP_CATALOG, type RoomLayout, type RoomLayoutProp } from "./roomLayout.js";
+import { ROOM_PROP_CATALOG } from "./roomPropCatalog.js";
+import type { RoomLayout } from "./roomLayoutTypes.js";
+import type { RoomLayoutProp } from "./roomPropTypes.js";
 export { CIVIC_PARK_ASSETS } from "./campusCivicParkCatalog.js";
 
 const PATH_TILE_STEP_M = 2;

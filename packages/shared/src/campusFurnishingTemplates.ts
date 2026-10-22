@@ -1,10 +1,11 @@
-import type { RoomLayoutZone } from "./roomLayout.js";
+import type { StarterPlacement } from "./campusFurnishingTypes.js";
+import type { RoomLayoutZone } from "./roomLayoutTypes.js";
 import { campusTeamMeetingPlacements } from "./campusTeamMeetingTemplate.js";
 import { campusPrivateRoomPlacements } from "./campusPrivateRoomTemplate.js";
 import { campusCivicMeetingPlacements, campusLobbyPlacements, campusTownhallPlacements } from "./campusCivicRoomTemplates.js";
 export { campusRestroomFixtures } from "./campusRestroomFixtures.js";
 
-export type StarterPlacement = { key: string; asset: string; xM: number; zM: number; rotationRad?: number; supported?: boolean; collision?: boolean; elevationM?: number };
+export type { StarterPlacement } from "./campusFurnishingTypes.js";
 const ASSETS = {
   chair: "kit:chair", plant: "kit:pottedplant", table: "table",
 } as const;

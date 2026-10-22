@@ -1,4 +1,6 @@
-import { ROOM_PROP_CATALOG, ROOM_WALL_MODEL_ASSETS, type RoomLayoutProp } from "./roomLayout.js";
+import { ROOM_PROP_CATALOG } from "./roomPropCatalog.js";
+import { ROOM_WALL_MODEL_ASSETS } from "./roomLayoutTypes.js";
+import type { RoomLayoutProp } from "./roomPropTypes.js";
 
 const ROOM_WALL_ASSET_SET = new Set<string>(ROOM_WALL_MODEL_ASSETS);
 const WALL_STRUCTURE_ASSET = /(?:^|[-\s])wall(?:$|[-\s])|structure-(?:corner|window)(?:-|$)/i;

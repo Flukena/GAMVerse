@@ -22,6 +22,7 @@ GAMVerse is a self-hosted virtual office that runs in a browser. Members share a
 - The lobby and office page guides open on a member's first visit to each page and stay available from the “Show page guide” button.
 - Nearby chat, persisted office and direct-message threads, emoji reactions from the bottom dock picker, and a hand-raise toggle beside reactions in the dock. Office and direct messages share a 10,000-message retention pool per office.
 - Member-editable prop notes, HTTPS links, and embeds for YouTube, Google Docs/Slides, Figma, Miro, and Excalidraw. Links show their destination hostname before opening.
+- Microphone permission/device failures keep authorized listening connected and muted, with guidance and a retry through the mic button. Local microphone mute events update the controls. Remote video requests account for high-density displays so shared-screen text does not receive an unnecessarily small video layer.
 - Owner/admin spotlight controls with a separate office-wide media session and explicit speaker publishing consent.
 - Avatars turn along the shortest angle. First-person aim controls facing while standing or strafing, and switching to third person keeps the view direction; seats and vehicles retain their facing rules.
 - Camera follow smooths both position and aim in the orbit frame. V toggles third-person and first-person views in 3D and is ignored in explicit 2D. Wheel and toolbar zoom keep the selected 3D or 2D view; use the mode control or M to switch views. Toolbar `+` zooms in and `−` zooms out; in 3D this decreases or increases camera distance respectively. Third-person view starts behind the character and follows their facing direction. While heading lock is on, W/S walk along the character's facing and holding A/D turns in 45° steps; pressing S turns the character around once and walks in that direction. Right-drag releases heading lock; the separate camera-lock action toggles it, and Focus character recenters without changing the lock setting. Hold G to pass through props and cars when prompted; walls and locked rooms remain solid. The view keeps the selected zoom while walls, doors, and collision props blocking the avatar fade temporarily. Crossing doorways or media zones preserves zoom, elevation and view mode; reduced motion and world/view changes snap. First-person pitch is limited to ±75°.
@@ -127,6 +128,18 @@ packages/shared/src           Shared map model, prop catalog, movement, and coll
 PROJECT_DOCS.md               Consolidated project documentation and historical notes
 AGENTS.md                     Contributor and coding-agent rules (CLAUDE.md imports it)
 ```
+
+UI components live under `client/src/ui/`; rendering and camera logic live under
+`client/src/world/`. The office and world coordinators delegate to focused modules,
+including `ui/workspace/CharacterPickers.tsx` and `world/map2d/map2dLocateRequest.ts`.
+On the server, `offices/playerSpatialInterest.ts` owns detailed spatial views and
+distant marker cadence. Shared layout contracts live in `roomLayoutTypes.ts`, prop
+definitions in `roomPropTypes.ts`, and the catalog in `roomPropCatalog.ts`;
+`roomLayout.ts` retains layout operations and compatible exports.
+The shared `index.ts` is an export-only entry point; asset contracts, world
+defaults/builders, schemas, camera input, collision and movement each have focused
+modules. Reusable UI icons, touch controls, panel presence and activity formatting
+also live outside `OfficeApp` in their UI modules.
 
 ## Production profile
 

@@ -1,4 +1,4 @@
-import type { RoomLayoutRoadway, RoomLayoutZone } from "./roomLayout.js";
+import type { RoomLayoutRoadway, RoomLayoutZone } from "./roomLayoutTypes.js";
 
 const AVENUE_WIDTH_M = 8;
 const ALLEY_WIDTH_M = 4;

@@ -1,4 +1,4 @@
-import type { RoomLayoutZone } from "./roomLayout.js";
+import type { RoomLayoutZone } from "./roomLayoutTypes.js";
 
 export const ZONE_EXIT_MARGIN_M = 0.5;
 const RECTANGLE_HALF_DIVISOR = 2;
