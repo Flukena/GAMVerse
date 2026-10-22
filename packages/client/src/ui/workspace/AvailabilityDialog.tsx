@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from "react";
 import { CUSTOM_STATUS_EMOJI_MAX_CODE_POINTS, CUSTOM_STATUS_TEXT_MAX_CODE_POINTS, type CustomStatus, type UserStatus } from "@gammyverse/shared";
 import { WorkspaceDialog } from "./WorkspaceDialog";
-import { AVAILABILITY_OPTIONS } from "./AvailabilityPresentation";
+import { AvailabilityStatusPicker } from "./AvailabilityStatusPicker";
 import { availabilityDraftCommand, STATUS_EXPIRY_OPTIONS, STATUS_PRESETS, type StatusExpiryChoice } from "./AvailabilityEditor";
 import "./Availability.css";
 
@@ -13,9 +13,8 @@ const SAVE_LABEL = "Save status";
 const SAVING_LABEL = "Saving…";
 const CANCEL_LABEL = "Cancel";
 const CLEAR_LABEL = "Clear custom status";
-const AVAILABILITY_LABEL = "Availability";
 const INVALID_LABEL = "Check the text, emoji and expiry. Choose a new expiry if the previous status has expired.";
-const POLICY_LABEL = "Busy, In meeting and Away turn off automatic audio/video and suppress interruptions. You can still move. Returning to Available keeps your microphone and camera off until you turn them on.";
+const POLICY_LABEL = "Your status lets others know your availability. Use the microphone button to turn your microphone on or off. Changing status keeps your microphone choice.";
 export type AvailabilityDialogProps = {
   status: UserStatus;
   customStatus: CustomStatus | null;
@@ -43,11 +42,7 @@ export function AvailabilityDialog(props: AvailabilityDialogProps) {
     <form onSubmit={(event) => { event.preventDefault(); save(); }} aria-busy={props.pending}>
       <h2 id={`${id}-title`}>{EDIT_STATUS_LABEL}</h2>
       <fieldset disabled={props.pending}>
-        <label htmlFor={`${id}-availability`}>{AVAILABILITY_LABEL}</label>
-        <select id={`${id}-availability`} value={status} onChange={(event) => {
-          const option = AVAILABILITY_OPTIONS.find((item) => item.value === event.target.value);
-          if (option) setStatus(option.value);
-        }}>{AVAILABILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+        <AvailabilityStatusPicker status={status} onChange={setStatus} />
         <p className="availability-policy">{POLICY_LABEL}</p>
         <label htmlFor={`${id}-text`}>{STATUS_TEXT_LABEL}</label>
         <input ref={textRef} id={`${id}-text`} value={text} onChange={(event) => setText(event.target.value)} aria-describedby={`${id}-text-limit`} />

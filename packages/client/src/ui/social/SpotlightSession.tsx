@@ -1,7 +1,8 @@
+import { applySpotlightAudioVolume, shouldStartSpotlightMicrophone } from "./spotlightMediaPolicy";
 import { createOfficeMediaSession } from "../media/officeMediaSession";
 import type { SpotlightRequest } from "@gammyverse/shared";
 import { useEffect, useRef, useState } from "react";
-import type { RemoteAudioTrack, RemoteTrack, Room } from "livekit-client";
+import type { RemoteTrack, Room } from "livekit-client";
 import { createVoiceRoom } from "../media/voiceRoomSdk";
 import { VoiceRoomSession } from "../media/voiceRoomSession";
 import { voiceParticipantUsername } from "../media/mediaIdentity";
@@ -11,7 +12,6 @@ import {
   isSpotlightConsentCurrent,
   type SpotlightConsent,
   mediaTileKey,
-  spotlightAudioVolume,
   spotlightSessionKey,
   shouldRestoreSpotlightCamera,
 } from "./socialState";
@@ -26,7 +26,7 @@ interface SpotlightProps {
   outgoingRequests: readonly SpotlightRequest[];
   commandError: string | null;
   spotlighted: boolean;
-  doNotDisturb: boolean;
+  inboundAudioMuted?: boolean;
   zoneUsernames: ReadonlySet<string>;
   paused: boolean;
   onAcceptRequest(requestId: string): void;
@@ -50,7 +50,7 @@ export function SpotlightSession({
   outgoingRequests,
   commandError,
   spotlighted,
-  doNotDisturb,
+  inboundAudioMuted = false,
   zoneUsernames,
   paused,
   onAcceptRequest,
@@ -76,6 +76,10 @@ export function SpotlightSession({
     spotlighted,
     camera,
   );
+  const inboundAudioMutedRef = useRef(inboundAudioMuted);
+  inboundAudioMutedRef.current = inboundAudioMuted;
+  const zoneUsernamesRef = useRef(zoneUsernames);
+  zoneUsernamesRef.current = zoneUsernames;
   const [tracks, setTracks] = useState<SpotlightTrack[]>([]);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<VoiceRoomSession<Room> | null>(null);
@@ -114,7 +118,7 @@ export function SpotlightSession({
       {
         stateChanged: (state) => {
           setError(state.error?.message ?? null);
-          if (state.connected && state.muted && consentRef.current)
+          if (shouldStartSpotlightMicrophone(state, consentRef.current))
             void session.setMuted(false);
         },
         roomChanged: (room) => {
@@ -126,6 +130,7 @@ export function SpotlightSession({
         },
         trackSubscribed: (room, track, publication, participant) => {
           const username = voiceParticipantUsername(participant);
+          applySpotlightAudioVolume(track, inboundAudioMutedRef.current, zoneUsernamesRef.current.has(username));
           const key = mediaTileKey(
             room.name,
             participant.identity,
@@ -199,7 +204,8 @@ export function SpotlightSession({
         <SpotlightMedia
           key={item.key}
           item={item}
-          volume={spotlightAudioVolume(doNotDisturb, zoneUsernames.has(item.username))}
+          inboundAudioMuted={inboundAudioMuted}
+          hasZoneAudio={zoneUsernames.has(item.username)}
         />
       ))}</div>}
     </section>
@@ -207,10 +213,12 @@ export function SpotlightSession({
 }
 function SpotlightMedia({
   item,
-  volume,
+  inboundAudioMuted,
+  hasZoneAudio,
 }: {
   item: SpotlightTrack;
-  volume: number;
+  inboundAudioMuted: boolean;
+  hasZoneAudio: boolean;
 }) {
   const elementRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -222,8 +230,7 @@ function SpotlightMedia({
     };
   }, [item.track]);
   useEffect(() => {
-    if (item.track.kind === "audio")
-      (item.track as RemoteAudioTrack).setVolume(volume);
-  }, [item.track, volume]);
+    applySpotlightAudioVolume(item.track, inboundAudioMuted, hasZoneAudio);
+  }, [item.track, inboundAudioMuted, hasZoneAudio]);
   return <div ref={elementRef} aria-label={item.username} />;
 }

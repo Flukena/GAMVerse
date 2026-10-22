@@ -32,7 +32,7 @@ test("nearby groups exclude away people and local available presence never claim
     ["You", ["self"]], ["Nearby", ["near"]], ["In the office", ["far"]], ["Reconnecting", ["away"]],
   ]);
   assert.equal(personPresenceLabel(ONLINE_PERSON), "In the office");
-  assert.equal(personPresenceLabel({ ...ONLINE_PERSON, status: "do-not-disturb" }), "Do not disturb");
+  assert.equal(personPresenceLabel({ ...ONLINE_PERSON, status: "do-not-disturb" }), "Busy (Do not disturb)");
   assert.equal(personPresenceLabel({ ...ONLINE_PERSON, status: "in-meeting", presence: "away" }), "Reconnecting");
 });
 

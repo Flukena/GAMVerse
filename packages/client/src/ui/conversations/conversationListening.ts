@@ -1,4 +1,4 @@
-import { availabilityPolicy, type ConversationListeningMode, type UserStatus } from "@gammyverse/shared";
+import type { ConversationListeningMode } from "@gammyverse/shared";
 
 export const CONVERSATION_OVERRIDE_MAX_COUNT = 64;
 export const AUTO_LISTEN_STORAGE_KEY = "gamverse.auto-listen.v1";
@@ -20,9 +20,6 @@ export class ConversationListeningPreferences {
     if (this.overrides.size > CONVERSATION_OVERRIDE_MAX_COUNT) this.overrides.delete(this.overrides.keys().next().value!);
   }
   private key(officeId: string, conversationId: string): string { return JSON.stringify([officeId, conversationId]); }
-}
-export function effectiveConversationMode(mode: ConversationListeningMode, status: UserStatus): ConversationListeningMode {
-  return availabilityPolicy(status).suppressAutomaticMedia ? "off" : mode;
 }
 export function readAutoListenPreference(value: string | null): boolean {
   return value === "false" ? false : DEFAULT_AUTO_LISTEN;

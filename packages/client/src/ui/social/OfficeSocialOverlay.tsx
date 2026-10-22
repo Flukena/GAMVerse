@@ -16,7 +16,7 @@ interface OfficeSocialOverlayProps {
   chatContainer: HTMLElement | null;
   chatVisible: boolean;
   onUnread(count: number): void;
-  doNotDisturb: boolean;
+  inboundAudioMuted: boolean;
   zoneUsernames: ReadonlySet<string>;
 }
 
@@ -56,7 +56,7 @@ export function OfficeSocialOverlay(props: OfficeSocialOverlayProps) {
           outgoingRequests={social.spotlightRequests.outgoing}
           commandError={social.spotlightCommandError}
           spotlighted={social.spotlight.usernames.includes(props.username)}
-          doNotDisturb={props.doNotDisturb}
+          inboundAudioMuted={props.inboundAudioMuted}
           zoneUsernames={props.zoneUsernames}
           paused={!props.room}
           onAcceptRequest={requestId => props.room?.send("spotlight", { action: "respond", requestId, accept: true })}

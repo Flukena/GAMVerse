@@ -3,6 +3,7 @@ import type { UserStatus } from "@gammyverse/shared";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { playerName } from "../../identity/playerName";
+import { USER_STATUS_PRESENTATIONS } from "../../presencePresentation";
 
 export type VoiceRosterStatus = UserStatus;
 export type VoiceRosterPerson = {
@@ -16,26 +17,6 @@ export type VoiceRosterPerson = {
   nearby: boolean;
 };
 export type VoiceRosterActivity = { microphone: boolean; camera: boolean; screenShare: boolean };
-
-const STATUS_LABELS: Record<VoiceRosterStatus, string> = {
-  available: "Available",
-  away: "Away",
-  "do-not-disturb": "Do not disturb",
-  "in-meeting": "In meeting",
-  toilet: "Toilet",
-  lunch: "Lunch",
-  "coffee-break": "Coffee break",
-};
-
-const STATUS_COLORS: Record<VoiceRosterStatus, string> = {
-  available: "#2f9e62",
-  away: "#8a949e",
-  "do-not-disturb": "#dc3545",
-  "in-meeting": "#7950c7",
-  toilet: "#168aad",
-  lunch: "#e08b22",
-  "coffee-break": "#8a5a35",
-};
 
 function MediaGlyph({ source, off }: { source: "microphone" | "camera" | "screen"; off?: boolean }) {
   if (source === "microphone") return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v3m-3 0h6"/>{off && <path d="m3 3 14 14"/>}</svg>;
@@ -149,7 +130,7 @@ export function VoiceParticipantRoster({
         const cameraTile = cameraTiles.find(tile => tile.username === person.username.toLocaleLowerCase() && tile.source === "camera");
         const screenViewable = canViewMedia(person.username, "screen_share");
         const audioLevel = audioLevels.get(person.username.toLocaleLowerCase()) ?? 1;
-        const color = STATUS_COLORS[person.status];
+        const color = USER_STATUS_PRESENTATIONS[person.status].color;
         const style = { "--participant-status-color": color } as CSSProperties;
         const isOpen = settingsPersonId === person.sessionId;
         return <li key={person.sessionId} className={cameraTile ? "has-camera-background" : undefined} style={style}>
@@ -157,7 +138,7 @@ export function VoiceParticipantRoster({
           <span className="voice-participant-status-dot" aria-hidden="true" />
           <span className="voice-participant-copy">
             <strong className={speakingUsernames.has(person.username.toLocaleLowerCase()) ? "is-speaking" : undefined}>{playerName(person, person.local)}</strong>
-          {(person.presence === "away" || person.status !== "available") && <small>{person.presence === "away" ? "Away" : STATUS_LABELS[person.status]}</small>}
+          {(person.presence === "away" || person.status !== "available") && <small>{person.presence === "away" ? "Away" : USER_STATUS_PRESENTATIONS[person.status].label}</small>}
           </span>
           <span className="voice-participant-activity" aria-label="Media activity">
             <button type="button" className={`voice-participant-media ${!activityKnown ? "is-unknown" : activity.microphone ? "is-on" : "is-off"}`} aria-pressed={activityKnown && activity.microphone} disabled={!activityKnown || !activity.microphone} title={!activityKnown ? "Microphone status unavailable while voice is disconnected" : activity.microphone ? `Turn off ${person.displayName}'s microphone` : `${person.displayName}'s microphone is off; they can turn it on themselves`} aria-label={`${person.displayName}'s microphone ${!activityKnown ? "status unavailable" : activity.microphone ? "on, click to turn off" : "off"}`} onClick={() => { if (activityKnown && activity.microphone) onModeratePerson(person.username, "microphone"); }}><MediaGlyph source="microphone" off={activityKnown && !activity.microphone} /></button>

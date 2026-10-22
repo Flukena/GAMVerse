@@ -2,13 +2,14 @@ import { CAMPUS_LAYOUT, campusPropPlacements } from "./campusLayout.js";
 import { roomBoundaryWalls } from "./roomWallSegments.js";
 import { makeBlockerGrid } from "./blockerGrid.js";
 import type { Blocker, WorldConfig } from "./worldTypes.js";
+import { PROXIMITY_RADIUS_M } from "./proximity.js";
 
 export const WORLD = {
   width: 24,
   depth: 18,
   playerRadius: 0.38,
   movementSpeed: 4.2,
-  proximityRadius: 20,
+  proximityRadius: PROXIMITY_RADIUS_M,
   voiceFullVolumeRadius: 10,
   meetingZone: { id: "main", x: 0, z: 0, radius: 2.15, exitRadius: 2.45 },
   spawnPoints: [
@@ -116,7 +117,7 @@ export const CAMPUS_WORLD = {
   depth: CAMPUS_FLOOR.depth,
   playerRadius: 0.38,
   movementSpeed: 4.2,
-  proximityRadius: 7,
+  proximityRadius: PROXIMITY_RADIUS_M,
   voiceFullVolumeRadius: 3,
   meetingZone: { id: "townhall", ...campusMeeting, radius: 8, exitRadius: 8.6 },
   spawnPoints: [

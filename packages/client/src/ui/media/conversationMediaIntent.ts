@@ -2,9 +2,7 @@ import type { ConversationListeningMode, ConversationSnapshot } from "@gammyvers
 import type { VoiceTarget } from "./voiceTarget";
 
 interface ConversationMediaSession {
-  suppressMedia(): void;
   setTarget(target: VoiceTarget | null): void;
-  isProximityTarget?(): boolean;
 }
 
 type AdmissionIntent = { known: boolean; admitted: boolean; newLease: boolean };
@@ -23,18 +21,17 @@ export class ConversationAdmissionIntent {
   }
 }
 
-/** Listen and lost/new guest admission clear publishing intent before authorization. */
+/** Admission gates actual media; only the microphone button changes user intent. */
 export function applyConversationMediaIntent(
   session: ConversationMediaSession | null,
   target: VoiceTarget | null,
   mode: ConversationListeningMode,
   admission: AdmissionIntent = { known: true, admitted: true, newLease: false },
-  suppressForAvailability = false,
 ): void {
   if (!session) return;
-  if (suppressForAvailability) { session.suppressMedia(); return; }
-  if (!admission.known) { session.setTarget(null); return; }
-  const rotatingProximityRoom = admission.newLease && target?.kind === "proximity" && session.isProximityTarget?.();
-  if (mode !== "join" || !admission.admitted || (admission.newLease && !rotatingProximityRoom)) session.suppressMedia();
-  if (mode !== "off") session.setTarget(target);
+  if (!admission.known || !admission.admitted || mode === "off") {
+    session.setTarget(null);
+    return;
+  }
+  session.setTarget(target);
 }

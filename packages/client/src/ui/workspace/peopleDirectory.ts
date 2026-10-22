@@ -1,4 +1,5 @@
 import type { UserStatus } from "@gammyverse/shared";
+import { USER_STATUS_PRESENTATIONS } from "../../presencePresentation";
 import type { CustomStatusFields } from "./AvailabilityPresentation";
 
 export type DirectoryPerson = CustomStatusFields & {
@@ -18,10 +19,7 @@ export type DirectoryGroup = { id: DirectoryGroupId; label: string; people: Dire
 const DIRECTORY_GROUPS: ReadonlyArray<readonly [DirectoryGroupId, string]> = [
   ["you", "You"], ["nearby", "Nearby"], ["office", "In the office"], ["reconnecting", "Reconnecting"], ["offline", "Offline"],
 ];
-const PRESENCE_LABELS: Record<DirectoryPerson["status"], string> = {
-  available: "In the office", "do-not-disturb": "Do not disturb", "in-meeting": "In meeting",
-  away: "Away", toilet: "Toilet", lunch: "Lunch", "coffee-break": "Coffee break",
-};
+const IN_OFFICE_LABEL = "In the office";
 const OFFLINE_LABEL = "Offline";
 const RECONNECTING_LABEL = "Reconnecting";
 const NEARBY_LABEL = "Nearby";
@@ -36,8 +34,8 @@ function directoryGroupId([sessionId, person]: DirectoryEntry, localSessionId: s
 export function personPresenceLabel(person: DirectoryPerson): string {
   if (person.presence === "offline") return OFFLINE_LABEL;
   if (person.presence === "away") return RECONNECTING_LABEL;
-  if (person.status !== "available") return PRESENCE_LABELS[person.status];
-  return person.nearby ? NEARBY_LABEL : PRESENCE_LABELS.available;
+  if (person.status !== "available") return USER_STATUS_PRESENTATIONS[person.status].label;
+  return person.nearby ? NEARBY_LABEL : IN_OFFICE_LABEL;
 }
 
 export function buildPeopleDirectory(people: readonly DirectoryEntry[], localSessionId: string | null, query: string): DirectoryGroup[] {

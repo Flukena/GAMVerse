@@ -33,6 +33,7 @@ export { KENNEY_CHARACTER_IDS, DEFAULT_CHARACTER_ID, KENNEY_PET_IDS, KENNEY_BLAS
 export type { KenneyCharacterId, KenneyBlasterId, KenneyPetId, KenneyVehicleId } from "./assetCatalog.js";
 export type { WorldConfig, Position } from "./worldTypes.js";
 export { WORLD, CAMPUS_WORLD } from "./worldDefaults.js";
+export { PROXIMITY_RADIUS_M } from "./proximity.js";
 export { roomWorldFromConfig, campusWorldFromConfig, roomLayoutZoneAt } from "./worldConfig.js";
 export { CAMERA, DEFAULT_CAMERA_YAW, screenMovementToWorld } from "./camera.js";
 export * from "./availability.js";

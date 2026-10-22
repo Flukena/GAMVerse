@@ -1,5 +1,6 @@
 import { REALTIME_TICK_RATE_HZ, realtimeRuntimeMetrics } from "../infra/realtimeRuntimeMetrics.js";
 import { proximityNeighbors } from "./proximityNeighbors.js";
+import { projectProximityGroups } from "./proximityGroups.js";
 import { affectedDeskOwners, sendDeskAssignmentNotices } from "./deskAssignmentNotices.js";
 import { RoomSeatIndex, propDefinitionByAsset } from "./roomSeatIndex.js";
 import { VehicleCollisionIndex } from "./vehicleCollisionIndex.js";
@@ -26,7 +27,6 @@ import { readReconnectAccess, SessionSecurity } from "./sessionSecurity.js";
 import { registerSocialMessages, unregisterSocialMessages, socialPeople } from "./socialMessages.js";
 import { OFFICE_ACCESS_REVOKED_CLOSE_CODE, OFFICE_CLOSED_CLOSE_CODE, Spotlight, spotlightDepartureReason, type SpotlightDeparture } from "./spotlight.js";
 import { defineRoom, Protocol, ProtocolModifier, Room, type AuthContext, type Client, type ISendOptions } from "@colyseus/core";
-import { randomBytes } from "node:crypto";
 import { RouteSearchBudget, RouteWorkLimiter } from "./routeWorkBudget.js";
 import { RouteSearchPool } from "./routeSearchPool.js";
 import { autoMoveDriveSpeed } from "./autoMoveTiming.js";
@@ -49,7 +49,6 @@ import { PlayerSpatialInterest } from "./playerSpatialInterest.js";
 const OFFICE_MAX_MESSAGES_PER_SECOND_COUNT = 128;
 const DESK_MAP_CHANGED_LABEL = "The office desk map changed. Choose your desk again.";
 const INITIAL_MESSAGE_COUNT = 0;
-const PROXIMITY_GROUP_ID_BYTES = 12;
 const SPATIAL_PROJECTION_INTERVAL_MS = 100;
 const SPAWN_ACCESS_UNAVAILABLE_LABEL = "No accessible spawn point is available.";
 const REPLACED_SESSION_CLOSE_CODE = 4001;
@@ -1534,32 +1533,7 @@ export class OfficeRoom extends Room<{ state: InstanceType<typeof OfficeState> }
     }
     this.proximityBySessionId = next;
 
-    const nextGroupBySessionId = new Map<string, string>();
-    const nextMembersByGroupId = new Map<string, Set<string>>();
-    const visited = new Set<string>();
-    for (const [sessionId, nearby] of next) {
-      if (visited.has(sessionId) || nearby.size === 0) continue;
-      const component = new Set<string>();
-      const pending = [sessionId];
-      while (pending.length > 0) {
-        const current = pending.pop()!;
-        if (visited.has(current)) continue;
-        visited.add(current);
-        component.add(current);
-        for (const adjacent of next.get(current) ?? []) if (!visited.has(adjacent)) pending.push(adjacent);
-      }
-      if (component.size < 2) continue;
-      // Reuse a room only while its exact membership remains current. A new
-      // incarnation gets a fresh ID, so pending removals and old join tokens
-      // can only affect the retired room even if the same people regroup.
-      const previousGroupId = this.proximityGroupBySessionId.get(sessionId);
-      const previousMembers = previousGroupId && this.proximityGroupMembersById.get(previousGroupId);
-      const groupId = previousGroupId && previousMembers && sameSet(previousMembers, component)
-        ? previousGroupId
-        : randomBytes(PROXIMITY_GROUP_ID_BYTES).toString("hex");
-      nextMembersByGroupId.set(groupId, component);
-      for (const member of component) nextGroupBySessionId.set(member, groupId);
-    }
+    const { bySessionId: nextGroupBySessionId, membersById: nextMembersByGroupId } = projectProximityGroups(next, this.proximityGroupBySessionId, this.proximityGroupMembersById);
 
     const changedOldGroups = new Set<string>();
     for (const [sessionId, oldGroupId] of this.proximityGroupBySessionId) {

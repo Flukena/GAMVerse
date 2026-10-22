@@ -28,6 +28,7 @@ export interface VoiceSessionState {
   target: VoiceTarget | null;
   connected: boolean;
   muted: boolean;
+  desiredMuted: boolean;
   busy: boolean;
   retryExhausted: boolean;
   error: Error | null;
@@ -56,7 +57,11 @@ export interface VoiceSessionDependencies<R extends VoiceRoom> {
   schedule?(callback: () => void, delayMs: number): () => void;
 }
 type QueuedControl<R> = { generation: number; run: (room: R) => Promise<unknown>; finish: () => void; muted?: boolean; source?: MediaControlSource };
-type RetainedTrack = { track: LocalTrack; options?: TrackPublishOptions };
+type RetainedTrack = { track: LocalTrack; options?: TrackPublishOptions; source: string };
+
+function canPublishToTarget(target: VoiceTarget | null): boolean {
+  return target !== null && target.mode !== "listen";
+}
 
 function scheduleRetry(callback: () => void, delayMs: number): () => void {
   const timer = setTimeout(callback, delayMs);
@@ -81,18 +86,19 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
   private drainingGeneration: number | null = null;
   private localVideoActive = false;
   private retainedTracks: RetainedTrack[] = [];
-  private state: VoiceSessionState = { target: null, connected: false, muted: true, busy: false, retryExhausted: false, error: null };
+  private state: VoiceSessionState = { target: null, connected: false, muted: true, desiredMuted: true, busy: false, retryExhausted: false, error: null };
 
   isProximityTarget(): boolean { return this.target?.kind === "proximity"; }
 
   constructor(private readonly dependencies: VoiceSessionDependencies<R>, private readonly listener: VoiceSessionListener<R>) {
-    this.state.muted = dependencies.initialMuted ?? true;
+    this.state.desiredMuted = dependencies.initialMuted ?? true;
     this.teardown = dependencies.previousTeardown ?? Promise.resolve();
   }
 
   setTarget(target: VoiceTarget | null): void {
     if (this.disposed || voiceTargetKey(this.target) === voiceTargetKey(target)) return;
     const preserveProximityMedia = this.target?.kind === "proximity" && target?.kind === "proximity"
+      && canPublishToTarget(this.target) && canPublishToTarget(target)
       && this.target.officeId === target.officeId && this.target.sessionKey === target.sessionKey;
     this.invalidate(preserveProximityMedia);
     this.target = target;
@@ -162,7 +168,7 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     this.room = null;
     this.controls.splice(0).forEach(control => control.finish());
     this.listener.roomChanged?.(null, null);
-    this.publish({ connected: false, busy: false });
+    this.publish({ connected: false, muted: true, busy: false });
     if (room && preserveProximityMedia && room.localParticipant.audioTrackPublications && room.localParticipant.videoTrackPublications
       && room.localParticipant.publishTrack && room.localParticipant.unpublishTrack) {
       this.retainedTracks = this.retainedTracks.filter(({ track }) => track.mediaStreamTrack.readyState === "live");
@@ -170,7 +176,7 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
       const retained = new Map(this.retainedTracks.map(item => [item.track, item]));
       for (const publication of publications) if (publication.track && !publication.isMuted
         && RETAINABLE_TRACK_SOURCES.includes(String(publication.source))) {
-        retained.set(publication.track, { track: publication.track, ...(publication.options ? { options: publication.options } : {}) });
+        retained.set(publication.track, { track: publication.track, source: String(publication.source), ...(publication.options ? { options: publication.options } : {}) });
       }
       this.retainedTracks = [...retained.values()];
       const tracks = this.retainedTracks.map(({ track }) => track);
@@ -236,8 +242,10 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
       await room.connect(token.url, token.token, { autoSubscribe: false });
       if (!this.current(generation, room)) return;
       let microphoneError: Error | null = null;
-      if (this.retainedTracks.length) await this.restoreRetainedTracks(room, generation);
-      else microphoneError = await this.resetMedia(room, generation);
+      if (this.retainedTracks.length) {
+        await this.restoreRetainedTracks(room, generation);
+        if (this.current(generation, room)) microphoneError = await this.resetMicrophone(room, generation);
+      } else microphoneError = await this.resetMedia(room, generation);
       if (!this.current(generation, room)) return;
       this.listener.localTracksChanged?.(room);
       this.retries = 0;
@@ -257,8 +265,8 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     const tracks = this.retainedTracks.filter(({ track }) => track.mediaStreamTrack.readyState === "live");
     this.retainedTracks = [];
     try {
-      for (const { track, options } of tracks) {
-        if (!this.current(generation, room)) { track.stop(); continue; }
+      for (const { track, options, source } of tracks) {
+        if (!this.current(generation, room) || (source === VOICE_MICROPHONE_SOURCE && this.state.desiredMuted)) { track.stop(); continue; }
         await room.localParticipant.publishTrack!(track, options);
       }
     } catch (cause) {
@@ -274,10 +282,11 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     this.retainedTracks = [];
   }
   private async resetMicrophone(room: R, generation: number): Promise<Error | null> {
-    const muted = this.state.muted;
-    this.publish({ muted, error: null });
+    const muted = this.state.desiredMuted || !canPublishToTarget(this.target);
+    this.publish({ error: null });
     try {
       await room.localParticipant.setMicrophoneEnabled(!muted, muted ? undefined : VOICE_AUDIO_CAPTURE_OPTIONS);
+      if (this.current(generation, room)) this.publish({ muted });
       return null;
     } catch (cause) {
       if (!this.current(generation, room)) return null;
@@ -297,7 +306,7 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     return error;
   }
   private fail(error: Error): void {
-    this.invalidate(this.target?.kind === "proximity");
+    this.invalidate(this.target?.kind === "proximity" && canPublishToTarget(this.target));
     if (isVoiceAuthorizationDenied(error) || this.authorizationDenied?.(error)) {
       this.publish({ error, busy: false }); return;
     }
@@ -385,13 +394,14 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
       && track.mediaStreamTrack.readyState === "live";
     if (retainTrack) {
       this.retainedTracks = [...this.retainedTracks.filter(item => item.track !== track), {
-        track, ...(publication.options ? { options: publication.options } : {}),
+        track, source: String(publication.source), ...(publication.options ? { options: publication.options } : {}),
       }];
     }
     if (String(publication.source) === VOICE_MICROPHONE_SOURCE && !retainTrack) this.publish({ muted: true });
     this.listener.localTracksChanged?.(room);
   }
   control(run: (room: R) => Promise<unknown>, source?: MediaControlSource): Promise<void> {
+    if (!canPublishToTarget(this.target)) return Promise.resolve();
     return this.enqueueControl(run, undefined, source);
   }
   private enqueueControl(run: (room: R) => Promise<unknown>, muted?: boolean, source?: MediaControlSource): Promise<void> {
@@ -402,7 +412,18 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
     });
   }
   setMuted(muted: boolean): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    this.publish({ desiredMuted: muted });
+    if (muted) this.stopRetainedMicrophone();
+    if (!canPublishToTarget(this.target)) return Promise.resolve();
     return this.enqueueControl(room => room.localParticipant.setMicrophoneEnabled(!muted, VOICE_AUDIO_CAPTURE_OPTIONS), muted, "microphone");
+  }
+  private stopRetainedMicrophone(): void {
+    this.retainedTracks = this.retainedTracks.filter(({ track, source }) => {
+      if (source !== VOICE_MICROPHONE_SOURCE) return true;
+      track.stop();
+      return false;
+    });
   }
   private async drainControls(): Promise<void> {
     const generation = this.generation;
@@ -425,6 +446,7 @@ export class VoiceRoomSession<R extends VoiceRoom = VoiceRoom> {
   }
   private async executeControl(control: QueuedControl<R>, room: R): Promise<void> {
     try {
+      if (control.muted !== undefined && control.muted !== this.state.desiredMuted) return;
       await control.run(room);
       if (!this.current(control.generation, room)) return;
       this.publish({ error: null, ...(control.muted !== undefined ? { muted: control.muted } : {}) });

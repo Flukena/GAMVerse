@@ -200,7 +200,10 @@ test("serial teardown prevents overlapping rooms even across multiple targets", 
 });
 test("stale control completion never changes mute intent of a newer generation", async () => {
   const f = fixture(); await join(f); const control = deferred(); f.rooms[0]!.reset = control;
-  const muting = f.session.setMuted(false); await flush(); f.session.setTarget({ ...target, id: "B" }); await flush(); f.rooms[1]!.ready(); await flush(); control.resolve(); await muting; await flush();
+  const muting = f.session.setMuted(false); await flush();
+  const explicitOff = f.session.setMuted(true);
+  f.session.setTarget({ ...target, id: "B" }); await flush(); f.rooms[1]!.ready(); await flush(); control.resolve(); await muting; await explicitOff; await flush();
+  assert.equal(f.states.at(-1)?.desiredMuted, true);
   assert.equal(f.states.at(-1)?.muted, true); assert.equal(f.rooms[1]!.microphone.at(-1), false);
 });
 
@@ -402,23 +405,26 @@ test("office media sessions isolate zone target changes from spotlight teardown"
   await spotlight.session.dispose();
 });
 
-test("availability suppression clears microphone intent synchronously without an active target", async () => {
+test("stopping media without a target preserves chosen intent until the user changes it", async () => {
   const f = fixture((dependencies, listener) => new VoiceRoomSession({ ...dependencies, initialMuted: false }, listener));
   f.session.suppressMedia();
   assert.equal(f.states.at(-1)?.muted, true);
   await join(f);
-  assert.deepEqual(f.rooms[0]!.microphone, [false]);
+  assert.deepEqual(f.rooms[0]!.microphone, [true]);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+  await f.session.setMuted(true);
   f.session.reconnect();
   await flush();
   f.rooms[1]!.ready();
   await flush();
   assert.deepEqual(f.rooms[1]!.microphone, [false]);
+  assert.equal(f.states.at(-1)?.desiredMuted, true);
   await f.session.setMuted(false);
   assert.equal(f.rooms[1]!.microphone.at(-1), true);
   await f.session.dispose();
 });
 
-test("availability suppression leaves active media and cancels queued microphone intent", async () => {
+test("stopping media cancels old room controls while preserving manual intent for an authorized return", async () => {
   const f = fixture();
   await join(f);
   await f.session.setMuted(false);
@@ -432,7 +438,8 @@ test("availability suppression leaves active media and cancels queued microphone
   await flush();
   f.rooms.at(-1)!.ready();
   await flush();
-  assert.deepEqual(f.rooms.at(-1)!.microphone, [false]);
+  assert.deepEqual(f.rooms.at(-1)!.microphone, [true]);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
   await f.session.dispose();
 });
 
@@ -638,3 +645,131 @@ for (const errorName of MICROPHONE_NATIVE_CAPTURE_ERROR_NAMES) {
     await f.session.dispose();
   });
 }
+
+
+test("manual microphone choice made without a target is applied only after authorization", async () => {
+  const f = fixture();
+  await f.session.setMuted(false);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+  assert.equal(f.rooms.length, 0);
+  await join(f);
+  assert.equal(f.rooms[0]!.microphone.at(-1), true);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+  assert.equal(f.states.at(-1)?.muted, false);
+  await f.session.dispose();
+});
+
+test("only explicit microphone choices change desired intent across session gaps and local mute events", async () => {
+  const f = fixture(); await join(f); await f.session.setMuted(false);
+  f.rooms[0]!.emitTrackMuted({ source: "microphone", isMuted: true });
+  assert.equal(f.states.at(-1)?.muted, true);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+  f.session.setTarget(null); await flush();
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+  assert.equal(f.states.at(-1)?.muted, true);
+  f.session.setTarget({ ...target, id: "B" }); await flush(); f.rooms[1]!.ready(); await flush();
+  assert.equal(f.rooms[1]!.microphone.at(-1), true);
+  f.session.suspend(); await flush();
+  await f.session.setMuted(true);
+  f.session.resume(target); await flush(); f.rooms[2]!.ready(); await flush();
+  assert.equal(f.rooms[2]!.microphone.at(-1), false);
+  assert.equal(f.states.at(-1)?.desiredMuted, true);
+  await f.session.dispose();
+});
+
+test("capture failure leaves actual mic off without erasing manual on intent for recovery", async () => {
+  const f = fixture(); await join(f); await f.session.setMuted(false);
+  f.session.reconnect(); await flush();
+  f.rooms[1]!.microphoneError = new DOMException("Temporarily unavailable", "NotReadableError");
+  f.rooms[1]!.ready(); await flush();
+  assert.equal(f.states.at(-1)?.connected, true);
+  assert.equal(f.states.at(-1)?.muted, true);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+  f.session.reconnect(); await flush(); f.rooms[2]!.ready(); await flush();
+  assert.equal(f.rooms[2]!.microphone.at(-1), true);
+  assert.equal(f.states.at(-1)?.muted, false);
+  await f.session.dispose();
+});
+
+test("a listen-only target cannot capture or republish media despite manual on intent", async () => {
+  const f = fixture();
+  await f.session.setMuted(false);
+  f.session.setTarget({ ...target, kind: "proximity", mode: "listen" }); await flush(); f.rooms[0]!.ready(); await flush();
+  assert.deepEqual(f.rooms[0]!.microphone, [false]);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+  await f.session.setMuted(false);
+  let published = false;
+  await f.session.control(async () => { published = true; }, "camera");
+  assert.equal(published, false);
+  assert.deepEqual(f.rooms[0]!.microphone, [false]);
+  f.session.setTarget({ ...target, kind: "proximity", mode: "join" }); await flush(); f.rooms[1]!.ready(); await flush();
+  assert.equal(f.rooms[1]!.microphone.at(-1), true);
+  const track = { kind: "audio", source: "microphone", mediaStreamTrack: { readyState: "live" }, stop() {} };
+  f.rooms[1]!.localParticipant.audioTrackPublications.set("mic", { source: "microphone", isMuted: false, track });
+  f.session.setTarget({ ...target, kind: "proximity", mode: "listen" }); await flush(); f.rooms[2]!.ready(); await flush();
+  assert.deepEqual(f.rooms[1]!.disconnectStopTracks, [true]);
+  assert.deepEqual(f.rooms[2]!.publishedTracks, []);
+  assert.equal(f.rooms[2]!.microphone.at(-1), false);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+  await f.session.dispose();
+});
+
+test("an explicit off choice during join wins over earlier on intent", async () => {
+  const f = fixture();
+  await f.session.setMuted(false);
+  f.session.setTarget(target); await flush();
+  const off = f.session.setMuted(true);
+  f.rooms[0]!.ready(); await off; await flush();
+  assert.equal(f.states.at(-1)?.desiredMuted, true);
+  assert.equal(f.states.at(-1)?.muted, true);
+  assert.equal(f.rooms[0]!.microphone.includes(true), false);
+  f.session.reconnect(); await flush(); f.rooms[1]!.ready(); await flush();
+  assert.equal(f.rooms[1]!.microphone.includes(true), false);
+  await f.session.dispose();
+});
+
+
+test("obsolete queued on commands never enable capture after the user chooses off during connect", async () => {
+  const f = fixture();
+  f.session.setTarget(target); await flush();
+  const on = f.session.setMuted(false);
+  const off = f.session.setMuted(true);
+  f.rooms[0]!.ready(); await on; await off; await flush();
+  assert.equal(f.states.at(-1)?.desiredMuted, true);
+  assert.equal(f.states.at(-1)?.muted, true);
+  assert.equal(f.rooms[0]!.microphone.includes(true), false);
+  await f.session.dispose();
+});
+
+
+test("leaving and disposing stop actual media without changing the user's within-login choice", async () => {
+  const f = fixture(); await join(f); await f.session.setMuted(false);
+  f.session.leave(); await flush();
+  assert.equal(f.rooms[0]!.disconnectCount, 1);
+  assert.equal(f.states.at(-1)?.muted, true);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+  f.session.setTarget({ ...target, id: "B" }); await flush(); f.rooms[1]!.ready(); await flush();
+  assert.equal(f.rooms[1]!.microphone.at(-1), true);
+  await f.session.dispose();
+  assert.equal(f.rooms[1]!.disconnectCount, 1);
+  assert.equal(f.states.at(-1)?.muted, true);
+  assert.equal(f.states.at(-1)?.desiredMuted, false);
+});
+
+test("choosing off while a retained microphone waits for the next room stops that capture", async () => {
+  const f = fixture();
+  const nearby: VoiceTarget = { ...target, kind: "proximity", id: "group-a" };
+  f.session.setTarget(nearby); await flush(); f.rooms[0]!.ready(); await flush();
+  await f.session.setMuted(false);
+  let stopCount = 0;
+  const track = { kind: "audio", source: "microphone", mediaStreamTrack: { readyState: "live" }, stop() { stopCount++; } };
+  f.rooms[0]!.localParticipant.audioTrackPublications.set("mic", { source: "microphone", isMuted: false, track });
+  f.session.setTarget({ ...nearby, id: "group-b" }); await flush();
+  const off = f.session.setMuted(true);
+  assert.equal(stopCount, 1);
+  f.rooms[1]!.ready(); await off; await flush();
+  assert.deepEqual(f.rooms[1]!.publishedTracks, []);
+  assert.equal(f.rooms[1]!.microphone.includes(true), false);
+  assert.equal(f.states.at(-1)?.desiredMuted, true);
+  await f.session.dispose();
+});

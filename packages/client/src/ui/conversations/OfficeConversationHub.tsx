@@ -1,4 +1,4 @@
-import { availabilityPolicy, type MeetActionCommand, type UserStatus } from "@gammyverse/shared";
+import type { MeetActionCommand, UserStatus } from "@gammyverse/shared";
 import { ConversationControls } from "./ConversationControls";
 import { PublicConversationDialog } from "./PublicConversationDialog";
 import { MeetOfferCard } from "./MeetOfferCard";
@@ -6,18 +6,17 @@ import { MeetOfferTray } from "./MeetOfferTray";
 import { ConversationAccessPanel } from "./ConversationAccessPanel";
 import type { OfficeConversationsModel } from "./useOfficeConversations";
 
-const AVAILABLE_TO_LISTEN_LABEL = "Set your availability to Available before listening or joining.";
 const MEETING_REQUEST_LABEL = "Meeting request";
 export interface OfficeConversationControlsProps {
   model: OfficeConversationsModel;
   connected: boolean;
   userStatus: UserStatus;
 }
-export function OfficeConversationControls({ model, connected, userStatus }: OfficeConversationControlsProps) {
+export function OfficeConversationControls({ model, connected }: OfficeConversationControlsProps) {
   const { conversation, listening } = model;
   return <ConversationControls conversationId={conversation?.conversation?.id ?? null}
     mode={listening.mode} effectiveMode={listening.effectiveMode} autoListen={listening.autoListen}
-    connected={connected} disabledReason={availabilityPolicy(userStatus).suppressAutomaticMedia ? AVAILABLE_TO_LISTEN_LABEL : null}
+    connected={connected} disabledReason={null}
     onModeChange={listening.setMode} onAutoListenChange={listening.setAutoListen} />;
 }
 export interface OfficeConversationHubProps extends OfficeConversationControlsProps {
@@ -33,7 +32,6 @@ export function OfficeConversationHub(props: OfficeConversationHubProps) {
   const { conversation, publicConversations, meetOffers } = model;
   const incoming = meetOffers.offers.filter(offer => offer.to.sessionId === localSessionId
     && offer.state === "pending" && offer.expiresAtMs > meetOffers.nowMs);
-  const mediaSuppressed = availabilityPolicy(userStatus).suppressAutomaticMedia;
   return <>
     {props.open && <PublicConversationDialog conversations={publicConversations.conversations}
       currentConversationId={conversation?.conversation?.id ?? null} pending={publicConversations.pending}

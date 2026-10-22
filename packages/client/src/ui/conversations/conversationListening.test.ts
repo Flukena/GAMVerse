@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CONVERSATION_OVERRIDE_MAX_COUNT, ConversationListeningPreferences, effectiveConversationMode, readAutoListenPreference } from "./conversationListening";
+import { CONVERSATION_OVERRIDE_MAX_COUNT, ConversationListeningPreferences, readAutoListenPreference } from "./conversationListening";
 
 test("explicit conversation mute survives auto-listen changes and transport generations", () => {
   const preferences = new ConversationListeningPreferences();
@@ -21,10 +21,7 @@ test("automatic joining preserves an existing choice when the global preference 
   assert.equal(preferences.mode("office", "conversation", false), "listen");
   assert.equal(preferences.mode(null, "conversation", true), "off");
 });
-test("availability suppresses media without changing the requested mode or user availability", () => {
-  for (const status of ["do-not-disturb", "in-meeting", "away"] as const) assert.equal(effectiveConversationMode("join", status), "off");
-  assert.equal(effectiveConversationMode("listen", "available"), "listen");
-  assert.equal(effectiveConversationMode("off", "available"), "off");
+test("automatic listening defaults on and respects an explicit saved opt-out", () => {
   assert.equal(readAutoListenPreference(null), true);
   assert.equal(readAutoListenPreference("false"), false);
   assert.equal(readAutoListenPreference("invalid"), true);
